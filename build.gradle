@@ -1,0 +1,11 @@
+plugins {
+}
+allprojects {
+    group = 'dev.noahheller.pidoku'
+    version = '1.0.0'
+}
+subprojects {
+    repositories {
+        mavenCentral()
+    }
+}

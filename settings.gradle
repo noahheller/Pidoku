@@ -1,0 +1,4 @@
+rootProject.name = 'pidoku-project'
+include 'pidoku-engine'
+include 'pidoku-api'
+include 'pidoku-frontend'
