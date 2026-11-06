@@ -76,14 +76,15 @@ public class PidokuBacktrackSolver implements PidokuSolver{
         if (next == null) {
             return true;
         }
-        shuffleValues(digits);
+        int[] order = digits.clone();
+        shuffleValues(order);
 
-        for (int value : digits) {
+        for (int value : order) {
             if (!state.canPlace(next, value)) {
                 continue;
             }
             state.place(next, value);
-            if (solveBacktrack(state, digits)) {
+            if (solveBacktrack(state, order)) {
                 return true;
             }
             state.remove(next);

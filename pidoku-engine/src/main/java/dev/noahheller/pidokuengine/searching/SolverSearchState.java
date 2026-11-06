@@ -33,6 +33,7 @@ public class SolverSearchState {
     }
 
     private SolverSearchState(PidokuRules rules, int[][] grid) {
+        validateShape(rules, grid);
         this.grid = ArrayUtils.copy(grid);
         this.size = grid.length;
         this.rules = rules;
@@ -47,6 +48,21 @@ public class SolverSearchState {
         this.colFilled = new int[size];
         this.boxFilled = new int[totalBoxes];
         this.eliminatedCandidates = new int[size][size];
+    }
+
+    /**
+     * Rejects grids that are null, ragged, or a different size than the rules expect.
+     */
+    private static void validateShape(PidokuRules rules, int[][] grid) {
+        int size = rules.getSize();
+        if (grid == null || grid.length != size) {
+            throw new IllegalArgumentException("grid must have " + size + " rows");
+        }
+        for (int row = 0; row < size; row++) {
+            if (grid[row] == null || grid[row].length != size) {
+                throw new IllegalArgumentException("row " + row + " must have " + size + " columns");
+            }
+        }
     }
 
     public void eliminate(int row, int col, int value) {

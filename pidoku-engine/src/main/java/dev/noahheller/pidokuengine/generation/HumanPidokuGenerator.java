@@ -111,6 +111,10 @@ public class HumanPidokuGenerator implements PidokuGenerator {
 
         return bestAccepted;
     }
+    /** Midpoint of the profile's score window, computed in long so open-ended profiles don't overflow. */
+    static long midpointScore(DifficultyProfile profile) {
+        return (profile.minScore + (long) profile.maxScore) / 2;
+    }
 
 
     /**
@@ -137,8 +141,8 @@ public class HumanPidokuGenerator implements PidokuGenerator {
         List<int[]> hiddenCells = new ArrayList<>();
         List<int[]> revealedCells = new ArrayList<>();
 
+        long averageScore = midpointScore(profile);
         for (int iter = 0; iter < SWAP_ITERATIONS; iter++) {
-            int averageScore = (profile.minScore + profile.maxScore)/2;
             if (currentScore > averageScore){
                 break;
             }

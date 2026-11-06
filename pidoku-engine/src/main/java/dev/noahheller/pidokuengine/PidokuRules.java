@@ -39,8 +39,13 @@ public class PidokuRules {
         }
         this.size = size;
         DIGITS = new int[size];
-        DIGIT_FREQUENCIES = new int[size + 1];
+        DIGIT_FREQUENCIES = new int[10]; // indexed by digit 0-9
         System.arraycopy(DIGITS_OF_PI, 0, DIGITS, 0, size);
+        if (Arrays.stream(DIGITS).anyMatch(d -> d == EMPTY)) {
+            // Pi's first 0 is its 33rd digit, so this rejects size 36 and up.
+            throw new IllegalArgumentException("size(" + size + ") would include the digit "
+                    + EMPTY + ", which is reserved for empty cells");
+        }
         UNIQUE_DIGITS = Arrays.stream(DIGITS).distinct().toArray();
 
         int maxValue = -1;
@@ -78,7 +83,7 @@ public class PidokuRules {
     }
 
     public boolean isPlayableValue(int value) {
-        return DIGIT_FREQUENCIES[value] != 0;
+        return value >= 0 && value < DIGIT_FREQUENCIES.length && DIGIT_FREQUENCIES[value] != 0;
     }
 
     public int getDigitFrequency(int digit) {

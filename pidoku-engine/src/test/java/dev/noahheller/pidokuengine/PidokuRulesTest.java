@@ -54,4 +54,28 @@ class PidokuRulesTest {
     void rejectsNonSquareSizes() {
         assertThrows(IllegalArgumentException.class, () -> new PidokuRules(8));
     }
+
+    @Test
+    void outOfRangeValuesAreUnplayableInsteadOfThrowing() {
+        for (int v : new int[]{-1, 10, 99, Integer.MIN_VALUE, Integer.MAX_VALUE}) {
+            assertFalse(rules.isPlayableValue(v), "value " + v);
+            assertEquals(0, rules.getDigitFrequency(v), "value " + v);
+        }
+    }
+
+    @Test
+    void rejectsSizesWhoseDigitsIncludeTheEmptyMarker() {
+        // Pi's first 0 is its 33rd digit; 36 is the first square size that reaches it.
+        assertThrows(IllegalArgumentException.class, () -> new PidokuRules(36));
+    }
+
+    @Test
+    void acceptsLargestSizeWithoutZero() {
+        assertEquals(25, new PidokuRules(25).getSize());
+    }
+
+    @Test
+    void acceptsSizeOneEvenThoughItsDigitIsLargerThanTheBoard() {
+        assertTrue(new PidokuRules(1).isPlayableValue(3));
+    }
 }

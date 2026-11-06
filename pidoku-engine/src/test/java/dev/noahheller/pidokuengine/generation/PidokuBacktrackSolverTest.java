@@ -1,14 +1,22 @@
 package dev.noahheller.pidokuengine.generation;
 
+import dev.noahheller.pidokuengine.PidokuPuzzle;
 import dev.noahheller.pidokuengine.PidokuRules;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
+
 import static dev.noahheller.pidokuengine.PidokuTestSupport.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PidokuBacktrackSolverTest {
