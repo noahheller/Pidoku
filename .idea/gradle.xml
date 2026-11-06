@@ -10,7 +10,6 @@
             <option value="$PROJECT_DIR$" />
             <option value="$PROJECT_DIR$/pidoku-api" />
             <option value="$PROJECT_DIR$/pidoku-engine" />
-            <option value="$PROJECT_DIR$/pidoku-frontend" />
           </set>
         </option>
         <option name="myGradleHome" value="" />

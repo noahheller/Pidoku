@@ -1,20 +1,20 @@
 plugins {
-    id 'java'
+    id 'java-library'
 }
 
-group = 'dev.noahheller.pidoku'
-version = '1.0.0'
-
-repositories {
-    mavenCentral()
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 dependencies {
-    testImplementation platform('org.junit:junit-bom:5.10.0')
+    // Only used by the Main dev harness to dump puzzles as JSON.
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.21.3'
+
+    testImplementation platform('org.junit:junit-bom:5.13.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-    // Source: https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-databind
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.3")
 }
 
 test {

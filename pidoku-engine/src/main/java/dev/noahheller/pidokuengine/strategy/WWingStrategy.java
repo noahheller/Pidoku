@@ -79,8 +79,17 @@ public class WWingStrategy implements Strategy {
     }
 
     private boolean connects(BoardPosition a, BoardPosition b, StrongLink link, PidokuRules rules) {
+        // link must be between two *other* cells.
+        if (samePosition(link.first, a) || samePosition(link.first, b)
+                || samePosition(link.second, a) || samePosition(link.second, b)) {
+            return false;
+        }
         return (sees(rules, a, link.first) && sees(rules, b, link.second))
                 || (sees(rules, a, link.second) && sees(rules, b, link.first));
+    }
+
+    private static boolean samePosition(BoardPosition a, BoardPosition b) {
+        return a.getRow() == b.getRow() && a.getCol() == b.getCol();
     }
 
     private boolean sees(PidokuRules rules, BoardPosition a, BoardPosition b) {
