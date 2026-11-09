@@ -21,6 +21,10 @@ public class PidokuPuzzle {
     public int[][] getPuzzle() {
         return puzzle;
     }
+    /** The version of the engine that made this puzzle; see {@link PidokuEngine#VERSION}. */
+    public String getEngineVersion() {
+        return PidokuEngine.VERSION;
+    }
     public SolveTrace getSolveTrace() {
         return solveTrace;
     }

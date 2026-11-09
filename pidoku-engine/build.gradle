@@ -2,6 +2,10 @@ plugins {
     id 'java-library'
 }
 
+// Engine version, stamped on every generated puzzle. Bump it whenever generation or scoring changes,
+// so stored puzzles can be traced back to the engine that made them.
+version = '1.0.0'
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -15,6 +19,14 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.13.4')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Bake the version into engine.properties so PidokuEngine.VERSION can read it at runtime.
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('**/engine.properties') {
+        expand(version: project.version)
+    }
 }
 
 test {
