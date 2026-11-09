@@ -94,6 +94,17 @@ public class SearchUtils {
         return result;
     }
 
+    public static int countEmpty(SolverSearchState state) {
+        int size = state.getSize();
+        int empty = 0;
+        for (int row = 0; row < size; row++)
+            for (int col = 0; col < size; col++)
+                if (state.isEmpty(row, col)) {
+                    empty++;
+                }
+        return empty;
+    }
+
     public static boolean isSolved(SolverSearchState state) {
         int size = state.getSize();
         for (int row = 0; row < size; row++)

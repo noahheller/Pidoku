@@ -16,7 +16,7 @@ class HumanPidokuSolverTest {
     private final HumanPidokuSolver solver = new HumanPidokuSolver(rules());
 
     @Test
-    void singleMissingCellIsANakedSingle() {
+    void singleMissingCellIsAHiddenSingleInItsBox() {
         int[][] solution = fullSolution(11);
         int[][] puzzle = punchHoles(solution, 1, 11);
 
@@ -25,8 +25,12 @@ class HumanPidokuSolverTest {
         assertTrue(trace.solved);
         assertFalse(trace.requiresGuessing);
         assertEquals(1, trace.getPlacementCount());
-        assertEquals(StrategyEnum.NAKED_SINGLE, trace.getHardestStrategy());
-        assertEquals(StrategyEnum.NAKED_SINGLE.getFirstTimeScore(), trace.getTotalScore());
+        // A lone gap is a hidden single in a box, a row, a column and a naked single;
+        // the solver should take the easiest reading of it.
+        assertEquals(StrategyEnum.HIDDEN_SINGLE_BOX, trace.getHardestStrategy());
+        assertEquals(1, trace.getSteps().get(0).getOptions());
+        // Only one option, but with one empty cell it isn't a bottleneck.
+        assertEquals(0, trace.getBottleneckSteps());
     }
 
     @Test

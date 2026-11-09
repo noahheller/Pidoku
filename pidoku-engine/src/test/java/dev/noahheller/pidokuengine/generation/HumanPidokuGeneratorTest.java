@@ -19,11 +19,12 @@ class HumanPidokuGeneratorTest {
         long midpoint = HumanPidokuGenerator.midpointScore(fiendish);
 
         assertTrue(midpoint > fiendish.minScore, "midpoint was " + midpoint);
-        assertEquals((130L + Integer.MAX_VALUE) / 2, midpoint);
+        assertEquals((fiendish.minScore + (long) Integer.MAX_VALUE) / 2, midpoint);
     }
 
     @Test
     void midpointOfBoundedProfile() {
-        assertEquals(115, HumanPidokuGenerator.midpointScore(DifficultyProfile.hard()));
+        DifficultyProfile hard = DifficultyProfile.hard();
+        assertEquals((hard.minScore + hard.maxScore) / 2, HumanPidokuGenerator.midpointScore(hard));
     }
 }

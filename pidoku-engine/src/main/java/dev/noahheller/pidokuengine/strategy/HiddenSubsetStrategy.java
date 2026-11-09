@@ -5,7 +5,10 @@ import dev.noahheller.pidokuengine.PidokuRules;
 import dev.noahheller.pidokuengine.searching.SearchUtils;
 import dev.noahheller.pidokuengine.searching.SolverSearchState;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 
 public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
     public HiddenSubsetStrategy(int subsetSize) {
@@ -13,7 +16,8 @@ public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
     }
 
     @Override
-    protected StrategyResult evaluateSubset(SolverSearchState state, PidokuRules rules, List<BoardPosition> empty, List<Integer> subset, UnitType type, int index) {
+    protected Move evaluateSubset(SolverSearchState state, PidokuRules rules, List<BoardPosition> empty,
+                                  List<Integer> subset, UnitType type, int index) {
         Set<Integer> cellSet = new LinkedHashSet<>();
         for (int v : subset) {
             boolean found = false;
@@ -24,39 +28,28 @@ public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
                     found = true;
                 }
             }
-            if (!found) {
-                return StrategyResult.FAILED;
-            }
+            if (!found) return null;
         }
 
         int totalRemainingFreq = 0;
         for (int digit : subset) {
             totalRemainingFreq += getRemainingFrequency(state, rules, digit, type, index);
         }
-
         if (totalRemainingFreq != cellSet.size()) {
-            return StrategyResult.FAILED;
+            return null;
         }
 
-        int eliminations = 0;
-
+        // Those cells must hold the subset's digits, so every other candidate goes.
+        List<Move.Candidate> eliminations = new ArrayList<>();
         for (int cellIndex : cellSet) {
             BoardPosition p = empty.get(cellIndex);
-            List<Integer> cands = SearchUtils.getCandidates(state, p.getRow(), p.getCol());
-
-            for (int v : cands) {
+            for (int v : SearchUtils.getCandidates(state, p.getRow(), p.getCol())) {
                 if (!subset.contains(v)) {
-                    state.eliminate(p.getRow(), p.getCol(), v);
-                    eliminations++;
+                    eliminations.add(new Move.Candidate(p, v));
                 }
             }
         }
-
-        if (eliminations > 0) {
-            return StrategyResult.eliminated(eliminations);
-        }
-
-        return StrategyResult.FAILED;
+        return Move.eliminating(eliminations);
     }
 
     @Override

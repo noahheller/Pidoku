@@ -10,11 +10,12 @@ import java.util.List;
 
 public class IntersectionRemovalStrategy implements Strategy {
     @Override
-    public StrategyResult apply(SolverSearchState state) {
+    public List<Move> findAll(SolverSearchState state) {
         int size = state.getSize();
         PidokuRules rules = state.getRules();
         int[] digits = rules.getUniqueDigits();
         int totalBoxes = rules.totalBoxes(size);
+        List<Move> moves = new ArrayList<>();
 
         for (int digit : digits) {
             // Pointing: box -> row/col
@@ -38,16 +39,14 @@ public class IntersectionRemovalStrategy implements Strategy {
                 if (sameRow) {
                     int rowRemaining = rules.getDigitFrequency(digit) - state.getRowDigitCount(row, digit);
                     if (rowRemaining == boxRemaining) {
-                        int eliminations = eliminateFromRowOutsideBox(state, row, box, digit);
-                        if (eliminations > 0) return StrategyResult.eliminated(eliminations);
+                        addIfAny(moves, rowOutsideBox(state, row, box, digit));
                     }
                 }
 
                 if (sameCol) {
                     int colRemaining = rules.getDigitFrequency(digit) - state.getColDigitCount(col, digit);
                     if (colRemaining == boxRemaining) {
-                        int eliminations = eliminateFromColOutsideBox(state, col, box, digit);
-                        if (eliminations > 0) return StrategyResult.eliminated(eliminations);
+                        addIfAny(moves, colOutsideBox(state, col, box, digit));
                     }
                 }
             }
@@ -58,22 +57,12 @@ public class IntersectionRemovalStrategy implements Strategy {
                 if (rowRemaining <= 0) continue;
 
                 List<BoardPosition> candidates = candidatesInRow(state, row, digit);
-                if (candidates.isEmpty()) continue;
+                Integer box = commonBox(rules, candidates);
+                if (box == null) continue;
 
-                int box = rules.boxIndex(candidates.get(0).getRow(), candidates.get(0).getCol());
-                boolean sameBox = true;
-                for (BoardPosition pos : candidates) {
-                    if (rules.boxIndex(pos.getRow(), pos.getCol()) != box) {
-                        sameBox = false;
-                        break;
-                    }
-                }
-                if (sameBox) {
-                    int boxRemaining = rules.getDigitFrequency(digit) - state.getBoxDigitCount(box, digit);
-                    if (boxRemaining == rowRemaining) {
-                        int eliminations = eliminateFromBoxOutsideRow(state, box, row, digit);
-                        if (eliminations > 0) return StrategyResult.eliminated(eliminations);
-                    }
+                int boxRemaining = rules.getDigitFrequency(digit) - state.getBoxDigitCount(box, digit);
+                if (boxRemaining == rowRemaining) {
+                    addIfAny(moves, boxOutsideRow(state, box, row, digit));
                 }
             }
 
@@ -82,55 +71,49 @@ public class IntersectionRemovalStrategy implements Strategy {
                 if (colRemaining <= 0) continue;
 
                 List<BoardPosition> candidates = candidatesInCol(state, col, digit);
-                if (candidates.isEmpty()) continue;
+                Integer box = commonBox(rules, candidates);
+                if (box == null) continue;
 
-                int box = rules.boxIndex(candidates.get(0).getRow(), candidates.get(0).getCol());
-                boolean sameBox = true;
-                for (BoardPosition pos : candidates) {
-                    if (rules.boxIndex(pos.getRow(), pos.getCol()) != box) {
-                        sameBox = false;
-                        break;
-                    }
-                }
-                if (sameBox) {
-                    int boxRemaining = rules.getDigitFrequency(digit) - state.getBoxDigitCount(box, digit);
-                    if (boxRemaining == colRemaining) {
-                        int eliminations = eliminateFromBoxOutsideCol(state, box, col, digit);
-                        if (eliminations > 0) return StrategyResult.eliminated(eliminations);
-                    }
+                int boxRemaining = rules.getDigitFrequency(digit) - state.getBoxDigitCount(box, digit);
+                if (boxRemaining == colRemaining) {
+                    addIfAny(moves, boxOutsideCol(state, box, col, digit));
                 }
             }
         }
 
-        return StrategyResult.FAILED;
+        return moves;
+    }
+
+    private static void addIfAny(List<Move> moves, List<Move.Candidate> eliminations) {
+        Move move = Move.eliminating(eliminations);
+        if (move != null) moves.add(move);
+    }
+
+    /** @return the box every candidate is in, or null if they span several boxes (or there are none). */
+    private static Integer commonBox(PidokuRules rules, List<BoardPosition> candidates) {
+        if (candidates.isEmpty()) return null;
+        int box = rules.boxIndex(candidates.get(0).getRow(), candidates.get(0).getCol());
+        for (BoardPosition pos : candidates) {
+            if (rules.boxIndex(pos.getRow(), pos.getCol()) != box) return null;
+        }
+        return box;
     }
 
     private List<BoardPosition> candidatesInRow(SolverSearchState state, int row, int digit) {
-        List<BoardPosition> empty = SearchUtils.emptyCellsInRow(state, row);
-        List<BoardPosition> candidates = new ArrayList<>();
-        for (BoardPosition pos : empty) {
-            if (SearchUtils.isCandidate(state, pos, digit)) {
-                candidates.add(pos);
-            }
-        }
-        return candidates;
+        return withCandidate(state, SearchUtils.emptyCellsInRow(state, row), digit);
     }
 
     private List<BoardPosition> candidatesInCol(SolverSearchState state, int col, int digit) {
-        List<BoardPosition> empty = SearchUtils.emptyCellsInCol(state, col);
-        List<BoardPosition> candidates = new ArrayList<>();
-        for (BoardPosition pos : empty) {
-            if (SearchUtils.isCandidate(state, pos, digit)) {
-                candidates.add(pos);
-            }
-        }
-        return candidates;
+        return withCandidate(state, SearchUtils.emptyCellsInCol(state, col), digit);
     }
 
     private List<BoardPosition> candidatesInBox(SolverSearchState state, int boxIndex, int digit) {
-        List<BoardPosition> empty = SearchUtils.emptyCellsInBox(state, boxIndex);
+        return withCandidate(state, SearchUtils.emptyCellsInBox(state, boxIndex), digit);
+    }
+
+    private static List<BoardPosition> withCandidate(SolverSearchState state, List<BoardPosition> cells, int digit) {
         List<BoardPosition> candidates = new ArrayList<>();
-        for (BoardPosition pos : empty) {
+        for (BoardPosition pos : cells) {
             if (SearchUtils.isCandidate(state, pos, digit)) {
                 candidates.add(pos);
             }
@@ -138,53 +121,47 @@ public class IntersectionRemovalStrategy implements Strategy {
         return candidates;
     }
 
-    private int eliminateFromRowOutsideBox(SolverSearchState state, int row, int box, int digit) {
-        int eliminations = 0;
+    private List<Move.Candidate> rowOutsideBox(SolverSearchState state, int row, int box, int digit) {
+        List<Move.Candidate> eliminations = new ArrayList<>();
         PidokuRules rules = state.getRules();
         for (int col = 0; col < state.getSize(); col++) {
             if (rules.boxIndex(row, col) == box) continue;
             if (SearchUtils.isCandidate(state, row, col, digit)) {
-                state.eliminate(row, col, digit);
-                eliminations++;
+                eliminations.add(new Move.Candidate(new BoardPosition(row, col), digit));
             }
         }
         return eliminations;
     }
 
-    private int eliminateFromColOutsideBox(SolverSearchState state, int col, int box, int digit) {
-        int eliminations = 0;
+    private List<Move.Candidate> colOutsideBox(SolverSearchState state, int col, int box, int digit) {
+        List<Move.Candidate> eliminations = new ArrayList<>();
         PidokuRules rules = state.getRules();
         for (int row = 0; row < state.getSize(); row++) {
             if (rules.boxIndex(row, col) == box) continue;
             if (SearchUtils.isCandidate(state, row, col, digit)) {
-                state.eliminate(row, col, digit);
-                eliminations++;
+                eliminations.add(new Move.Candidate(new BoardPosition(row, col), digit));
             }
         }
         return eliminations;
     }
 
-    private int eliminateFromBoxOutsideRow(SolverSearchState state, int box, int row, int digit) {
-        int eliminations = 0;
-        List<BoardPosition> empty = SearchUtils.emptyCellsInBox(state, box);
-        for (BoardPosition pos : empty) {
+    private List<Move.Candidate> boxOutsideRow(SolverSearchState state, int box, int row, int digit) {
+        List<Move.Candidate> eliminations = new ArrayList<>();
+        for (BoardPosition pos : SearchUtils.emptyCellsInBox(state, box)) {
             if (pos.getRow() == row) continue;
             if (SearchUtils.isCandidate(state, pos, digit)) {
-                state.eliminate(pos.getRow(), pos.getCol(), digit);
-                eliminations++;
+                eliminations.add(new Move.Candidate(pos, digit));
             }
         }
         return eliminations;
     }
 
-    private int eliminateFromBoxOutsideCol(SolverSearchState state, int box, int col, int digit) {
-        int eliminations = 0;
-        List<BoardPosition> empty = SearchUtils.emptyCellsInBox(state, box);
-        for (BoardPosition pos : empty) {
+    private List<Move.Candidate> boxOutsideCol(SolverSearchState state, int box, int col, int digit) {
+        List<Move.Candidate> eliminations = new ArrayList<>();
+        for (BoardPosition pos : SearchUtils.emptyCellsInBox(state, box)) {
             if (pos.getCol() == col) continue;
             if (SearchUtils.isCandidate(state, pos, digit)) {
-                state.eliminate(pos.getRow(), pos.getCol(), digit);
-                eliminations++;
+                eliminations.add(new Move.Candidate(pos, digit));
             }
         }
         return eliminations;

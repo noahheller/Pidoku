@@ -3,7 +3,7 @@ package dev.noahheller.pidokuengine;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.noahheller.pidokuengine.generation.HumanPidokuGenerator;
 import dev.noahheller.pidokuengine.generation.PidokuBacktrackSolver;
-import dev.noahheller.pidokuengine.strategy.StrategyEnum;
+import dev.noahheller.pidokuengine.strategy.Tier;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -26,14 +26,14 @@ public class Main {
             write2DArrayToCSV(generate.getPuzzle(), String.format("output/Pidoku-%d-%s.csv", seed, profile.name));
             write2DArrayToCSV(generate.getSolution(), String.format("output/Pidoku-%d-%s-solution.csv", seed, profile.name));
         }
-        DifficultyProfile.Builder difficultyBuilder = new DifficultyProfile.Builder("relaxing");
-        difficultyBuilder.clueRange(25,35);
-        for (StrategyEnum e: StrategyEnum.values()){
-            if (!e.equals(StrategyEnum.NAKED_SINGLE)){
-                difficultyBuilder.maxUses(e, 0);
-            }
-        }
-        DifficultyProfile profile = difficultyBuilder.build();
+        // Between Trivial and Easy: singles only, with enough clues that there's
+        // usually more than one move available.
+        DifficultyProfile profile = new DifficultyProfile.Builder("relaxing")
+                .clueRange(38, 45)
+                .scoreRange(25, 45)
+                .ceiling(Tier.BEGINNER)
+                .floor(Tier.BEGINNER)
+                .build();
         PidokuPuzzle generate = builder.generate(profile);
         writeStats(generate, String.format("output/Pidoku-%d-%s-stats.json", seed, profile.name));
         write2DArrayToCSV(generate.getPuzzle(), String.format("output/Pidoku-%d-%s.csv", seed, profile.name));

@@ -12,11 +12,12 @@ import java.util.Map;
 
 public class WWingStrategy implements Strategy {
     @Override
-    public StrategyResult apply(SolverSearchState state) {
+    public List<Move> findAll(SolverSearchState state) {
         PidokuRules rules = state.getRules();
+        List<Move> moves = new ArrayList<>();
         List<BivalueCell> bivalueCells = findBivalueCells(state);
         if (bivalueCells.size() < 2) {
-            return StrategyResult.FAILED;
+            return moves;
         }
 
         Map<Integer, List<StrongLink>> strongLinksByDigit = buildStrongLinks(state);
@@ -29,35 +30,34 @@ public class WWingStrategy implements Strategy {
 
                 int d1 = a.first;
                 int d2 = a.second;
-                StrategyResult res = tryWing(state, rules, strongLinksByDigit, a, b, d1, d2);
-                if (res.madeProgress()) return res;
-                res = tryWing(state, rules, strongLinksByDigit, a, b, d2, d1);
-                if (res.madeProgress()) return res;
+                findWings(state, rules, strongLinksByDigit, a, b, d1, d2, moves);
+                findWings(state, rules, strongLinksByDigit, a, b, d2, d1, moves);
             }
         }
 
-        return StrategyResult.FAILED;
+        return moves;
     }
 
-    private StrategyResult tryWing(
+    private void findWings(
             SolverSearchState state,
             PidokuRules rules,
             Map<Integer, List<StrongLink>> strongLinksByDigit,
             BivalueCell a,
             BivalueCell b,
             int linkDigit,
-            int eliminateDigit
+            int eliminateDigit,
+            List<Move> moves
     ) {
-        if (rules.getDigitFrequency(linkDigit) != 1) return StrategyResult.FAILED;
-        if (rules.getDigitFrequency(eliminateDigit) != 1) return StrategyResult.FAILED;
+        if (rules.getDigitFrequency(linkDigit) != 1) return;
+        if (rules.getDigitFrequency(eliminateDigit) != 1) return;
 
         List<StrongLink> links = strongLinksByDigit.get(linkDigit);
-        if (links == null || links.isEmpty()) return StrategyResult.FAILED;
+        if (links == null || links.isEmpty()) return;
 
         for (StrongLink link : links) {
             if (!connects(a.position, b.position, link, rules)) continue;
 
-            int eliminations = 0;
+            List<Move.Candidate> eliminations = new ArrayList<>();
             int size = state.getSize();
             for (int row = 0; row < size; row++) {
                 for (int col = 0; col < size; col++) {
@@ -67,15 +67,13 @@ public class WWingStrategy implements Strategy {
                     BoardPosition pos = new BoardPosition(row, col);
                     if (!sees(rules, pos, a.position) || !sees(rules, pos, b.position)) continue;
                     if (SearchUtils.isCandidate(state, pos, eliminateDigit)) {
-                        state.eliminate(row, col, eliminateDigit);
-                        eliminations++;
+                        eliminations.add(new Move.Candidate(pos, eliminateDigit));
                     }
                 }
             }
-            if (eliminations > 0) return StrategyResult.eliminated(eliminations);
+            Move move = Move.eliminating(eliminations);
+            if (move != null) moves.add(move);
         }
-
-        return StrategyResult.FAILED;
     }
 
     private boolean connects(BoardPosition a, BoardPosition b, StrongLink link, PidokuRules rules) {

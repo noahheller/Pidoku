@@ -1,5 +1,6 @@
 package dev.noahheller.pidokuengine.strategy;
 
+import dev.noahheller.pidokuengine.BoardPosition;
 import dev.noahheller.pidokuengine.PidokuRules;
 import dev.noahheller.pidokuengine.searching.SearchUtils;
 import dev.noahheller.pidokuengine.searching.SolverSearchState;
@@ -39,6 +40,20 @@ class StrategySoundnessTest {
             boolean progressed = true;
             while (progressed && !SearchUtils.isSolved(state)) {
                 progressed = false;
+                // Every move findAll reports must be sound, not only the one that gets applied,
+                // and finding moves must leave the board untouched.
+                for (StrategyEnum strategy : StrategyEnum.values()) {
+                    Snapshot before = Snapshot.of(state);
+                    for (Move move : strategy.getStrategy().findAll(state)) {
+                        String violation = findViolation(move, solution);
+                        if (violation != null) violations.add(strategy + " findAll on seed " + seed + ": " + violation);
+                    }
+                    if (!before.equals(Snapshot.of(state))) {
+                        violations.add(strategy + " findAll modified the board on seed " + seed);
+                    }
+                }
+                if (!violations.isEmpty()) break;
+
                 for (StrategyEnum strategy : StrategyEnum.values()) {
                     StrategyResult result = strategy.getStrategy().apply(state);
                     if (!result.madeProgress()) continue;
@@ -59,9 +74,35 @@ class StrategySoundnessTest {
 
         System.out.println("Strategy firings across " + PUZZLES + " puzzles: " + fired);
         assertTrue(fired.getOrDefault(StrategyEnum.NAKED_SINGLE, 0) > 0);
-        assertTrue(fired.getOrDefault(StrategyEnum.HIDDEN_SINGLE, 0) > 0);
+        assertTrue(fired.getOrDefault(StrategyEnum.HIDDEN_SINGLE_BOX, 0) > 0);
         assertTrue(violations.isEmpty(),
                 violations.size() + " unsound deductions:\n  " + String.join("\n  ", violations));
+    }
+
+    private static String findViolation(Move move, int[][] solution) {
+        if (move.isPlacement()) {
+            BoardPosition p = move.getPosition();
+            int truth = solution[p.getRow()][p.getCol()];
+            return move.getValue() == truth ? null : move + ", solution has " + truth;
+        }
+        for (Move.Candidate c : move.getEliminations()) {
+            if (solution[c.position().getRow()][c.position().getCol()] == c.value()) {
+                return "would eliminate true digit " + c.value() + " from " + c.position();
+            }
+        }
+        return null;
+    }
+
+    /** Grid values plus every soft elimination, for checking that findAll is read-only. */
+    private record Snapshot(String grid, String eliminated) {
+        static Snapshot of(SolverSearchState state) {
+            StringBuilder eliminated = new StringBuilder();
+            for (int r = 0; r < SIZE; r++)
+                for (int c = 0; c < SIZE; c++)
+                    for (int v = 0; v <= 9; v++)
+                        eliminated.append(state.isEliminated(r, c, v) ? '1' : '0');
+            return new Snapshot(java.util.Arrays.deepToString(state.toArray()), eliminated.toString());
+        }
     }
 
     /** Returns a description of the first contradiction with {@code solution}, or null if none. */

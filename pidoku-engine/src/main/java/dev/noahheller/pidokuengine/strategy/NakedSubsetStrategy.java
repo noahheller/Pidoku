@@ -5,6 +5,7 @@ import dev.noahheller.pidokuengine.PidokuRules;
 import dev.noahheller.pidokuengine.searching.SearchUtils;
 import dev.noahheller.pidokuengine.searching.SolverSearchState;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -15,42 +16,32 @@ public class NakedSubsetStrategy extends SubsetSearchStrategy<BoardPosition> {
     }
 
     @Override
-    protected StrategyResult evaluateSubset(SolverSearchState state, PidokuRules rules, List<BoardPosition> empty, List<BoardPosition> subset, UnitType type, int index) {
+    protected Move evaluateSubset(SolverSearchState state, PidokuRules rules, List<BoardPosition> empty,
+                                  List<BoardPosition> subset, UnitType type, int index) {
         Set<Integer> union = new HashSet<>();
-
         for (BoardPosition pos : subset) {
             union.addAll(SearchUtils.getCandidates(state, pos.getRow(), pos.getCol()));
         }
 
-        // Compute total remaining frequency using the clean, inherited helper method
         int totalRemainingFreq = 0;
         for (int digit : union) {
             totalRemainingFreq += getRemainingFrequency(state, rules, digit, type, index);
         }
-
         if (totalRemainingFreq != getSubsetSize()) {
-            return StrategyResult.FAILED;
+            return null;
         }
 
-        int eliminations = 0;
-
-        // Eliminate candidates from all other cells in this house
+        // Eliminate the subset's digits from all other cells in this unit.
+        List<Move.Candidate> eliminations = new ArrayList<>();
         for (BoardPosition pos : empty) {
-            if (subset.contains(pos)) {
-                continue;
-            }
+            if (subset.contains(pos)) continue;
             for (int value : union) {
                 if (SearchUtils.isCandidate(state, pos, value)) {
-                    state.eliminate(pos.getRow(), pos.getCol(), value);
-                    eliminations++;
+                    eliminations.add(new Move.Candidate(pos, value));
                 }
             }
         }
-
-        if (eliminations > 0) {
-            return StrategyResult.eliminated(eliminations);
-        }
-        return StrategyResult.FAILED;
+        return Move.eliminating(eliminations);
     }
 
     @Override

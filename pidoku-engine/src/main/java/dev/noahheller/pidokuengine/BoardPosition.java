@@ -17,4 +17,18 @@ public class BoardPosition {
         return col;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        return o instanceof BoardPosition other && row == other.row && col == other.col;
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * row + col;
+    }
+
+    @Override
+    public String toString() {
+        return "(" + row + "," + col + ")";
+    }
 }
