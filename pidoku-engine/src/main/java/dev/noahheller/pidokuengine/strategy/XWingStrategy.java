@@ -1,5 +1,6 @@
 package dev.noahheller.pidokuengine.strategy;
 
+import dev.noahheller.pidokuengine.BoardPosition;
 import dev.noahheller.pidokuengine.PidokuRules;
 import dev.noahheller.pidokuengine.searching.SearchUtils;
 import dev.noahheller.pidokuengine.searching.SolverSearchState;
@@ -9,22 +10,20 @@ import java.util.List;
 
 public class XWingStrategy implements Strategy {
     @Override
-    public StrategyResult apply(SolverSearchState state) {
+    public List<Move> findAll(SolverSearchState state) {
         PidokuRules rules = state.getRules();
-        int[] digits = rules.getUniqueDigits();
-        for (int digit : digits) {
+        List<Move> moves = new ArrayList<>();
+        for (int digit : rules.getUniqueDigits()) {
             if (rules.getDigitFrequency(digit) != 1) {
                 continue;
             }
-            StrategyResult rowBased = applyRowBased(state, digit);
-            if (rowBased.madeProgress()) return rowBased;
-            StrategyResult colBased = applyColBased(state, digit);
-            if (colBased.madeProgress()) return colBased;
+            findRowBased(state, digit, moves);
+            findColBased(state, digit, moves);
         }
-        return StrategyResult.FAILED;
+        return moves;
     }
 
-    private StrategyResult applyRowBased(SolverSearchState state, int digit) {
+    private void findRowBased(SolverSearchState state, int digit, List<Move> moves) {
         int size = state.getSize();
         List<RowPair> rowPairs = new ArrayList<>();
         for (int row = 0; row < size; row++) {
@@ -50,26 +49,23 @@ public class XWingStrategy implements Strategy {
                 RowPair b = rowPairs.get(j);
                 if (a.col1 != b.col1 || a.col2 != b.col2) continue;
 
-                int eliminations = 0;
+                List<Move.Candidate> eliminations = new ArrayList<>();
                 for (int row = 0; row < size; row++) {
                     if (row == a.row || row == b.row) continue;
                     if (SearchUtils.isCandidate(state, row, a.col1, digit)) {
-                        state.eliminate(row, a.col1, digit);
-                        eliminations++;
+                        eliminations.add(new Move.Candidate(new BoardPosition(row, a.col1), digit));
                     }
                     if (SearchUtils.isCandidate(state, row, a.col2, digit)) {
-                        state.eliminate(row, a.col2, digit);
-                        eliminations++;
+                        eliminations.add(new Move.Candidate(new BoardPosition(row, a.col2), digit));
                     }
                 }
-                if (eliminations > 0) return StrategyResult.eliminated(eliminations);
+                Move move = Move.eliminating(eliminations);
+                if (move != null) moves.add(move);
             }
         }
-
-        return StrategyResult.FAILED;
     }
 
-    private StrategyResult applyColBased(SolverSearchState state, int digit) {
+    private void findColBased(SolverSearchState state, int digit, List<Move> moves) {
         int size = state.getSize();
         List<ColPair> colPairs = new ArrayList<>();
         for (int col = 0; col < size; col++) {
@@ -95,23 +91,20 @@ public class XWingStrategy implements Strategy {
                 ColPair b = colPairs.get(j);
                 if (a.row1 != b.row1 || a.row2 != b.row2) continue;
 
-                int eliminations = 0;
+                List<Move.Candidate> eliminations = new ArrayList<>();
                 for (int col = 0; col < size; col++) {
                     if (col == a.col || col == b.col) continue;
                     if (SearchUtils.isCandidate(state, a.row1, col, digit)) {
-                        state.eliminate(a.row1, col, digit);
-                        eliminations++;
+                        eliminations.add(new Move.Candidate(new BoardPosition(a.row1, col), digit));
                     }
                     if (SearchUtils.isCandidate(state, a.row2, col, digit)) {
-                        state.eliminate(a.row2, col, digit);
-                        eliminations++;
+                        eliminations.add(new Move.Candidate(new BoardPosition(a.row2, col), digit));
                     }
                 }
-                if (eliminations > 0) return StrategyResult.eliminated(eliminations);
+                Move move = Move.eliminating(eliminations);
+                if (move != null) moves.add(move);
             }
         }
-
-        return StrategyResult.FAILED;
     }
 
     private static class RowPair {

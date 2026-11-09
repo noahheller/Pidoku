@@ -29,9 +29,12 @@ public class DifficultyProfile {
         this.maxStrategyUses = java.util.Collections.unmodifiableMap(b.maxStrategyUses);
     }
 
+    // Score windows are calibrated against DifficultyScorer (p10-p90 over ~100k generated puzzles):
+    // singles-only 18-31 at 50-65 clues, 27-43 at 40-45, 40-69 at 25-30; pairs/intersections 66-120;
+    // triples 120-130; quads/X-Wing 128-161; W-Wing 152+. Tier floors/ceilings separate the overlaps.
     public static DifficultyProfile trivial() {
         return new Builder("Trivial")
-                .scoreRange(0, 50)
+                .scoreRange(0, 32)
                 .clueRange(50, 65)
                 .ceiling(Tier.BEGINNER)
                 .floor(Tier.BEGINNER)
@@ -39,7 +42,7 @@ public class DifficultyProfile {
     }
     public static DifficultyProfile easy() {
         return new Builder("Easy")
-                .scoreRange(50, 80)
+                .scoreRange(35, 70)
                 .clueRange(30, 45)
                 .ceiling(Tier.BEGINNER)
                 .floor(Tier.BEGINNER)
@@ -48,7 +51,7 @@ public class DifficultyProfile {
 
     public static DifficultyProfile medium() {
         return new Builder("Medium")
-                .scoreRange(80, 100)
+                .scoreRange(65, 120)
                 .clueRange(25, 40)
                 .ceiling(Tier.EASY)
                 .floor(Tier.EASY)
@@ -59,7 +62,7 @@ public class DifficultyProfile {
 
     public static DifficultyProfile hard() {
         return new Builder("Hard")
-                .scoreRange(100, 130)
+                .scoreRange(115, 170)
                 .clueRange(10, 30)
                 .ceiling(Tier.HARD)
                 .floor(Tier.MEDIUM)
@@ -70,7 +73,7 @@ public class DifficultyProfile {
 
     public static DifficultyProfile fiendish() {
         return new Builder("Fiendish")
-                .scoreRange(130, Integer.MAX_VALUE)
+                .scoreRange(150, Integer.MAX_VALUE)
                 .clueRange(Integer.MIN_VALUE, 25)
                 .ceiling(Tier.EXPERT)
                 .floor(Tier.EXPERT)

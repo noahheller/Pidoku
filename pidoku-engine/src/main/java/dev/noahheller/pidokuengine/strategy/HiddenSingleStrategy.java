@@ -8,9 +8,21 @@ import dev.noahheller.pidokuengine.searching.SolverSearchState;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * A digit that has exactly as many possible spots left in a unit as copies it
+ * still needs there. Every one of those spots must be that digit. For a digit that
+ * appears once this is the classic hidden single; for 1 and 5 it can be two spots.
+ * Split by unit type because scanning a box is easier for people than scanning a line.
+ */
 public class HiddenSingleStrategy extends AbstractUnitStrategy {
+
+    public HiddenSingleStrategy(UnitType... unitTypes) {
+        super(unitTypes);
+    }
+
     @Override
-    protected StrategyResult processUnit(SolverSearchState state, PidokuRules rules, List<BoardPosition> cells, UnitType type, int index) {
+    protected void processUnit(SolverSearchState state, PidokuRules rules, List<BoardPosition> cells,
+                               UnitType type, int index, List<Move> out) {
         for (int digit : rules.getUniqueDigits()) {
             int remaining = getRemainingFrequency(state, rules, digit, type, index);
             if (remaining <= 0) continue;
@@ -22,30 +34,11 @@ public class HiddenSingleStrategy extends AbstractUnitStrategy {
                 }
             }
 
-            // Hidden Single Rule in Pidoku: If the number of matching candidate spots
-            // equals exactly the remaining target frequency of that digit for this unit,
-            // those spots must all be that digit.
             if (positions.size() == remaining) {
-                if (remaining == 1) {
-                    BoardPosition p = positions.get(0);
-                    state.place(p.getRow(), p.getCol(), digit);
-                    return StrategyResult.placed(p, digit);
-                }
-
-                int eliminations = 0;
                 for (BoardPosition p : positions) {
-                    List<Integer> cands = SearchUtils.getCandidates(state, p.getRow(), p.getCol());
-                    for (int v : cands) {
-                        if (v != digit) {
-                            state.eliminate(p.getRow(), p.getCol(), v);
-                            eliminations++;
-                        }
-                    }
-                }
-                if (eliminations > 0) {
-                    return StrategyResult.eliminated(eliminations);
+                    out.add(Move.placement(p, digit));
                 }
             }
         }
-        return StrategyResult.FAILED;
-    }}
+    }
+}

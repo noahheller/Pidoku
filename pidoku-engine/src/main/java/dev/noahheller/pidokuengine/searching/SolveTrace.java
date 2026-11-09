@@ -7,11 +7,17 @@ import dev.noahheller.pidokuengine.strategy.Tier;
 import dev.noahheller.pidokuengine.utils.ArrayUtils;
 
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 public class SolveTrace {
+
+    /** A step is a bottleneck when this many cells or fewer could be filled with a single... */
+    public static final int BOTTLENECK_OPTIONS = 2;
+    /** ...while at least this many cells were still empty (the last few cells don't count). */
+    public static final int BOTTLENECK_MIN_EMPTY = 10;
 
     public static class Step {
         private final StrategyEnum strategy;
@@ -19,13 +25,17 @@ public class SolveTrace {
         private final BoardPosition position;
         private final Integer value;
         private final int eliminationCount;
+        private final double cost;
+        private final int options;
 
-        private Step(StrategyEnum strategy, StrategyResult result) {
+        private Step(StrategyEnum strategy, StrategyResult result, double cost, int options) {
             this.strategy = strategy;
             this.type = result.type;
             this.position = result.getPosition();
             this.value = result.getValue();
             this.eliminationCount = result.eliminationCount;
+            this.cost = cost;
+            this.options = options;
         }
 
         public StrategyEnum getStrategy() {
@@ -48,6 +58,16 @@ public class SolveTrace {
             return eliminationCount;
         }
 
+        /** Difficulty of this step, see {@link DifficultyScorer}. */
+        public double getCost() {
+            return cost;
+        }
+
+        /** Cells that could be filled with a single when this step was taken (0 if it needed an elimination). */
+        public int getOptions() {
+            return options;
+        }
+
         public boolean isPlacement() {
             return type == StrategyResult.Type.PLACED;
         }
@@ -57,45 +77,66 @@ public class SolveTrace {
 
     public boolean requiresGuessing = false;
 
-    private int totalScore = 0;
-
     private final Map<StrategyEnum, Integer> useCounts = new EnumMap<>(StrategyEnum.class);
 
     private StrategyEnum hardestStrategy = null;
 
-    private int totalSteps = 0;
-
     private final List<Step> steps = new ArrayList<>();
+    private final List<Double> stepCosts = new ArrayList<>();
     private int placementCount = 0;
+    private int bottleneckSteps = 0;
+    private final List<Integer> stepOptions = new ArrayList<>();
+    private int initialEmptyCells = -1;
 
-    public void record(StrategyEnum strategy, StrategyResult result) {
-        totalScore += useCounts.containsKey(strategy) ? strategy.getBaseScore() : strategy.getFirstTimeScore();
-        totalSteps++;
+    /**
+     * @param options    cells that could be filled with a single at this step (0 if it needed an elimination)
+     * @param emptyCells cells still empty before this step
+     */
+    public void record(StrategyEnum strategy, StrategyResult result, double cost, int options, int emptyCells) {
         useCounts.merge(strategy, 1, Integer::sum);
-        steps.add(new Step(strategy, result));
-        if (result.type.equals(StrategyResult.Type.PLACED)){
+        steps.add(new Step(strategy, result, cost, options));
+        stepCosts.add(cost);
+        stepOptions.add(options);
+        if (initialEmptyCells < 0) initialEmptyCells = emptyCells;
+        if (options <= BOTTLENECK_OPTIONS && emptyCells >= BOTTLENECK_MIN_EMPTY) {
+            bottleneckSteps++;
+        }
+        if (result.type == StrategyResult.Type.PLACED) {
             placementCount++;
         }
         if (hardestStrategy == null
                 || strategy.getTier().isHarderThan(hardestStrategy.getTier())
                 || (strategy.getTier() == hardestStrategy.getTier()
-                && strategy.getBaseScore() > hardestStrategy.getBaseScore())) {
+                && strategy.getCost() > hardestStrategy.getCost())) {
             hardestStrategy = strategy;
         }
     }
 
-    public int getTotalScore()                      { return totalScore; }
-    public int getTotalSteps()                      { return totalSteps; }
-    public StrategyEnum getHardestStrategy()            { return hardestStrategy; }
-    public List<Step> getSteps()                    { return java.util.Collections.unmodifiableList(steps); }
-    public int getPlacementCount()                      { return placementCount; }
+    public int getTotalScore()                      { return DifficultyScorer.score(stepCosts, stepOptions, Math.max(0, initialEmptyCells), placementCount); }
+    public int getTotalSteps()                      { return steps.size(); }
+    public StrategyEnum getHardestStrategy()        { return hardestStrategy; }
+    public List<Step> getSteps()                    { return Collections.unmodifiableList(steps); }
+    public int getPlacementCount()                  { return placementCount; }
+    public int getBottleneckSteps()                 { return bottleneckSteps; }
+
+    public double getMaxStepCost() {
+        return stepCosts.stream().mapToDouble(Double::doubleValue).max().orElse(0);
+    }
+
+    /**
+     * Mean number of cells fillable with a single over the first 25 steps (Pelánek's
+     * "dependency" metric). Lower means the puzzle is narrower.
+     */
+    public double getDependency() {
+        return DifficultyScorer.dependency(stepOptions);
+    }
 
     public int getUseCount(StrategyEnum s) {
         return useCounts.getOrDefault(s, 0);
     }
 
     public Map<StrategyEnum, Integer> getAllUseCounts() {
-        return java.util.Collections.unmodifiableMap(useCounts);
+        return Collections.unmodifiableMap(useCounts);
     }
 
     public int[][] reconstructSolution(int[][] puzzle) {
@@ -117,7 +158,8 @@ public class SolveTrace {
     @Override
     public String toString() {
         return String.format(
-                "SolveTrace{solved=%b, guessing=%b, score=%d, steps=%d, hardest=%s, counts=%s}",
-                solved, requiresGuessing, totalScore, totalSteps, hardestStrategy, useCounts);
+                "SolveTrace{solved=%b, guessing=%b, score=%d, steps=%d, hardest=%s, maxStep=%.2f, dependency=%.2f, bottlenecks=%d, counts=%s}",
+                solved, requiresGuessing, getTotalScore(), steps.size(), hardestStrategy,
+                getMaxStepCost(), getDependency(), bottleneckSteps, useCounts);
     }
 }
