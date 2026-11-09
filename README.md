@@ -14,6 +14,8 @@ they require (naked/hidden subsets, intersection removal, X-Wing, W-Wing), not b
 | `pidoku-api` | Spring Boot 4, Postgres (Neon), Flyway | REST API for campaign, puzzle generation, progress |
 | `pidoku-frontend` | React 19, TypeScript, Vite, Tailwind CSS 4, daisyUI 5 | The game |
 
+See [docs/ROADMAP.md](docs/ROADMAP.md) for design decisions and what's planned next.
+
 ## Running locally
 
 Requirements: JDK 21, Node 22+, and Docker (for API tests).
