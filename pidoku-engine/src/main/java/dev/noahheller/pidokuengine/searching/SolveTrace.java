@@ -77,6 +77,9 @@ public class SolveTrace {
 
     public boolean requiresGuessing = false;
 
+    /** The givens themselves break the rules (or use a digit this Pidoku doesn't have). */
+    public boolean invalid = false;
+
     private final Map<StrategyEnum, Integer> useCounts = new EnumMap<>(StrategyEnum.class);
 
     private StrategyEnum hardestStrategy = null;
@@ -158,8 +161,8 @@ public class SolveTrace {
     @Override
     public String toString() {
         return String.format(
-                "SolveTrace{solved=%b, guessing=%b, score=%d, steps=%d, hardest=%s, maxStep=%.2f, dependency=%.2f, bottlenecks=%d, counts=%s}",
-                solved, requiresGuessing, getTotalScore(), steps.size(), hardestStrategy,
+                "SolveTrace{solved=%b, guessing=%b, invalid=%b, score=%d, steps=%d, hardest=%s, maxStep=%.2f, dependency=%.2f, bottlenecks=%d, counts=%s}",
+                solved, requiresGuessing, invalid, getTotalScore(), steps.size(), hardestStrategy,
                 getMaxStepCost(), getDependency(), bottleneckSteps, useCounts);
     }
 }

@@ -1,637 +1,1025 @@
 {
-  "puzzle" : [ [ 0, 0, 0, 0, 5, 0, 0, 0, 9 ], [ 0, 0, 0, 5, 0, 0, 0, 0, 5 ], [ 0, 0, 0, 0, 0, 1, 0, 4, 0 ], [ 2, 1, 6, 0, 0, 0, 0, 0, 0 ], [ 0, 1, 0, 1, 0, 0, 0, 0, 0 ], [ 5, 0, 0, 0, 4, 0, 0, 0, 0 ], [ 0, 0, 4, 0, 0, 2, 6, 0, 5 ], [ 0, 3, 0, 0, 6, 1, 5, 0, 0 ], [ 0, 0, 0, 1, 9, 0, 2, 0, 1 ] ],
-  "solveTrace" : {
-    "solved" : true,
-    "requiresGuessing" : false,
-    "totalScore" : 144,
-    "hardestStrategy" : "W_WING",
-    "totalSteps" : 64,
-    "steps" : [ {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 8,
-        "col" : 2
+  "puzzle": [
+    [
+      0,
+      0,
+      0,
+      5,
+      1,
+      0,
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3,
+      0
+    ],
+    [
+      5,
+      0,
+      2,
+      6,
+      0,
+      0,
+      5,
+      0,
+      0
+    ],
+    [
+      0,
+      9,
+      6,
+      5,
+      0,
+      0,
+      0,
+      0,
+      5
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      4
+    ],
+    [
+      1,
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      5,
+      0,
+      0,
+      1,
+      0
+    ],
+    [
+      0,
+      6,
+      0,
+      1,
+      0,
+      5,
+      0,
+      0,
+      9
+    ],
+    [
+      3,
+      4,
+      0,
+      0,
+      0,
+      9,
+      0,
+      0,
+      0
+    ]
+  ],
+  "solveTrace": {
+    "solved": true,
+    "requiresGuessing": false,
+    "invalid": false,
+    "hardestStrategy": "W_WING",
+    "steps": [
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 0,
+          "col": 2
+        },
+        "value": 3,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 5,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 8,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_LINE",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 8
+        },
+        "value": 3,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 3,
-      "placement" : false
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 6,
-        "col" : 0
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 7,
+          "col": 4
+        },
+        "value": 3,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 5,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 6,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 2,
+          "col": 5
+        },
+        "value": 3,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 5,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 7,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 3
+        },
+        "value": 3,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 5,
+        "placement": true
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 7,
-        "col" : 8
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 3,
+          "col": 6
+        },
+        "value": 3,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 4,
+        "placement": true
       },
-      "value" : 4,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 7,
-        "col" : 3
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 6
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 6,
-        "col" : 3
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 3,
+          "col": 7
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 2.0,
+        "options": 3,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 3,
-        "col" : 3
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 8,
+          "col": 8
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 4,
+        "placement": true
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 6,
-        "col" : 4
+      {
+        "strategy": "HIDDEN_SINGLE_LINE",
+        "type": "PLACED",
+        "position": {
+          "row": 7,
+          "col": 0
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 6,
-        "col" : 1
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 1
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 4,
+        "placement": true
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 1
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 2,
+          "col": 1
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 3.0,
+        "options": 3,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 7,
-        "col" : 0
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 2,
+          "col": 8
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 3.0,
+        "options": 2,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 7,
-        "col" : 2
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 8,
+          "col": 3
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 3.0,
+        "options": 1,
+        "placement": true
       },
-      "value" : 2,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 8,
-        "col" : 5
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 8,
+          "col": 4
+        },
+        "value": 6,
+        "eliminationCount": 0,
+        "cost": 2.0,
+        "options": 1,
+        "placement": true
       },
-      "value" : 4,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 3,
-        "col" : 6
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 6
+        },
+        "value": 6,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 2,
+        "placement": true
       },
-      "value" : 4,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 2,
-      "placement" : false
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 3,
-        "col" : 5
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 8,
+          "col": 7
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 3.0,
+        "options": 1,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 3,
-        "col" : 7
+      {
+        "strategy": "NAKED_PAIR",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 6,
+        "cost": 5.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 0
+      {
+        "strategy": "INTERSECTION_REMOVAL",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 1,
+        "cost": 6.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 4,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 1
+      {
+        "strategy": "NAKED_SINGLE",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 1
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 3.0,
+        "options": 1,
+        "placement": true
       },
-      "value" : 4,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 3
+      {
+        "strategy": "HIDDEN_SINGLE_LINE",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 0
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 2.25,
+        "options": 1,
+        "placement": true
       },
-      "value" : 4,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 5
+      {
+        "strategy": "INTERSECTION_REMOVAL",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 1,
+        "cost": 6.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 5
+      {
+        "strategy": "X_WING",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 3,
+        "cost": 18.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 0
+      {
+        "strategy": "HIDDEN_SINGLE_LINE",
+        "type": "PLACED",
+        "position": {
+          "row": 0,
+          "col": 0
+        },
+        "value": 9,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 1,
+        "placement": true
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 3,
-        "col" : 4
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 0
+        },
+        "value": 6,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 4,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 3,
-        "col" : 8
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 2
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 4,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_PAIR",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 3,
-      "placement" : false
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 2
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 3,
+          "col": 0
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 5,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "INTERSECTION_REMOVAL",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 2,
-      "placement" : false
-    }, {
-      "strategy" : "W_WING",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 1,
-      "placement" : false
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 8
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 2
+        },
+        "value": 9,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 7,
+        "placement": true
       },
-      "value" : 6,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "X_WING",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 3,
-      "placement" : false
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 2
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 6,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 3,
-      "placement" : false
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 2
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 5,
+          "col": 2
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 5,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 6
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 3,
+          "col": 4
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 2
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 3,
+          "col": 5
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 3,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 1
+      {
+        "strategy": "HIDDEN_SINGLE_LINE",
+        "type": "PLACED",
+        "position": {
+          "row": 7,
+          "col": 6
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 2,
+        "placement": true
       },
-      "value" : 2,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "W_WING",
-      "type" : "ELIMINATED",
-      "position" : null,
-      "value" : null,
-      "eliminationCount" : 2,
-      "placement" : false
-    }, {
-      "strategy" : "HIDDEN_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 5
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 8,
+          "col": 6
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 4
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 0
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 4
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 7,
+          "col": 2
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 3,
+        "placement": true
       },
-      "value" : 2,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 8,
+          "col": 2
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 2,
+        "placement": true
       },
-      "value" : 6,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 7,
+          "col": 7
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 1,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 0,
-        "col" : 0
+      {
+        "strategy": "INTERSECTION_REMOVAL",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 2,
+        "cost": 6.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 6,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 0
+      {
+        "strategy": "W_WING",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 1,
+        "cost": 28.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 1,
-        "col" : 6
+      {
+        "strategy": "W_WING",
+        "type": "ELIMINATED",
+        "position": null,
+        "value": null,
+        "eliminationCount": 1,
+        "cost": 28.0,
+        "options": 0,
+        "placement": false
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 1
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 2,
+          "col": 4
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 2,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 3
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 3
+        },
+        "value": 9,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 5,
+        "placement": true
       },
-      "value" : 6,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 6
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 0,
+          "col": 7
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 6,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 2,
-        "col" : 8
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 2,
+          "col": 7
+        },
+        "value": 9,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 7,
+        "placement": true
       },
-      "value" : 2,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 4
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 0,
+          "col": 8
+        },
+        "value": 6,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 6,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 2
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 4
+        },
+        "value": 9,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 8,
+        "placement": true
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 6
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 5,
+          "col": 6
+        },
+        "value": 9,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 9,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 4,
-        "col" : 7
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 7
+        },
+        "value": 6,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 8,
+        "placement": true
       },
-      "value" : 2,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 2
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 5,
+          "col": 5
+        },
+        "value": 6,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 7,
+        "placement": true
       },
-      "value" : 3,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 3
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 5,
+          "col": 3
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 8,
+        "placement": true
       },
-      "value" : 2,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 5
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 5,
+          "col": 4
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 8,
+        "placement": true
       },
-      "value" : 6,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 6
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 5
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 8,
+        "placement": true
       },
-      "value" : 9,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 5,
-        "col" : 8
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 5
+        },
+        "value": 4,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 9,
+        "placement": true
       },
-      "value" : 1,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 8,
-        "col" : 0
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 6,
+          "col": 3
+        },
+        "value": 2,
+        "eliminationCount": 0,
+        "cost": 1.0,
+        "options": 8,
+        "placement": true
       },
-      "value" : 5,
-      "eliminationCount" : 0,
-      "placement" : true
-    }, {
-      "strategy" : "NAKED_SINGLE",
-      "type" : "PLACED",
-      "position" : {
-        "row" : 8,
-        "col" : 1
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 0,
+          "col": 5
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 7,
+        "placement": true
       },
-      "value" : 6,
-      "eliminationCount" : 0,
-      "placement" : true
-    } ],
-    "placementCount" : 56,
-    "allUseCounts" : {
-      "NAKED_SINGLE" : 45,
-      "HIDDEN_SINGLE" : 14,
-      "NAKED_PAIR" : 1,
-      "INTERSECTION_REMOVAL" : 1,
-      "X_WING" : 1,
-      "W_WING" : 2
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 1
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 7,
+        "placement": true
+      },
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 0,
+          "col": 1
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 6,
+        "placement": true
+      },
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 4
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 5,
+        "placement": true
+      },
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 8
+        },
+        "value": 1,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 4,
+        "placement": true
+      },
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 1,
+          "col": 6
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 3,
+        "placement": true
+      },
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 4,
+          "col": 5
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 2,
+        "placement": true
+      },
+      {
+        "strategy": "HIDDEN_SINGLE_BOX",
+        "type": "PLACED",
+        "position": {
+          "row": 5,
+          "col": 8
+        },
+        "value": 5,
+        "eliminationCount": 0,
+        "cost": 1.5,
+        "options": 1,
+        "placement": true
+      }
+    ],
+    "placementCount": 56,
+    "bottleneckSteps": 19,
+    "totalScore": 239,
+    "maxStepCost": 28.0,
+    "dependency": 2.56,
+    "totalSteps": 63,
+    "allUseCounts": {
+      "HIDDEN_SINGLE_BOX": 44,
+      "HIDDEN_SINGLE_LINE": 5,
+      "NAKED_SINGLE": 7,
+      "NAKED_PAIR": 1,
+      "INTERSECTION_REMOVAL": 3,
+      "X_WING": 1,
+      "W_WING": 2
     }
   },
-  "solution" : [ [ 6, 2, 1, 4, 5, 3, 1, 5, 9 ], [ 3, 4, 1, 5, 2, 9, 1, 6, 5 ], [ 9, 5, 5, 6, 1, 1, 3, 4, 2 ], [ 2, 1, 6, 9, 1, 5, 4, 5, 3 ], [ 4, 1, 9, 1, 3, 5, 5, 2, 6 ], [ 5, 5, 3, 2, 4, 6, 9, 1, 1 ], [ 1, 9, 4, 3, 5, 2, 6, 1, 5 ], [ 1, 3, 2, 5, 6, 1, 5, 9, 4 ], [ 5, 6, 5, 1, 9, 4, 2, 3, 1 ] ]
+  "solution": [
+    [
+      9,
+      5,
+      3,
+      5,
+      1,
+      1,
+      2,
+      4,
+      6
+    ],
+    [
+      6,
+      1,
+      4,
+      9,
+      5,
+      2,
+      5,
+      3,
+      1
+    ],
+    [
+      5,
+      1,
+      2,
+      6,
+      4,
+      3,
+      5,
+      9,
+      1
+    ],
+    [
+      4,
+      9,
+      6,
+      5,
+      1,
+      1,
+      3,
+      2,
+      5
+    ],
+    [
+      5,
+      2,
+      1,
+      3,
+      9,
+      5,
+      1,
+      6,
+      4
+    ],
+    [
+      1,
+      3,
+      5,
+      4,
+      2,
+      6,
+      9,
+      1,
+      5
+    ],
+    [
+      1,
+      5,
+      9,
+      2,
+      5,
+      4,
+      6,
+      1,
+      3
+    ],
+    [
+      2,
+      6,
+      1,
+      1,
+      3,
+      5,
+      4,
+      5,
+      9
+    ],
+    [
+      3,
+      4,
+      5,
+      1,
+      6,
+      9,
+      1,
+      5,
+      2
+    ]
+  ]
 }

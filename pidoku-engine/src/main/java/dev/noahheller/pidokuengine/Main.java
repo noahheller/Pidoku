@@ -24,10 +24,7 @@ public class Main {
         HumanPidokuGenerator generator = new HumanPidokuGenerator(rules, solver, random.nextLong());
         PidokuBuilder builder = new PidokuBuilder(rules, solver, generator);
         for (DifficultyProfile profile: DifficultyProfile.premadeProfiles()){
-            PidokuPuzzle generate = builder.generate(profile);
-            writeStats(generate, String.format("output/Pidoku-%d-%s-stats.json", seed, profile.name));
-            write2DArrayToCSV(generate.getPuzzle(), String.format("output/Pidoku-%d-%s.csv", seed, profile.name));
-            write2DArrayToCSV(generate.getSolution(), String.format("output/Pidoku-%d-%s-solution.csv", seed, profile.name));
+            generateAndWrite(builder, profile, seed);
         }
         // Between Trivial and Easy: singles only, with enough clues that there's
         // usually more than one move available.
@@ -37,11 +34,19 @@ public class Main {
                 .ceiling(Tier.BEGINNER)
                 .floor(Tier.BEGINNER)
                 .build();
-        PidokuPuzzle generate = builder.generate(profile);
-        writeStats(generate, String.format("output/Pidoku-%d-%s-stats.json", seed, profile.name));
-        write2DArrayToCSV(generate.getPuzzle(), String.format("output/Pidoku-%d-%s.csv", seed, profile.name));
-        write2DArrayToCSV(generate.getSolution(), String.format("output/Pidoku-%d-%s-solution.csv", seed, profile.name));
+        generateAndWrite(builder, profile, seed);
+    }
 
+    /** Generates one puzzle and writes its files; reports and skips the profile if generation fails. */
+    private static void generateAndWrite(PidokuBuilder builder, DifficultyProfile profile, int seed) {
+        PidokuPuzzle puzzle = builder.generate(profile);
+        if (puzzle == null) {
+            System.err.println("Could not generate a puzzle for " + profile + "; skipping it.");
+            return;
+        }
+        writeStats(puzzle, String.format("output/Pidoku-%d-%s-stats.json", seed, profile.name));
+        write2DArrayToCSV(puzzle.getPuzzle(), String.format("output/Pidoku-%d-%s.csv", seed, profile.name));
+        write2DArrayToCSV(puzzle.getSolution(), String.format("output/Pidoku-%d-%s-solution.csv", seed, profile.name));
     }
 
     private static void writeStats(PidokuPuzzle puzzle, String filePath) {

@@ -12,6 +12,8 @@ public class DifficultyProfile {
     public final String name;
     public final int minScore;
     public final int maxScore;
+    /** The score the generator aims for; puzzles closest to it win. See {@link Builder#targetScore}. */
+    public final int targetScore;
     public final Tier strategyTierCeiling;
     public final Tier strategyTierFloor;
     public final int minClues;
@@ -22,6 +24,7 @@ public class DifficultyProfile {
         this.name = b.name;
         this.minScore = b.minScore;
         this.maxScore = b.maxScore;
+        this.targetScore = b.targetScore != null ? b.targetScore : defaultTarget(b.minScore, b.maxScore);
         this.minClues = b.minClues;
         this.maxClues = b.maxClues;
         this.strategyTierCeiling = b.ceiling;
@@ -74,6 +77,8 @@ public class DifficultyProfile {
     public static DifficultyProfile fiendish() {
         return new Builder("Fiendish")
                 .scoreRange(150, Integer.MAX_VALUE)
+                // No upper bound, so aim near the median W-Wing puzzle rather than the hardest reachable.
+                .targetScore(190)
                 .clueRange(Integer.MIN_VALUE, 25)
                 .ceiling(Tier.EXPERT)
                 .floor(Tier.EXPERT)
@@ -82,6 +87,20 @@ public class DifficultyProfile {
 
     public static DifficultyProfile[] premadeProfiles() {
        return new DifficultyProfile[]{trivial(), easy(), medium(), hard(), fiendish()};
+    }
+
+    /**
+     * Middle of the score window, or the minimum when the window has no upper bound
+     * (the midpoint of an open-ended window is about a billion, which no puzzle reaches).
+     */
+    static int defaultTarget(int minScore, int maxScore) {
+        if (maxScore == Integer.MAX_VALUE) return minScore;
+        return (int) ((minScore + (long) maxScore) / 2);
+    }
+
+    /** How far {@code score} is from {@link #targetScore}; the generator prefers smaller. */
+    public long distanceToTarget(int score) {
+        return Math.abs((long) score - targetScore);
     }
 
     public boolean accepts(SolveTrace trace, int clueCount) {
@@ -108,6 +127,7 @@ public class DifficultyProfile {
     public static class Builder {
         private final String name;
         private int minScore = 0, maxScore = Integer.MAX_VALUE;
+        private Integer targetScore = null;
         private Tier ceiling = Tier.EXPERT;
         private Tier floor = Tier.BEGINNER;
         private int minClues = 20;
@@ -121,6 +141,15 @@ public class DifficultyProfile {
         public Builder scoreRange(int min, int max) {
             minScore = min;
             maxScore = max;
+            return this;
+        }
+
+        /**
+         * Score the generator should aim for. Defaults to the middle of the score range,
+         * or to the minimum if the range has no upper bound.
+         */
+        public Builder targetScore(int target) {
+            targetScore = target;
             return this;
         }
 
@@ -145,14 +174,36 @@ public class DifficultyProfile {
             return this;
         }
 
+        /** @throws IllegalArgumentException if no puzzle could ever satisfy the settings */
         public DifficultyProfile build() {
+            if (name == null || name.isBlank()) {
+                throw new IllegalArgumentException("profile needs a name");
+            }
+            if (minScore > maxScore) {
+                throw new IllegalArgumentException(name + ": minScore " + minScore + " > maxScore " + maxScore);
+            }
+            if (minClues > maxClues) {
+                throw new IllegalArgumentException(name + ": minClues " + minClues + " > maxClues " + maxClues);
+            }
+            if (ceiling == null || floor == null || floor.isHarderThan(ceiling)) {
+                throw new IllegalArgumentException(name + ": strategy floor " + floor + " is above ceiling " + ceiling);
+            }
+            if (targetScore != null && (targetScore < minScore || targetScore > maxScore)) {
+                throw new IllegalArgumentException(name + ": targetScore " + targetScore
+                        + " is outside [" + minScore + ", " + maxScore + "]");
+            }
+            for (Map.Entry<StrategyEnum, Integer> entry : maxStrategyUses.entrySet()) {
+                if (entry.getValue() < 0) {
+                    throw new IllegalArgumentException(name + ": maxUses for " + entry.getKey() + " is negative");
+                }
+            }
             return new DifficultyProfile(this);
         }
     }
 
     @Override
     public String toString() {
-        return String.format("DifficultyProfile{%s, score=[%d,%d], ceiling=%s, floor=%s}",
-                name, minScore, maxScore, strategyTierCeiling, strategyTierFloor);
+        return String.format("DifficultyProfile{%s, score=[%d,%d] target=%d, clues=[%d,%d], ceiling=%s, floor=%s}",
+                name, minScore, maxScore, targetScore, minClues, maxClues, strategyTierCeiling, strategyTierFloor);
     }
 }

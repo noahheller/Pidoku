@@ -8,12 +8,16 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
+import dev.noahheller.pidokuengine.strategy.Tier;
+
+import java.time.Duration;
 import java.util.stream.Stream;
 
 import static dev.noahheller.pidokuengine.PidokuTestSupport.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -51,6 +55,17 @@ class PidokuBuilderTest {
         assertTrue(trace.solved, "must be solvable without guessing");
         assertTrue(profile.accepts(trace, countClues(givens)),
                 profile.name + " rejected its own puzzle: " + trace + ", clues=" + countClues(givens));
+    }
+
+    /** Regression: an unsatisfiable profile used to run ~2 minutes before giving up. */
+    @Test
+    void givesUpWhenTheTimeoutRunsOut() {
+        DifficultyProfile impossible = new DifficultyProfile.Builder("Impossible")
+                .clueRange(50, 65).floor(Tier.EXPERT).ceiling(Tier.EXPERT).build();
+        long start = System.nanoTime();
+        assertNull(builder(1).generate(impossible, Duration.ofMillis(500)));
+        long elapsedMs = (System.nanoTime() - start) / 1_000_000;
+        assertTrue(elapsedMs < 3_000, "took " + elapsedMs + " ms");
     }
 
     @Test

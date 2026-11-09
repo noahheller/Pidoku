@@ -30,6 +30,14 @@ public class HumanPidokuSolver implements PidokuSolver {
         SolverSearchState state = SolverSearchState.from(rules, puzzle);
         SolveTrace trace = new SolveTrace();
 
+        // A clue that isn't a digit of this Pidoku, or one that breaks a row/column/box,
+        // means there is nothing to solve. Without this the solver would work on a
+        // half-loaded board and could report an impossible puzzle as solved.
+        if (!state.isValid()) {
+            trace.invalid = true;
+            return new PidokuPuzzle(puzzle, trace);
+        }
+
         while (!SearchUtils.isSolved(state)) {
             if (!takeStep(state, trace)) {
                 trace.requiresGuessing = true;

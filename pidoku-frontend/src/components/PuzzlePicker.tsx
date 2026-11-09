@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { countClues, formatTime, humanizeStrategy } from '../game/format';
+import { countClues, describeOpenMoves, formatTime, humanizeStrategy } from '../game/format';
 import { parsePuzzleJson, PuzzleFormatError, type PuzzleDef } from '../game/puzzleFile';
 import { loadProgress } from '../game/storage';
 
@@ -55,6 +55,7 @@ function PuzzleList({ puzzles, onPlay, onRemove }: { puzzles: PuzzleDef[]; onPla
               {puzzle.score !== null && ` · score ${puzzle.score}`}
               {puzzle.hardestStrategy && ` · ${humanizeStrategy(puzzle.hardestStrategy)}`}
             </span>
+            <OpenMoves dependency={puzzle.dependency} />
             <ProgressBadge id={puzzle.id} />
           </button>
           {onRemove && (
@@ -65,6 +66,16 @@ function PuzzleList({ puzzles, onPlay, onRemove }: { puzzles: PuzzleDef[]; onPla
         </li>
       ))}
     </ul>
+  );
+}
+
+function OpenMoves({ dependency }: { dependency: number | null | undefined }) {
+  const text = describeOpenMoves(dependency);
+  if (!text) return null;
+  return (
+    <span className="puzzle-meta" title="Average number of cells you can fill straight away during the first 25 moves. Fewer means you have to look harder for each one.">
+      {text}
+    </span>
   );
 }
 

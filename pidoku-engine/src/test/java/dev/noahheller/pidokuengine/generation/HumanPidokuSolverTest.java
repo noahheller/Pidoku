@@ -9,6 +9,7 @@ import static dev.noahheller.pidokuengine.PidokuTestSupport.*;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HumanPidokuSolverTest {
@@ -50,6 +51,49 @@ class HumanPidokuSolverTest {
         SolveTrace trace = solver.solve(new int[SIZE][SIZE]).getSolveTrace();
         assertFalse(trace.solved);
         assertTrue(trace.requiresGuessing);
+    }
+
+    /** Regression: invalid givens used to be half-loaded and then "solved". */
+    @Test
+    void rejectsGivensThatBreakTheRules() {
+        int[][] puzzle = fullSolution(14);
+        // 3 appears once per row; overwrite row 0's 4 with a second 3.
+        for (int c = 0; c < SIZE; c++) {
+            if (puzzle[0][c] == 4) puzzle[0][c] = 3;
+        }
+        // Leave some cells for the solver to "fill" (away from row 0).
+        puzzle[8][8] = 0;
+        puzzle[7][7] = 0;
+        puzzle[6][6] = 0;
+
+        assertInvalid(puzzle);
+    }
+
+    @Test
+    void rejectsDigitsThatAreNotPartOfThisPidoku() {
+        int[][] puzzle = punchHoles(fullSolution(15), 3, 15);
+        for (int r = 0; r < SIZE; r++) {
+            for (int c = 0; c < SIZE; c++) {
+                if (puzzle[r][c] != 0) {
+                    puzzle[r][c] = 7;
+                    assertInvalid(puzzle);
+                    return;
+                }
+            }
+        }
+    }
+
+    private void assertInvalid(int[][] puzzle) {
+        PidokuPuzzle result = solver.solve(puzzle);
+        SolveTrace trace = result.getSolveTrace();
+        assertTrue(trace.invalid, trace.toString());
+        assertFalse(trace.solved);
+        assertNull(result.getSolution(), "an unsolved trace must not pretend to have a solution");
+    }
+
+    @Test
+    void unsolvedPuzzlesHaveNoSolution() {
+        assertNull(solver.solve(new int[SIZE][SIZE]).getSolution());
     }
 
     @Test

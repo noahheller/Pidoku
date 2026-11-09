@@ -11,13 +11,19 @@ export interface PuzzleDef {
   solution: number[] | null;
   score: number | null;
   hardestStrategy: string | null;
+  /**
+   * Average number of cells fillable with a single over the first 25 steps
+   * (the engine's "dependency" metric). Lower means fewer ways forward at a time.
+   * Optional because puzzles saved before this field existed don't have it.
+   */
+  dependency?: number | null;
 }
 
 export class PuzzleFormatError extends Error {}
 
 /**
  * Accepts the JSON pidoku-engine's Main writes (a serialized PidokuPuzzle):
- *   { "puzzle": number[][], "solution"?: number[][], "solveTrace"?: { totalScore, hardestStrategy } }
+ *   { "puzzle": number[][], "solution"?: number[][], "solveTrace"?: { totalScore, hardestStrategy, dependency } }
  * plus optional "name" and "difficulty" fields.
  */
 export function parsePuzzleJson(raw: unknown, fallback: { id?: string; name: string; difficulty?: string }): PuzzleDef {
@@ -64,7 +70,7 @@ export function parsePuzzleJson(raw: unknown, fallback: { id?: string; name: str
   const trace = typeof obj.solveTrace === 'object' && obj.solveTrace !== null ? (obj.solveTrace as Record<string, unknown>) : {};
 
   return {
-    id: fallback.id ?? `custom-${hashGrid(givens)}`,
+    id: fallback.id ?? `custom-${hashGivens(givens)}`,
     name: typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : fallback.name,
     difficulty: typeof obj.difficulty === 'string' ? obj.difficulty : (fallback.difficulty ?? null),
     size,
@@ -72,6 +78,7 @@ export function parsePuzzleJson(raw: unknown, fallback: { id?: string; name: str
     solution,
     score: typeof trace.totalScore === 'number' ? trace.totalScore : null,
     hardestStrategy: typeof trace.hardestStrategy === 'string' ? trace.hardestStrategy : null,
+    dependency: typeof trace.dependency === 'number' && Number.isFinite(trace.dependency) ? trace.dependency : null,
   };
 }
 
@@ -97,8 +104,8 @@ function cellName(i: number, size: number): string {
   return `row ${Math.floor(i / size) + 1}, column ${(i % size) + 1}`;
 }
 
-/** Short stable id so the same custom puzzle keeps its saved progress. */
-function hashGrid(values: number[]): string {
+/** Short stable hash of a grid, so the same puzzle keeps its saved progress (and a changed one doesn't). */
+export function hashGivens(values: readonly number[]): string {
   let h = 0x811c9dc5;
   for (const v of values) {
     h ^= v;
