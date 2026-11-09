@@ -22,7 +22,13 @@ Requirements: JDK 21, Node 22+, and Docker (for API tests).
 ./gradlew build                 # builds and tests the engine and API (API tests use Testcontainers)
 ./gradlew :pidoku-api:bootRun   # runs the API
 cd pidoku-frontend && npm install && npm run dev
+cd pidoku-frontend && npm test  # frontend game-logic tests (Vitest)
 ```
+
+The frontend currently runs fully offline. It plays puzzles bundled from
+`pidoku-frontend/src/puzzles/*.json`, which are the `*-stats.json` files the engine's `Main` writes to
+`output/`. Copy a new one in as `NN-difficulty.json` and it appears in the list. You can also load any
+engine JSON file from the start screen. Progress is saved in localStorage.
 
 The API reads its database settings from environment variables, or from a gitignored
 `pidoku-api/.env` file in `.properties` format:

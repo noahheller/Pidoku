@@ -1,0 +1,608 @@
+{
+  "puzzle" : [ [ 0, 0, 0, 4, 0, 9, 0, 0, 0 ], [ 6, 1, 0, 0, 1, 0, 0, 0, 0 ], [ 0, 0, 0, 0, 2, 6, 1, 1, 0 ], [ 0, 1, 0, 0, 0, 1, 0, 0, 6 ], [ 2, 0, 0, 5, 0, 0, 0, 5, 0 ], [ 0, 0, 3, 0, 0, 0, 0, 0, 0 ], [ 0, 0, 0, 0, 0, 0, 6, 0, 1 ], [ 5, 4, 0, 1, 0, 5, 3, 9, 0 ], [ 1, 5, 0, 0, 0, 0, 2, 0, 0 ] ],
+  "solveTrace" : {
+    "solved" : true,
+    "requiresGuessing" : false,
+    "totalScore" : 91,
+    "hardestStrategy" : "INTERSECTION_REMOVAL",
+    "totalSteps" : 61,
+    "steps" : [ {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 6
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 7,
+        "col" : 8
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 7,
+        "col" : 4
+      },
+      "value" : 6,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 7,
+        "col" : 2
+      },
+      "value" : 2,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 7
+      },
+      "value" : 6,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 8,
+        "col" : 2
+      },
+      "value" : 6,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 4,
+        "col" : 1
+      },
+      "value" : 6,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 3
+      },
+      "value" : 6,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 1
+      },
+      "value" : 2,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 7
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 4
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_PAIR",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 5,
+      "placement" : false
+    }, {
+      "strategy" : "NAKED_PAIR",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 5,
+      "placement" : false
+    }, {
+      "strategy" : "NAKED_PAIR",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 4,
+      "placement" : false
+    }, {
+      "strategy" : "INTERSECTION_REMOVAL",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 2,
+      "placement" : false
+    }, {
+      "strategy" : "INTERSECTION_REMOVAL",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 1,
+      "placement" : false
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 1,
+        "col" : 5
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 3,
+      "placement" : false
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 4
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 7
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 8,
+        "col" : 7
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 8,
+        "col" : 8
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 5
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 3
+      },
+      "value" : 2,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 3,
+        "col" : 3
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 8,
+        "col" : 3
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 8,
+        "col" : 5
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 4,
+        "col" : 5
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 5
+      },
+      "value" : 2,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 8,
+        "col" : 4
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 3,
+        "col" : 7
+      },
+      "value" : 2,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 1,
+        "col" : 7
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 8
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 2
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 0,
+        "col" : 0
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 1,
+        "col" : 3
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 2,
+        "col" : 3
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 1,
+        "col" : 8
+      },
+      "value" : 2,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 3,
+        "col" : 4
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 4,
+        "col" : 4
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 4
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 4,
+        "col" : 8
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 1
+      },
+      "value" : 3,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "ELIMINATED",
+      "position" : null,
+      "value" : null,
+      "eliminationCount" : 3,
+      "placement" : false
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 2,
+        "col" : 2
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 3,
+        "col" : 2
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "HIDDEN_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 1,
+        "col" : 2
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 1,
+        "col" : 6
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 2,
+        "col" : 8
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 4,
+        "col" : 6
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 4,
+        "col" : 2
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 1
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 2,
+        "col" : 1
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 2,
+        "col" : 0
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 3,
+        "col" : 0
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 3,
+        "col" : 6
+      },
+      "value" : 5,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 0
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 6
+      },
+      "value" : 4,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 5,
+        "col" : 8
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 0
+      },
+      "value" : 9,
+      "eliminationCount" : 0,
+      "placement" : true
+    }, {
+      "strategy" : "NAKED_SINGLE",
+      "type" : "PLACED",
+      "position" : {
+        "row" : 6,
+        "col" : 2
+      },
+      "value" : 1,
+      "eliminationCount" : 0,
+      "placement" : true
+    } ],
+    "placementCount" : 54,
+    "allUseCounts" : {
+      "NAKED_SINGLE" : 39,
+      "HIDDEN_SINGLE" : 17,
+      "NAKED_PAIR" : 3,
+      "INTERSECTION_REMOVAL" : 2
+    }
+  },
+  "solution" : [ [ 3, 2, 1, 4, 1, 9, 5, 6, 5 ], [ 6, 1, 4, 5, 1, 5, 9, 3, 2 ], [ 5, 9, 5, 3, 2, 6, 1, 1, 4 ], [ 4, 1, 5, 9, 3, 1, 5, 2, 6 ], [ 2, 6, 9, 5, 4, 1, 1, 5, 3 ], [ 1, 5, 3, 6, 5, 2, 4, 1, 9 ], [ 9, 3, 1, 2, 5, 4, 6, 5, 1 ], [ 5, 4, 2, 1, 6, 5, 3, 9, 1 ], [ 1, 5, 6, 1, 9, 3, 2, 4, 5 ] ]
+}

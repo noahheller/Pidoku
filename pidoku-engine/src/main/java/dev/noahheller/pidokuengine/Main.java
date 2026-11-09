@@ -7,12 +7,15 @@ import dev.noahheller.pidokuengine.strategy.StrategyEnum;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Random;
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
+        Files.createDirectories(Path.of("output"));
         int seed = 1234;
         Random random = new Random(seed);
 
