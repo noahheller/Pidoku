@@ -1,572 +1,72 @@
-:root {
-  --bg: #f7f6f2;
-  --surface: #ffffff;
-  --text: #2b2a33;
-  --muted: #6e6c78;
-  --line: #d6d4dc;
-  --line-strong: #2b2a33;
-  --accent: #3b5bdb;
-  --accent-soft: #e3e9ff;
-  --peer: #eeedf3;
-  --same: #c9d5ff;
-  --selected: #9fb4ff;
-  --given: #1d1c22;
-  --entered: #3b5bdb;
-  --error: #d6336c;
-  --error-soft: #ffe3ec;
-  --success: #2f9e44;
-  /* Board highlights while notes mode is on, so it's obvious what a tap will do. */
-  --notes-accent: #c26a00;
-  --notes-peer: #fbf1df;
-  --notes-same: #ffe2ad;
-  --notes-selected: #ffc766;
-  --radius: 10px;
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+/* Recursive (casual axis only) is just for handwritten digits; everything else uses the system font. */
+@import '@fontsource-variable/recursive/casl.css';
+@import 'tailwindcss';
 
-  font: 16px/1.5 var(--sans);
-  color: var(--text);
-  background: var(--bg);
-  color-scheme: light dark;
-  -webkit-font-smoothing: antialiased;
+@plugin 'daisyui' {
+  themes:
+    light --default,
+    dark --prefersdark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #15161b;
-    --surface: #1e2027;
-    --text: #e8e7ee;
-    --muted: #9b9aa6;
-    --line: #3a3c47;
-    --line-strong: #c8c7d1;
-    --accent: #8ea6ff;
-    --accent-soft: #262d48;
-    --peer: #252731;
-    --same: #2f3a63;
-    --selected: #3e4f8f;
-    --given: #f1f0f6;
-    --entered: #8ea6ff;
-    --error: #ff6b9a;
-    --error-soft: #47202f;
-    --success: #69db7c;
-    --notes-accent: #ffb547;
-    --notes-peer: #2b2720;
-    --notes-same: #4a3a1c;
-    --notes-selected: #7a5717;
+/* Pidoku's colours on top of daisyUI's stock themes: blue for pen, violet (secondary) for notes mode. */
+@plugin 'daisyui/theme' {
+  name: 'light';
+  default: true;
+  --color-primary: #3b5bdb;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7c3aed;
+  --color-secondary-content: #ffffff;
+  --color-warning: #d97706;
+  --color-warning-content: #1f1300;
+  --color-error: #d6336c;
+  --color-success: #2f9e44;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'dark';
+  prefersdark: true;
+  --color-primary: #8ea6ff;
+  --color-primary-content: #10142a;
+  --color-secondary: #b197fc;
+  --color-secondary-content: #1a0f33;
+  --color-warning: #ffb547;
+  --color-warning-content: #2b1a00;
+  --color-error: #ff6b9a;
+  --color-success: #69db7c;
+}
+
+@theme {
+  --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-hand: 'Recursive Variable', system-ui, sans-serif;
+
+  --animate-write-in: write-in 420ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+
+  @keyframes write-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.35em);
+    }
   }
 }
 
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  min-height: 100vh;
-}
-
-button {
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: default;
-  opacity: 0.45;
-}
-
-code {
-  font-size: 0.9em;
-  background: var(--peer);
-  padding: 0.05em 0.3em;
-  border-radius: 4px;
-}
-
-h1,
-h2 {
-  margin: 0;
-  line-height: 1.2;
-}
-
-/* ---------- Shared buttons ---------- */
-
-.controls button,
-.banner button,
-.load-puzzle .primary,
-.file-input {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  border-radius: var(--radius);
-  padding: 0.5em 0.8em;
-}
-
-.controls button:not(:disabled):hover,
-.banner button:hover,
-.file-input:hover {
-  border-color: var(--accent);
-}
-
-.primary,
-.banner .primary,
-.load-puzzle .primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
-.toggle.on {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.link {
-  background: none;
-  border: none;
-  color: var(--accent);
-  padding: 0.25em 0;
-}
-
-/* ---------- Picker ---------- */
-
-.picker {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 2rem 1rem 4rem;
-  display: grid;
-  gap: 2rem;
-}
-
-.picker-header h1 {
-  font-size: 2.4rem;
-}
-
-.picker-header p {
-  color: var(--muted);
-  margin: 0.4rem 0 0;
-}
-
-.pi {
-  color: var(--accent);
-}
-
-.picker h2 {
-  font-size: 1.1rem;
-  margin-bottom: 0.75rem;
-}
-
-.puzzle-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0.75rem;
-}
-
-.puzzle-card {
-  position: relative;
-}
-
-.puzzle-card-main {
-  width: 100%;
-  height: 100%;
-  text-align: left;
-  display: grid;
-  gap: 0.25rem;
-  padding: 1rem;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-}
-
-.puzzle-card-main:hover {
-  border-color: var(--accent);
-}
-
-.puzzle-name {
-  font-weight: 600;
-  font-size: 1.1rem;
-}
-
-.puzzle-meta {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.progress {
-  font-size: 0.8rem;
-  font-weight: 600;
-}
-
-.progress.new {
-  color: var(--muted);
-}
-
-.progress.started {
-  color: var(--accent);
-}
-
-.progress.done {
-  color: var(--success);
-}
-
-.remove {
-  position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: none;
-  border: none;
-  color: var(--muted);
-}
-
-.load-puzzle {
-  display: grid;
-  gap: 0.75rem;
-  padding: 1.25rem;
-  background: var(--surface);
-  border: 1px dashed var(--line);
-  border-radius: var(--radius);
-}
-
-.load-puzzle h2 {
-  margin: 0;
-}
-
-.load-puzzle p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
-}
-
-.file-input {
-  justify-self: start;
-  cursor: pointer;
-}
-
-.file-input input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.file-input:focus-within {
-  outline: 2px solid var(--accent);
-}
-
-textarea {
-  font: 0.85rem/1.4 ui-monospace, Consolas, monospace;
-  color: inherit;
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: 0.6rem;
-  resize: vertical;
-}
-
-.load-puzzle .primary {
-  justify-self: start;
-}
-
-.error-message {
-  color: var(--error) !important;
-  font-weight: 500;
-}
-
-/* ---------- Game ---------- */
-
-.game {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 1rem 1rem 2rem;
-  display: grid;
-  gap: 1rem;
-}
-
-.game-header {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.game-header h1 {
-  font-size: 1.4rem;
-  flex: 1;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.badge {
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.15em 0.6em;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.stats {
-  display: flex;
-  gap: 1rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted);
-}
-
-.play-area {
-  display: flex;
-  gap: 1.5rem;
-  align-items: flex-start;
-  justify-content: center;
-  flex-wrap: wrap;
-}
-
-.side-panel {
-  display: grid;
-  gap: 1rem;
-  width: min(100%, 360px);
-}
-
-/* Board */
-
-.board {
-  --cell-border: 1px solid var(--line);
-  --box-border: 2px solid var(--line-strong);
-  container-type: inline-size;
-  display: grid;
-  grid-template-columns: repeat(var(--size), 1fr);
-  width: min(100%, 560px, calc(100vh - 9rem));
-  min-width: 280px;
-  aspect-ratio: 1;
-  border: 3px solid var(--line-strong);
-  border-radius: 6px;
-  overflow: hidden;
-  background: var(--surface);
-  user-select: none;
-  touch-action: manipulation;
-}
-
-.board.notes-mode {
-  --accent: var(--notes-accent);
-  --peer: var(--notes-peer);
-  --same: var(--notes-same);
-  --selected: var(--notes-selected);
-}
-
-.cell {
-  position: relative;
-  aspect-ratio: 1;
-  padding: 0;
-  border: none;
-  border-right: var(--cell-border);
-  border-bottom: var(--cell-border);
-  background: var(--surface);
-  display: grid;
-  place-items: center;
-  font-size: calc(100cqi / var(--size) * 0.55);
-  color: var(--entered);
-  font-weight: 500;
-}
-
-.cell.last-col {
-  border-right: none;
-}
-
-.cell.last-row {
-  border-bottom: none;
-}
-
-.cell.box-right {
-  border-right: var(--box-border);
-}
-
-.cell.box-bottom {
-  border-bottom: var(--box-border);
-}
-
-.cell.given {
-  color: var(--given);
-  font-weight: 700;
-}
-
-.cell.peer {
-  background: var(--peer);
-}
-
-.cell.same-digit {
-  background: var(--same);
-}
-
-.cell.selected {
-  background: var(--selected);
-}
-
-.cell.error {
-  color: var(--error);
-}
-
-.cell.error:not(.selected) {
-  background: var(--error-soft);
-}
-
-.cell:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -3px;
-  z-index: 1;
-}
-
-.notes {
-  position: absolute;
-  inset: 6%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-  font-size: calc(100cqi / var(--size) * 0.24);
-  font-weight: 500;
-  color: var(--muted);
-  line-height: 1;
-}
-
-.note {
-  display: grid;
-  place-items: center;
-}
-
-.note.match {
-  color: var(--accent);
-  font-weight: 800;
-}
-
-/* Number pad */
-
-.number-pad {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem;
-}
-
-.digit {
-  aspect-ratio: 1.15;
-  display: grid;
-  place-items: center;
-  align-content: center;
-  gap: 0.1rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-}
-
-.digit:hover {
-  border-color: var(--accent);
-}
-
-.digit-value {
-  font-size: 1.7rem;
-  font-weight: 600;
-  line-height: 1;
-  color: var(--entered);
-}
-
-.digit-left {
-  font-size: 0.75rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.digit.done .digit-value {
-  color: var(--muted);
-}
-
-.digit.done .digit-left {
-  color: var(--success);
-}
-
-.notes-mode .digit {
-  border-style: dashed;
-}
-
-.notes-mode .digit-value {
-  font-size: 1.2rem;
-  font-weight: 500;
-}
-
-.controls {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 0.5rem;
-}
-
-.rules-hint {
-  margin: 0;
-  font-size: 0.85rem;
-  color: var(--muted);
-}
-
-.shortcuts {
-  margin: 0;
-  text-align: center;
-  font-size: 0.8rem;
-  color: var(--muted);
-}
-
-.banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  padding: 0.9rem 1.1rem;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 2px solid var(--success);
-}
-
-.banner strong {
-  color: var(--success);
-  font-size: 1.1rem;
-}
-
-.banner-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 0.5rem;
-}
-
-@media (max-width: 640px) {
-  .game {
-    padding: 0.5rem 0.5rem 1.5rem;
-    gap: 0.75rem;
+/* Handwritten digits: the number pad and what the player writes on the board. */
+@utility casual {
+  font-family: var(--font-hand);
+  font-variation-settings: 'CASL' 1;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen bg-base-200 text-base-content antialiased;
+    /* Faint engineering-paper grid behind everything. */
+    --grid-line: color-mix(in oklab, var(--color-base-300) 80%, transparent);
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 1.5rem 1.5rem;
   }
 
-  .board {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .side-panel {
-    width: 100%;
-  }
-
-  .number-pad {
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.3rem;
-  }
-
-  .digit {
-    aspect-ratio: 0.8;
-  }
-
-  .digit-value {
-    font-size: 1.4rem;
-  }
-
-  .controls {
-    grid-template-columns: repeat(3, 1fr);
-    font-size: 0.85rem;
-  }
-
-  .shortcuts {
-    display: none;
+  code {
+    @apply rounded-sm bg-base-200 px-1 text-[0.9em];
   }
 }

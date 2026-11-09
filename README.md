@@ -12,7 +12,7 @@ they require (naked/hidden subsets, intersection removal, X-Wing, W-Wing), not b
 |---|---|---|
 | `pidoku-engine` | Java 21 | Generator, backtracking solver, strategy-based human solver, difficulty profiles |
 | `pidoku-api` | Spring Boot 4, Postgres (Neon), Flyway | REST API for campaign, puzzle generation, progress |
-| `pidoku-frontend` | React 19, TypeScript, Vite | The game |
+| `pidoku-frontend` | React 19, TypeScript, Vite, Tailwind CSS 4, daisyUI 5 | The game |
 
 ## Running locally
 
