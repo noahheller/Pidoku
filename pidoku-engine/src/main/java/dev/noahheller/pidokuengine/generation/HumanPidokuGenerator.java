@@ -9,7 +9,7 @@ import dev.noahheller.pidokuengine.utils.ArrayUtils;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.random.RandomGenerator;
 
 /**
  * Builds a puzzle for a difficulty profile from a solved grid. Every stage prefers the
@@ -23,17 +23,14 @@ public class HumanPidokuGenerator implements PidokuGenerator {
 
     private final PidokuBacktrackSolver solver;
     private final HumanPidokuSolver humanSolver;
-    private Random random;
 
-    public HumanPidokuGenerator(PidokuRules rules, PidokuBacktrackSolver solver, long seed) {
+    public HumanPidokuGenerator(PidokuRules rules, PidokuBacktrackSolver solver) {
         this.solver = solver;
         this.humanSolver = new HumanPidokuSolver(rules);
-        this.random = new Random(seed);
     }
 
     @Override
-    public PidokuPuzzle buildPuzzle(int[][] solution, DifficultyProfile profile) {
-        random = new Random(random.nextLong());
+    public PidokuPuzzle buildPuzzle(int[][] solution, DifficultyProfile profile, RandomGenerator random) {
         int size = solution.length;
         int total = size * size;
 
@@ -58,7 +55,7 @@ public class HumanPidokuGenerator implements PidokuGenerator {
 
         if (bestPuzzle == null) return null;
 
-        bestPuzzle = swapRefine(bestPuzzle, solution, profile);
+        bestPuzzle = swapRefine(bestPuzzle, solution, profile, random);
 
         return humanSolver.solve(ArrayUtils.copy(bestPuzzle));
     }
@@ -147,7 +144,7 @@ public class HumanPidokuGenerator implements PidokuGenerator {
      * of puzzles with the same sparsity as the greedy result. Equal-distance swaps
      * are kept so the search can drift across plateaus.
      */
-    private int[][] swapRefine(int[][] puzzle, int[][] solution, DifficultyProfile profile) {
+    private int[][] swapRefine(int[][] puzzle, int[][] solution, DifficultyProfile profile, RandomGenerator random) {
         int size = puzzle.length;
         int[][] current = ArrayUtils.copy(puzzle);
 

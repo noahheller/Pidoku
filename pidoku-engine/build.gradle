@@ -4,7 +4,7 @@ plugins {
 
 // Engine version, stamped on every generated puzzle. Bump it whenever generation or scoring changes,
 // so stored puzzles can be traced back to the engine that made them.
-version = '1.0.0'
+version = '1.1.0'
 
 java {
     toolchain {

@@ -8,6 +8,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.SplittableRandom;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,7 +28,7 @@ public final class PidokuTestSupport {
     }
 
     public static int[][] fullSolution(long seed) {
-        PidokuPuzzle solved = new PidokuBacktrackSolver(rules(), seed).solve(new int[SIZE][SIZE]);
+        PidokuPuzzle solved = new PidokuBacktrackSolver(rules()).solve(new int[SIZE][SIZE], new SplittableRandom(seed));
         assertNotNull(solved, "backtracker should always fill an empty board");
         return solved.getSolution();
     }

@@ -1,15 +1,12 @@
 package dev.noahheller.pidokuengine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.noahheller.pidokuengine.generation.HumanPidokuGenerator;
-import dev.noahheller.pidokuengine.generation.PidokuBacktrackSolver;
 import dev.noahheller.pidokuengine.strategy.Tier;
 
 import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Random;
 
 //TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
 // click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
@@ -17,12 +14,7 @@ public class Main {
     public static void main(String[] args) throws IOException {
         Files.createDirectories(Path.of("output"));
         int seed = 1234;
-        Random random = new Random(seed);
-
-        PidokuRules rules = new PidokuRules(9);
-        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules, seed);
-        HumanPidokuGenerator generator = new HumanPidokuGenerator(rules, solver, random.nextLong());
-        PidokuBuilder builder = new PidokuBuilder(rules, solver, generator);
+        PidokuBuilder builder = PidokuBuilder.standard(new PidokuRules(9));
         for (DifficultyProfile profile: DifficultyProfile.premadeProfiles()){
             generateAndWrite(builder, profile, seed);
         }
@@ -39,7 +31,7 @@ public class Main {
 
     /** Generates one puzzle and writes its files; reports and skips the profile if generation fails. */
     private static void generateAndWrite(PidokuBuilder builder, DifficultyProfile profile, int seed) {
-        PidokuPuzzle puzzle = builder.generate(profile);
+        PidokuPuzzle puzzle = builder.generate(profile, seed);
         if (puzzle == null) {
             System.err.println("Could not generate a puzzle for " + profile + "; skipping it.");
             return;

@@ -3,7 +3,6 @@ package dev.noahheller.pidokuengine.generation;
 import dev.noahheller.pidokuengine.DifficultyProfile;
 import dev.noahheller.pidokuengine.PidokuBuilder;
 import dev.noahheller.pidokuengine.PidokuPuzzle;
-import dev.noahheller.pidokuengine.PidokuRules;
 import dev.noahheller.pidokuengine.strategy.Tier;
 import org.junit.jupiter.api.Test;
 
@@ -12,10 +11,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class HumanPidokuGeneratorTest {
 
+    private static final PidokuBuilder BUILDER = PidokuBuilder.standard(rules());
+
     private static PidokuPuzzle generate(long seed, DifficultyProfile profile) {
-        PidokuRules rules = rules();
-        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules, seed);
-        return new PidokuBuilder(rules, solver, new HumanPidokuGenerator(rules, solver, seed)).generate(profile);
+        return BUILDER.generate(profile, seed);
     }
 
     private static DifficultyProfile easyAimingAt(int target) {

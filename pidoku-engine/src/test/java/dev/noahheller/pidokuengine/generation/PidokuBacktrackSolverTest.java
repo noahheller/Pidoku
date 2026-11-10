@@ -35,13 +35,13 @@ class PidokuBacktrackSolverTest {
 
     @Test
     void completedGridHasExactlyOneSolution() {
-        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules(), 1);
+        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules());
         assertEquals(1, solver.countSolutions(fullSolution(5)));
     }
 
     @Test
     void emptyGridHasMultipleSolutions() {
-        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules(), 1);
+        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules());
         assertEquals(2, solver.countSolutions(new int[SIZE][SIZE]), "count is capped at the cutoff");
     }
 
@@ -49,7 +49,7 @@ class PidokuBacktrackSolverTest {
     void solvesPartialPuzzleConsistentlyWithGivens() {
         int[][] solution = fullSolution(9);
         int[][] puzzle = punchHoles(solution, 40, 9);
-        int[][] solved = new PidokuBacktrackSolver(rules(), 3).solve(puzzle).getSolution();
+        int[][] solved = new PidokuBacktrackSolver(rules()).solve(puzzle).getSolution();
         assertValidSolution(solved);
         assertConsistent(puzzle, solved);
     }
@@ -59,7 +59,7 @@ class PidokuBacktrackSolverTest {
         int[][] puzzle = new int[SIZE][SIZE];
         puzzle[0][0] = 3;
         puzzle[0][1] = 3; // 3 appears once in pi's first nine digits
-        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules(), 1);
+        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules());
         assertNull(solver.solve(puzzle));
         assertEquals(0, solver.countSolutions(puzzle));
     }
@@ -69,7 +69,7 @@ class PidokuBacktrackSolverTest {
         int[][] puzzle = new int[SIZE][SIZE];
         puzzle[0][0] = 1;
         puzzle[0][1] = 1; // 1 appears twice in pi's first nine digits
-        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules(), 1);
+        PidokuBacktrackSolver solver = new PidokuBacktrackSolver(rules());
         assertTrue(solver.countSolutions(puzzle) > 0);
     }
 
@@ -77,7 +77,7 @@ class PidokuBacktrackSolverTest {
     void rejectsDigitNotInPi() {
         int[][] puzzle = new int[SIZE][SIZE];
         puzzle[4][4] = 7;
-        assertNull(new PidokuBacktrackSolver(rules(), 1).solve(puzzle));
+        assertNull(new PidokuBacktrackSolver(rules()).solve(puzzle));
     }
 
     @Test
