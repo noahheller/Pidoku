@@ -30,14 +30,15 @@ own difficulty and the puzzle has to be generated on demand.
   but not these exact numbers.
 
 ### Daily puzzle rules
-- "Today" is the **UTC** date. The daily changes at 00:00 UTC for everyone, a solve counts
-  toward the leaderboard of the UTC date its puzzle belongs to, and streaks count
-  consecutive UTC dates.
+- Every day has three dailies: one easy, one medium and one hard.
+- "Today" is the **UTC** date. The dailies change at 00:00 UTC for everyone, a solve counts
+  toward the leaderboard of the UTC date and difficulty its puzzle belongs to, and streaks
+  count consecutive UTC dates.
 - The number in "Pidoku #123" is days since launch (launch day is #1).
 
 ## Milestones
 
-1. Schema, generator job and read endpoints, tested locally against Testcontainers.
+1. Schema, generator job and read endpoints, tested locally against Testcontainers. **Done.**
 2. Deploy early: Cloud Run, the nightly generator job, Neon and Firebase with CI/CD, even
    with only the daily and random endpoints.
 3. Anonymous sign-in and players, so everything after this knows who the player is.
@@ -49,19 +50,42 @@ own difficulty and the puzzle has to be generated on demand.
 
 ## 1. Database, generator job and API
 
+**Status: done.** Built in milestone 1: the `puzzles` and `daily_puzzles` tables, the generator
+job, the random, daily and share-code endpoints, and the security configuration. See the README
+for how to run them.
+
+Decisions made while building it:
+- Each table is created by the milestone that first uses it, not all up front: once a Flyway
+  migration has run on Neon it can't be edited, so a table created before its feature exists
+  would lock in guesses. `players` and `attempts` come with milestone 3, `campaign_levels` with
+  milestone 5. The designs below are still the plan.
+- The generator job is a Spring profile of the API (`generator`), not a separate module: one
+  build and one image, run as the API service or as the Cloud Run Job.
+- Relaxing is now a built-in engine difficulty (`DifficultyProfile.relaxing()`), so the API
+  offers six: trivial, relaxing, easy, medium, hard and fiendish.
+- Each day has three dailies, one easy, one medium and one hard (`pidoku.daily.difficulties`
+  in `application.properties`). A daily is identified by its slot, (date, difficulty), and a
+  foreign key on `(puzzle_id, difficulty)` makes the database refuse a puzzle of the wrong
+  difficulty in a slot. If the job only managed some of today's slots, the endpoint serves
+  the ones it filled.
+- Share codes are 8 characters from a 31-character alphabet without 0/O or 1/I/L, and
+  case-insensitive.
+- Errors are RFC 9457 problem details. An empty pool or a missing daily is a 503 (the job will
+  fix it), an unknown share code a 404.
+
 ### Schema (Flyway migrations in `pidoku-api`)
-| Table | Columns |
-|---|---|
-| `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at |
-| `campaign_levels` | level number → puzzle_id. Fixed forever once published. |
-| `daily_puzzles` | date (UTC) → puzzle_id |
-| `players` | id, firebase_uid (nullable at first), display_name, created_at |
-| `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used |
+| Table | Columns | Created in |
+|---|---|---|
+| `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at | V1 (milestone 1) |
+| `daily_puzzles` | (puzzle_date (UTC), difficulty) → puzzle_id | V2 (milestone 1) |
+| `players` | id, firebase_uid (nullable at first), display_name, created_at | milestone 3 |
+| `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used | milestone 3 |
+| `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 5 |
 
 Column notes:
-- `share_code`: unique, random, about 6–8 characters from an unambiguous alphabet (no
-  0/O, 1/l). Random rather than derived from `id`, so puzzles can't be found by stepping
-  through sequential ids.
+- `share_code`: unique, random, 8 characters from an unambiguous alphabet (no 0/O, 1/I/L).
+  Random rather than derived from `id`, so puzzles can't be found by stepping through
+  sequential ids.
 - `source`: `pool`, `campaign`, `daily` or `custom`. The random endpoint only serves
   `pool` puzzles, so it never hands out today's daily, a campaign level, or a player's
   custom puzzle. Assigning a puzzle to the campaign or a day moves it out of `pool`.
@@ -73,18 +97,23 @@ Column notes:
   from `SolveTrace`. Stored now so calibration doesn't need to re-solve every puzzle.
 
 Constraints and indexes:
-- `difficulty` limited to the known values by a CHECK constraint (or a Postgres enum).
+- `source` and `difficulty` limited to the known values by CHECK constraints, and grids to
+  the right length and digits.
 - `puzzles(source, difficulty)` for drawing from the pool.
-- `attempts(puzzle_id, elapsed_ms)` for leaderboards.
+- `attempts(puzzle_id, elapsed_ms)` for leaderboards (milestone 3).
 - One leaderboard attempt per player per daily puzzle: a unique index on
   `(player_id, puzzle_id)` for daily puzzles, or a `counts_for_leaderboard` flag with a
   partial unique index. Later attempts are still recorded, just not ranked.
 
 ### Generator job
-- Runs in a new `pidoku-jobs` module, or as a Spring profile of the API.
-- Tops each difficulty up to N `pool` puzzles players haven't seen.
-- Picks next month's daily puzzles ahead of time, moving them from `pool` to `daily`.
-- Creates a fresh `PidokuBuilder` for each puzzle, because the engine isn't thread-safe.
+- Runs as the `generator` Spring profile of the API, with no web server.
+- Tops each difficulty up to N `pool` puzzles (default 50), generating in parallel.
+- Fills the daily slots (easy, medium and hard) for the next 31 days, moving puzzles from
+  `pool` to `daily`, then refills the pool to replace them.
+- Shares one `PidokuBuilder` across threads: the engine is thread-safe, with each call's
+  random state created from its seed inside `generate`.
+- "N puzzles players haven't seen" needs players, so it arrives with milestone 3; until then
+  the pool is simply kept at N.
 
 ### Security configuration
 `spring-boot-starter-security` is already a dependency, and by default it requires
@@ -92,16 +121,16 @@ authentication on every endpoint. Milestone 1 needs a `SecurityFilterChain` that
 the public read endpoints (and `/actuator/health`). Milestone 3 adds Firebase token checks.
 
 ### Endpoints
-| Endpoint | Purpose |
-|---|---|
-| `GET /api/campaign` | Levels with lock, progress and star state for the player |
-| `GET /api/campaign/{n}` | Givens for level n (only if unlocked) |
-| `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle, skipping ones the player has seen (once sign-in exists in milestone 3) |
-| `GET /api/puzzles/daily` | Today's (UTC) puzzle |
-| `GET /api/puzzles/{shareCode}` | A shared puzzle |
-| `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" |
-| `POST /api/attempts` | Final grid and mistakes. The server checks the grid against the solution, records the attempt and unlocks the next level. |
-| `GET /api/puzzles/daily/leaderboard` | Fastest times for the day (friends filter later) |
+| Endpoint | Purpose | Milestone |
+|---|---|---|
+| `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle, skipping ones the player has seen (once sign-in exists in milestone 3) | 1 (done) |
+| `GET /api/puzzles/daily` | Today's (UTC) easy, medium and hard puzzles | 1 (done) |
+| `GET /api/puzzles/{shareCode}` | A shared puzzle | 1 (done) |
+| `POST /api/attempts` | Final grid and mistakes. The server checks the grid against the solution, records the attempt and unlocks the next level. | 3, 5 |
+| `GET /api/campaign` | Levels with lock, progress and star state for the player | 5 |
+| `GET /api/campaign/{n}` | Givens for level n (only if unlocked) | 5 |
+| `GET /api/puzzles/daily/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies (friends filter later) | 6 |
+| `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 7 |
 
 - Solutions stay on the server in principle. Checking mistakes live would then need a
   `POST /check` call or a per-cell hashed solution. First version: send the solution and
@@ -184,9 +213,11 @@ and so on, then get a puzzle generated for it.
 
 ## 6. Attempts, leaderboards and friends
 
-- Daily: one per UTC day, a streak counter, and a share line like "Pidoku #123 4:12 ✓".
-- Leaderboard uses the server-measured time from milestone 3, and only each player's
-  first completed attempt at a daily puzzle counts.
+- Daily: easy, medium and hard each UTC day, a streak counter, and a share line like
+  "Pidoku #123 Hard 4:12 ✓". To decide: whether a streak needs any daily solved that day,
+  or a particular one.
+- One leaderboard per daily (date and difficulty). It uses the server-measured time from
+  milestone 3, and only each player's first completed attempt at a daily puzzle counts.
 - Cheating: the client still has the solution, so a determined player can cheat. That's
   accepted for a game among friends; server-side timing removes the easiest cheat
   (posting any time you like).
@@ -220,14 +251,14 @@ and so on, then get a puzzle generated for it.
 
 ## Engine follow-ups
 
-- Add an `engine_version` constant to the engine.
-- Make sure each use of the builder gets its own instance.
+- ~~Add an `engine_version` constant to the engine.~~ Done: `PidokuEngine.VERSION`, from the
+  Gradle project version, and `PidokuPuzzle.getEngineVersion()`.
+- ~~Make generation thread-safe.~~ Done: `PidokuBuilder.standard(rules)` is shared, and
+  `generate(profile, seed)` keeps its random state local to the call.
 - Tune the Trivial target, which is too easy at 65 clues.
 - Shared-candidate speedup (needed for custom generation).
 
 ## Open items
 
-- Thread safety: the generator and solver keep their own random number generators, so the
-  API needs a fresh builder per request.
 - Calibration: none of the scoring weights have been checked against real players.
 - The new strategy names have only been checked on the puzzle cards, not in the game screen.

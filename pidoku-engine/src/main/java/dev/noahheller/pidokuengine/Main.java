@@ -1,7 +1,6 @@
 package dev.noahheller.pidokuengine;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import dev.noahheller.pidokuengine.strategy.Tier;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -18,15 +17,6 @@ public class Main {
         for (DifficultyProfile profile: DifficultyProfile.premadeProfiles()){
             generateAndWrite(builder, profile, seed);
         }
-        // Between Trivial and Easy: singles only, with enough clues that there's
-        // usually more than one move available.
-        DifficultyProfile profile = new DifficultyProfile.Builder("relaxing")
-                .clueRange(38, 45)
-                .scoreRange(25, 45)
-                .ceiling(Tier.BEGINNER)
-                .floor(Tier.BEGINNER)
-                .build();
-        generateAndWrite(builder, profile, seed);
     }
 
     /** Generates one puzzle and writes its files; reports and skips the profile if generation fails. */

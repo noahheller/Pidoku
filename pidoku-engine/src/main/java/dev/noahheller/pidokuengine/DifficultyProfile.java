@@ -43,6 +43,16 @@ public class DifficultyProfile {
                 .floor(Tier.BEGINNER)
                 .build();
     }
+    /** Between Trivial and Easy: singles only, with enough clues that there's usually more than one move available. */
+    public static DifficultyProfile relaxing() {
+        return new Builder("Relaxing")
+                .scoreRange(25, 45)
+                .clueRange(38, 45)
+                .ceiling(Tier.BEGINNER)
+                .floor(Tier.BEGINNER)
+                .build();
+    }
+
     public static DifficultyProfile easy() {
         return new Builder("Easy")
                 .scoreRange(35, 70)
@@ -86,7 +96,7 @@ public class DifficultyProfile {
     }
 
     public static DifficultyProfile[] premadeProfiles() {
-       return new DifficultyProfile[]{trivial(), easy(), medium(), hard(), fiendish()};
+       return new DifficultyProfile[]{trivial(), relaxing(), easy(), medium(), hard(), fiendish()};
     }
 
     /**
