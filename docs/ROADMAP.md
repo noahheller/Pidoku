@@ -7,7 +7,7 @@ It's a resume project and a game to play with friends.
 ## Decisions made
 
 ### Stack
-- Java 21 engine and Spring Boot API in one Gradle build.
+- Java 25 engine and Spring Boot API in one Gradle build.
 - React 19 + TypeScript + Vite frontend.
 - Hosting: Cloud Run (scales to zero), Neon Postgres and Firebase Hosting.
 
@@ -140,11 +140,23 @@ the public read endpoints (and `/actuator/health`). Milestone 3 adds Firebase to
 
 ## 2. Deployment on Google Cloud
 
+- **Image** (done, `scripts/build-image.sh`)
+  - Built with Jib (`packaged` mode) on `eclipse-temurin:25-jre-noble`, pinned by digest, running
+    as an unprivileged user. One image for the API and the generator job.
+  - JDK 25 AOT cache, built in two passes: Jib builds the image, a training run against a
+    throwaway Postgres records the cache, Jib rebuilds with it, and a run with `-XX:AOTMode=on`
+    checks it's usable. Ready Spring context on one CPU: about 8 s → 4 s.
+  - Fixed JVM flags: Serial GC (what the JVM picks on one vCPU anyway, pinned so training and
+    production match), compact object headers, `MaxRAMPercentage=75`.
+  - Jib uses `productionRuntimeClasspath`, so devtools stays out of the image.
+  - Not used: Spring AOT (`processAot`). It fixes profiles at build time, which clashes with one
+    image serving both the API and the `generator` profile. GraalVM native only if cold starts
+    are still too slow once measured on Cloud Run.
 - **API on Cloud Run**
-  - Image built with Jib and pushed to Artifact Registry.
-  - min-instances=0, max-instances=3, 512Mi–1Gi memory, concurrency about 40.
-  - Cold starts: try Spring Boot's Class Data Sharing support or Spring AOT first; consider
-    GraalVM native only if it's still slow. Health checks via Actuator.
+  - Image pushed to Artifact Registry.
+  - min-instances=0, max-instances=3, concurrency about 40. Memory: the API used about 225 MiB
+    after startup in local testing, so 512Mi may be enough; start at 1Gi and check.
+  - `--cpu-boost` for startup. Health checks via Actuator.
 - **Generator job**: a Cloud Run Job triggered nightly by Cloud Scheduler. This ships in
   milestone 2, because the daily endpoint has nothing to serve until the job has picked
   daily puzzles.

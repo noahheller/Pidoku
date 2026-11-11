@@ -10,7 +10,7 @@ they require (naked/hidden subsets, intersection removal, X-Wing, W-Wing), not b
 
 | Module | Stack | What it does |
 |---|---|---|
-| `pidoku-engine` | Java 21 | Generator, backtracking solver, strategy-based human solver, difficulty profiles |
+| `pidoku-engine` | Java 25 | Generator, backtracking solver, strategy-based human solver, difficulty profiles |
 | `pidoku-api` | Spring Boot 4, Postgres (Neon), Flyway | REST API for campaign, puzzle generation, progress |
 | `pidoku-frontend` | React 19, TypeScript, Vite, Tailwind CSS 4, daisyUI 5 | The game |
 
@@ -18,7 +18,7 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for design decisions and what's planned n
 
 ## Running locally
 
-Requirements: JDK 21, Node 22+, and Docker (for API tests).
+Requirements: JDK 25, Node 22+, and Docker (for API tests and the container image).
 
 ```bash
 ./gradlew build                 # builds and tests the engine and API (API tests use Testcontainers)
@@ -90,6 +90,31 @@ production.
 To start over on `dev`, for example after a migration you were still editing has run there, use
 **Reset from parent** on the branch. It goes back to a copy of `main`, and the next startup
 re-applies your migrations. Run the generator job afterwards if you need puzzles in it.
+
+### Container image
+
+The API and the generator job ship as one image, built with Jib. The job is the same image run
+with `SPRING_PROFILES_ACTIVE=generator`.
+
+```bash
+scripts/build-image.sh            # builds pidoku-api:latest into the local Docker daemon
+scripts/build-image.sh IMAGE      # also pushes it, e.g. <region>-docker.pkg.dev/<project>/<repo>/pidoku-api:<sha>
+```
+
+The image includes a JVM AOT cache (JDK 25), which stores the classes the JVM loaded and linked
+during a training run, so cold starts on Cloud Run skip most of that work. The script builds the
+image, starts it once against a throwaway Postgres to record the cache, rebuilds it with the cache,
+then checks the result with `-XX:AOTMode=on`, which fails rather than silently ignoring a cache that
+doesn't match. On one CPU, the time to a ready Spring context drops from about 8 s to about 4 s.
+
+Things that keep the cache valid (see `pidoku-api/build.gradle`):
+- The base image is pinned by digest. A cache only works with the exact JDK build that made it.
+- Jib's `packaged` mode puts the app on the classpath as a JAR. The cache can't use class directories.
+- The JVM flags (Serial GC, compact object headers) are fixed in the image, so the training run and
+  production always match. Changing them means rebuilding with the script.
+
+`./gradlew :pidoku-api:jibDockerBuild` still builds an image without a cache, which is quicker for
+trying out changes.
 
 ## API
 

@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '4.1.2'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'com.google.cloud.tools.jib' version '3.5.4'
 }
 
 description = 'pidoku-api'
@@ -9,6 +10,77 @@ description = 'pidoku-api'
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+// --- Container image (Jib) ---
+// One image runs both the API (Cloud Run service) and the generator job (Cloud Run Job, with
+// SPRING_PROFILES_ACTIVE=generator). Build it with scripts/build-image.sh, which adds the JVM's AOT
+// cache in a second pass; see the script for why that takes two builds.
+//
+// The base image is pinned by digest because an AOT cache only works on the exact JDK build that
+// created it: a silently updated base image would make the JVM ignore the cache and start slowly.
+// To update it: docker pull eclipse-temurin:25-jre-noble, copy the new digest here, rebuild.
+def aotCacheFile = layout.buildDirectory.file('aot/app.aot')
+def withAotCache = providers.gradleProperty('withAotCache').map { it.toBoolean() }.getOrElse(false)
+
+jib {
+    from {
+        image = 'eclipse-temurin:25-jre-noble@sha256:a98128a57de944a72bd31fbc79b898edd5a5864d3652071d5bbd2160ab7d7dce'
+        platforms {
+            platform {
+                architecture = 'amd64'
+                os = 'linux'
+            }
+        }
+    }
+    to {
+        // Overridden with -Djib.to.image=... when pushing to Artifact Registry.
+        image = 'pidoku-api'
+    }
+    // Put the application on the classpath as a JAR rather than as class directories: the AOT cache
+    // only covers classes loaded from JARs and refuses a classpath with non-empty directories.
+    containerizingMode = 'packaged'
+    // Spring Boot adds developmentOnly (devtools) to runtimeClasspath, Jib's default, and only strips
+    // it for bootJar. productionRuntimeClasspath is what bootJar uses, so devtools stays out.
+    configurationName = 'productionRuntimeClasspath'
+    container {
+        mainClass = 'dev.noahheller.pidoku.pidokuapi.PidokuApiApplication'
+        ports = ['8080']
+        user = '65534:65534'
+        creationTime = 'USE_CURRENT_TIMESTAMP'
+        labels = ['org.opencontainers.image.source': 'https://github.com/noahheller/Pidoku']
+        // The AOT training run must use these same flags; scripts/build-image.sh runs the first-pass
+        // image's own entrypoint, so they only live here.
+        //  - Serial GC: Cloud Run gives the API one vCPU, where the JVM would pick it anyway; pinning
+        //    it keeps the training run (on a bigger machine) and production identical.
+        //  - Compact object headers (production-ready in JDK 25) shrink every object by 4 bytes.
+        jvmFlags = [
+                '-XX:+UseSerialGC',
+                '-XX:+UseCompactObjectHeaders',
+                '-XX:MaxRAMPercentage=75',
+        ] + (withAotCache ? ['-XX:AOTCache=/app/app.aot'] : [])
+    }
+    if (withAotCache) {
+        extraDirectories {
+            paths {
+                path {
+                    from = aotCacheFile.get().asFile.parentFile
+                    into = '/app'
+                    includes = ['app.aot']
+                }
+            }
+        }
+    }
+}
+
+// Fail early with a clear message instead of building an image whose JVM flag points at nothing.
+tasks.matching { it.name in ['jib', 'jibDockerBuild', 'jibBuildTar'] }.configureEach {
+    doFirst {
+        if (withAotCache && !aotCacheFile.get().asFile.exists()) {
+            throw new GradleException("-PwithAotCache=true but ${aotCacheFile.get().asFile} is missing. " +
+                    'Build the image with scripts/build-image.sh, which creates it.')
+        }
     }
 }
 
