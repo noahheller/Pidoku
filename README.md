@@ -37,9 +37,16 @@ The API reads its database settings from environment variables, or from a gitign
 
 ```properties
 DATABASE_URL=jdbc:postgresql://<neon-pooled-host>/pidoku?sslmode=require
+DATABASE_DIRECT_URL=jdbc:postgresql://<neon-direct-host>/pidoku?sslmode=require
 DATABASE_USER=...
 DATABASE_PASSWORD=...
 ```
+
+The app's queries use the pooled connection (`DATABASE_URL`, host ending in `-pooler`). Flyway
+migrations use the direct one (`DATABASE_DIRECT_URL`, the same host without `-pooler`): the
+migration lock needs one connection for the whole migration, and the pooler only lends a
+connection for a single transaction. If `DATABASE_DIRECT_URL` isn't set, Flyway falls back to
+`DATABASE_URL`.
 
 ### Generator job
 
@@ -83,6 +90,7 @@ production.
 
    ```properties
    DATABASE_URL=jdbc:postgresql://<host>-pooler.<region>.aws.neon.tech/<db>?sslmode=require
+   DATABASE_DIRECT_URL=jdbc:postgresql://<host>.<region>.aws.neon.tech/<db>?sslmode=require
    DATABASE_USER=<user>
    DATABASE_PASSWORD=<password>
    ```
