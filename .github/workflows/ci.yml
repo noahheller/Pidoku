@@ -1,0 +1,104 @@
+# Tests every pull request. On a push to main, deploys once the tests pass:
+#   API image -> Artifact Registry -> Cloud Run service + generator job, frontend -> Firebase Hosting.
+#
+# Google Cloud access uses Workload Identity Federation: GitHub's OIDC token is exchanged for a
+# short-lived token for the wif-ci service account, so no service-account key is stored anywhere.
+# The provider only accepts tokens from this repository's main branch.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROJECT_ID: pidoku
+  REGION: us-east4
+  SERVICE: pidoku-api-service
+  JOB: pidoku-api
+  IMAGE_REPO: us-east4-docker.pkg.dev/pidoku/pidoku-repository/pidoku-api
+  WIF_PROVIDER: projects/816584687259/locations/global/workloadIdentityPools/github/providers/pidoku-repo
+  WIF_SERVICE_ACCOUNT: wif-ci@pidoku.iam.gserviceaccount.com
+
+jobs:
+  backend:
+    name: Engine and API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      # Includes the API's Testcontainers tests, which use the runner's Docker.
+      - run: ./gradlew build
+
+  frontend:
+    name: Frontend lint, tests and build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: pidoku-frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pidoku-frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  deploy:
+    name: Deploy
+    needs: [backend, frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # One deploy at a time; a newer push waits rather than racing an older one.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write # lets the job ask GitHub for the OIDC token that Workload Identity Federation exchanges
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+      - uses: gradle/actions/setup-gradle@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: pidoku-frontend/package-lock.json
+
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.WIF_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - run: gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+
+      # Two-pass Jib build with the AOT cache, checked with -XX:AOTMode=on, then pushed.
+      - name: Build and push the API image
+        run: scripts/build-image.sh "$IMAGE_REPO:$GITHUB_SHA"
+
+      # Only the image changes; memory, secrets, probes etc. stay as configured on the service and job.
+      - name: Deploy the API
+        run: gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE_REPO:$GITHUB_SHA" --quiet
+      - name: Point the generator job at the new image
+        run: gcloud run jobs update "$JOB" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE_REPO:$GITHUB_SHA" --quiet
+
+      # firebase.json's predeploy step builds the frontend.
+      - run: npm ci --prefix pidoku-frontend
+      - name: Deploy the frontend
+        run: npx --yes firebase-tools@15.34.0 deploy --only hosting --project "$PROJECT_ID" --non-interactive
