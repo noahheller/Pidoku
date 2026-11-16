@@ -5,4 +5,9 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  server: {
+    // In production Firebase Hosting rewrites /api/** to Cloud Run (see firebase.json), so the
+    // frontend always calls relative /api URLs. Locally, forward them to the API on :8080.
+    proxy: { '/api': 'http://localhost:8080' },
+  },
 })
