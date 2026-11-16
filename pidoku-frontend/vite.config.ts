@@ -7,7 +7,8 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     // In production Firebase Hosting rewrites /api/** to Cloud Run (see firebase.json), so the
-    // frontend always calls relative /api URLs. Locally, forward them to the API on :8080.
-    proxy: { '/api': 'http://localhost:8080' },
+    // frontend always calls relative /api URLs. Locally, forward them to the API on :8080, or to
+    // another API with e.g. API_PROXY=https://pidoku.web.app npm run dev.
+    proxy: { '/api': { target: process.env.API_PROXY ?? 'http://localhost:8080', changeOrigin: true } },
   },
 })

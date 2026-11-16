@@ -1,5 +1,7 @@
-import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, Upload, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, RotateCw, Shuffle, Upload, X } from 'lucide-react';
 import { useState } from 'react';
+import { DIFFICULTIES, fetchRandom, type Difficulty } from '../api/client';
+import { useDaily } from '../api/useDaily';
 import { countClues, formatTime } from '../game/format';
 import { parsePuzzleJson, PuzzleFormatError, type PuzzleDef } from '../game/puzzleFile';
 import { PI_DIGITS } from '../game/rules';
@@ -14,6 +16,8 @@ interface PuzzlePickerProps {
 }
 
 export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCustom }: PuzzlePickerProps) {
+  const daily = useDaily();
+
   return (
     <main className="mx-auto grid max-w-3xl gap-8 px-4 pt-8 pb-16">
       <header className="grid gap-4">
@@ -21,13 +25,47 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
           Pidoku <span className="text-primary">π</span>
         </h1>
         <DigitRow />
-        <p className="text-base-content/60">Sudoku with the digits of pi. Pick a puzzle or load one from the engine.</p>
+        <p className="text-base-content/60">Sudoku with the digits of pi. Play today's puzzles, a random one, or load your own.</p>
       </header>
 
-      <section>
-        <h2 className="mb-3 text-lg font-semibold">Puzzles</h2>
-        <PuzzleList puzzles={bundled} onPlay={onPlay} />
+      <section aria-labelledby="today-title">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
+          <h2 id="today-title" className="text-lg font-semibold">
+            Today
+          </h2>
+          {daily.state.status === 'loaded' && <span className="text-sm text-base-content/60">{formatUtcDate(daily.state.daily.date)}</span>}
+        </div>
+        {daily.state.status === 'loading' && <PuzzleListSkeleton count={3} />}
+        {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.daily.puzzles} onPlay={onPlay} />}
+        {daily.state.status === 'failed' && (
+          <div role="alert" className="alert alert-soft alert-warning">
+            <CircleAlert className="size-5" aria-hidden="true" />
+            <span>{daily.state.message}</span>
+            <button type="button" className="btn btn-sm" onClick={daily.retry}>
+              <RotateCw className="size-4" aria-hidden="true" /> Retry
+            </button>
+          </div>
+        )}
       </section>
+
+      <RandomPuzzle
+        onPlay={(puzzle) => {
+          // Also kept in "Your puzzles", so leaving it doesn't lose it.
+          onAddCustom([puzzle]);
+          onPlay(puzzle);
+        }}
+      />
+
+      {/* Bundled puzzles are the offline fallback: only shown when the API can't be reached. */}
+      {daily.state.status === 'failed' && (
+        <section aria-labelledby="offline-title">
+          <h2 id="offline-title" className="text-lg font-semibold">
+            Offline puzzles
+          </h2>
+          <p className="mb-3 text-sm text-base-content/60">These come with the game, so they work without a connection.</p>
+          <PuzzleList puzzles={bundled} onPlay={onPlay} />
+        </section>
+      )}
 
       {custom.length > 0 && (
         <section>
@@ -103,6 +141,70 @@ function PuzzleList({ puzzles, onPlay, onRemove }: { puzzles: PuzzleDef[]; onPla
       ))}
     </ul>
   );
+}
+
+function PuzzleListSkeleton({ count }: { count: number }) {
+  return (
+    <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3" aria-busy="true" aria-label="Loading puzzles">
+      {Array.from({ length: count }, (_, i) => (
+        <li key={i} className="card card-border gap-2 border-base-300 bg-base-100 p-4">
+          <span className="skeleton h-6 w-24" />
+          <span className="skeleton h-4 w-40" />
+          <span className="skeleton h-3 w-10" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** One button per difficulty; each fetches a random pool puzzle and starts it. */
+function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef) => void }) {
+  const [loading, setLoading] = useState<Difficulty | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const play = (difficulty: Difficulty) => {
+    setLoading(difficulty);
+    setError(null);
+    fetchRandom(difficulty)
+      .then(onPlay)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(null));
+  };
+
+  return (
+    <section aria-labelledby="random-title">
+      <h2 id="random-title" className="text-lg font-semibold">
+        Random puzzle
+      </h2>
+      <p className="mb-3 text-sm text-base-content/60">A fresh puzzle at the difficulty you pick.</p>
+      <div className="flex flex-wrap gap-2">
+        {DIFFICULTIES.map((difficulty) => (
+          <button
+            key={difficulty}
+            type="button"
+            // Same outline as the puzzle cards: a light border that turns primary on hover.
+            className="btn btn-sm border-base-300 bg-base-100 capitalize shadow-none transition hover:border-primary hover:shadow-md"
+            disabled={loading !== null}
+            onClick={() => play(difficulty)}
+          >
+            {loading === difficulty ? <span className="loading loading-spinner loading-xs" aria-hidden="true" /> : <Shuffle className="size-4" aria-hidden="true" />}
+            {difficulty}
+          </button>
+        ))}
+      </div>
+      {error && (
+        <div role="alert" className="mt-3 alert alert-soft alert-error">
+          <CircleAlert className="size-5" aria-hidden="true" />
+          <span>{error}</span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** "Monday, 16 November" for a YYYY-MM-DD UTC date, in the player's locale. */
+function formatUtcDate(date: string): string {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 }
 
 function ProgressBadge({ id }: { id: string }) {
