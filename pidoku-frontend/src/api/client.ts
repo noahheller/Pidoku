@@ -1,4 +1,5 @@
 import type { PuzzleDef } from '../game/puzzleFile';
+import { idToken } from './auth';
 
 /**
  * The Pidoku API. URLs are relative: in production Firebase Hosting rewrites /api/** to Cloud Run
@@ -20,6 +21,18 @@ export interface ApiPuzzle {
   score: number;
   dependency: number;
   hardestStrategy: string;
+}
+
+/** One go at a puzzle, timed by the server (pidoku-api's AttemptResponse). */
+export interface Attempt {
+  id: number;
+  puzzleId: number;
+  /** ISO timestamps; `completedAt` and `elapsedMs` are null until the attempt is completed. */
+  startedAt: string;
+  completedAt: string | null;
+  elapsedMs: number | null;
+  mistakes: number;
+  hintsUsed: number;
 }
 
 export interface DailyPuzzles {
@@ -46,7 +59,8 @@ export class ApiError extends Error {
  * Everyone gets the same puzzles for the same calendar date.
  */
 export async function fetchDaily(signal?: AbortSignal, now: Date = new Date()): Promise<DailyPuzzles> {
-  const body = await getJson<{ date: string; puzzles: ApiPuzzle[] }>(`/api/puzzles/daily/${localDate(now)}`, signal, "Today's puzzles aren't ready yet. Try again in a little while.");
+  // No ID token here: the response is the same for everyone and comes from the CDN's cache.
+  const body = await request<{ date: string; puzzles: ApiPuzzle[] }>(`/api/puzzles/daily/${localDate(now)}`, { signal }, "Today's puzzles aren't ready yet. Try again in a little while.");
   return { date: body.date, puzzles: body.puzzles.map((p) => toPuzzleDef(p, `Daily ${capitalize(p.difficulty)}`)) };
 }
 
@@ -56,13 +70,45 @@ export function localDate(now: Date): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/**
+ * A random puzzle. Signed in, the API skips puzzles the player has already started; sign-in is
+ * optional here, so if the token is refused the puzzle is fetched without it.
+ */
 export async function fetchRandom(difficulty: Difficulty, signal?: AbortSignal): Promise<PuzzleDef> {
-  const body = await getJson<ApiPuzzle>(
-    `/api/puzzles/random?difficulty=${encodeURIComponent(difficulty)}`,
-    signal,
-    `There are no ${difficulty} puzzles ready right now. Try another difficulty or come back later.`,
-  );
+  const url = `/api/puzzles/random?difficulty=${encodeURIComponent(difficulty)}`;
+  const unavailable = `There are no ${difficulty} puzzles ready right now. Try another difficulty or come back later.`;
+  const token = await idToken();
+  let body: ApiPuzzle;
+  try {
+    body = await request<ApiPuzzle>(url, { signal, token }, unavailable);
+  } catch (e) {
+    if (!(e instanceof ApiError && e.status === 401)) throw e;
+    body = await request<ApiPuzzle>(url, { signal }, unavailable);
+  }
   return toPuzzleDef(body, capitalize(body.difficulty));
+}
+
+/**
+ * Tells the API the player has opened a puzzle, which starts the server's clock on it. Returns
+ * the player's unfinished attempt, so opening the puzzle again continues the same one.
+ *
+ * @param restart true when the player restarted the puzzle, which starts that attempt's clock again
+ * @throws ApiError if the player couldn't be signed in or the API refused
+ */
+export async function startAttempt(puzzleId: number, restart = false): Promise<Attempt> {
+  const body = restart ? { puzzleId, restart: true } : { puzzleId };
+  return request<Attempt>('/api/attempts', { method: 'POST', body, token: await requireToken() }, BUSY);
+}
+
+/** Completes an attempt with the solved grid. The returned `elapsedMs` is the server-measured solve time. */
+export async function completeAttempt(attemptId: number, grid: number[], mistakes: number, signal?: AbortSignal): Promise<Attempt> {
+  return request<Attempt>(`/api/attempts/${attemptId}/complete`, { method: 'POST', body: { grid, mistakes }, token: await requireToken(), signal }, BUSY);
+}
+
+async function requireToken(): Promise<string> {
+  const token = await idToken();
+  if (token === null) throw new ApiError("Couldn't sign you in, so this game isn't being recorded.", null);
+  return token;
 }
 
 /** Converts an API puzzle into the game's PuzzleDef. */
@@ -74,6 +120,7 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name: string): PuzzleDef {
   return {
     // Share codes are unique and stable, so saved progress finds the puzzle again.
     id: `api-${puzzle.shareCode}`,
+    apiId: puzzle.id,
     name,
     difficulty: capitalize(puzzle.difficulty),
     size: puzzle.size,
@@ -85,14 +132,27 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name: string): PuzzleDef {
   };
 }
 
+interface RequestOptions {
+  method?: 'GET' | 'POST';
+  /** Sent as JSON. */
+  body?: unknown;
+  /** A Firebase ID token to sign the request with; left out, the request is anonymous. */
+  token?: string | null;
+  signal?: AbortSignal;
+}
+
 /**
- * GETs JSON from the API. Errors become ApiErrors: 503 (the generator job hasn't produced the
- * puzzle yet) gets `unavailableMessage`, other errors the problem detail's `detail` if it has one.
+ * Calls the API and returns its JSON. Errors become ApiErrors: 503 (the generator job hasn't
+ * produced the puzzle yet) gets `unavailableMessage`, other errors the problem detail's `detail`
+ * if it has one.
  */
-async function getJson<T>(url: string, signal: AbortSignal | undefined, unavailableMessage: string): Promise<T> {
+async function request<T>(url: string, { method = 'GET', body, token, signal }: RequestOptions, unavailableMessage: string): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (token) headers.Authorization = `Bearer ${token}`;
   let response: Response;
   try {
-    response = await fetch(url, { headers: { Accept: 'application/json' }, signal });
+    response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e;
     throw new ApiError(UNREACHABLE, null);
@@ -113,6 +173,7 @@ async function getJson<T>(url: string, signal: AbortSignal | undefined, unavaila
   throw new ApiError((await problemDetail(response)) ?? `The server returned an error (${response.status}).`, response.status);
 }
 
+const BUSY = 'The Pidoku server is busy. Try again in a moment.';
 const UNREACHABLE = "Couldn't reach the Pidoku server. Check your connection and try again.";
 
 /** The `detail` of an RFC 9457 problem details body, if the response has one. */

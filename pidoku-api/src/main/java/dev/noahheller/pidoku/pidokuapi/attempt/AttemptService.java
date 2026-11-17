@@ -1,0 +1,80 @@
+package dev.noahheller.pidoku.pidokuapi.attempt;
+
+import dev.noahheller.pidoku.pidokuapi.player.Player;
+import dev.noahheller.pidoku.pidokuapi.puzzle.Grids;
+import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleNotFoundException;
+import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
+import java.util.Arrays;
+
+/**
+ * Starts and completes attempts. Both times come from the server's {@link Clock}, so a solve time
+ * is measured here rather than claimed by the client. It's wall-clock time from first opening the
+ * puzzle to solving it, including any time spent away.
+ */
+@Service
+public class AttemptService {
+
+    private final AttemptRepository attempts;
+    private final PuzzleRepository puzzles;
+    private final Clock clock;
+
+    public AttemptService(AttemptRepository attempts, PuzzleRepository puzzles, Clock clock) {
+        this.attempts = attempts;
+        this.puzzles = puzzles;
+        this.clock = clock;
+    }
+
+    /**
+     * The player's unfinished attempt at a puzzle, started now if they don't have one. Calling it
+     * again (a page reload, another device) returns the same attempt with its original start time.
+     *
+     * @param restart true when the player restarted the puzzle: an unfinished attempt's clock then
+     *                starts again from now, matching the timer on their screen
+     * @throws PuzzleNotFoundException if no puzzle has the id
+     */
+    @Transactional
+    public Attempt start(Player player, long puzzleId, boolean restart) {
+        if (!puzzles.existsById(puzzleId)) {
+            throw new PuzzleNotFoundException("No puzzle has the id " + puzzleId + ".");
+        }
+        return attempts.findOpen(player, puzzleId)
+                .map(open -> {
+                    if (restart) {
+                        open.restart(clock.instant());
+                    }
+                    return open;
+                })
+                .orElseGet(() -> {
+                    attempts.insertIfNoneOpen(player.getId(), puzzleId, clock.instant());
+                    return attempts.findOpen(player, puzzleId).orElseThrow();
+                });
+    }
+
+    /**
+     * Completes an attempt if {@code grid} is the puzzle's solution, recording the time since it
+     * started. Completing an attempt that's already complete changes nothing and returns it, so a
+     * retried request is harmless.
+     *
+     * @param grid     the player's finished grid, flat and row-major
+     * @param mistakes wrong digits entered along the way, as counted by the client
+     * @throws AttemptNotFoundException if the player has no attempt with the id
+     * @throws WrongSolutionException   if the grid isn't the solution
+     */
+    @Transactional
+    public Attempt complete(Player player, long attemptId, int[] grid, int mistakes) {
+        Attempt attempt = attempts.findForUpdate(attemptId, player)
+                .orElseThrow(() -> new AttemptNotFoundException(attemptId));
+        if (attempt.isCompleted()) {
+            return attempt;
+        }
+        if (!Arrays.equals(grid, Grids.toCells(attempt.getPuzzle().getSolution()))) {
+            throw new WrongSolutionException();
+        }
+        attempt.complete(clock.instant(), mistakes);
+        return attempt;
+    }
+}

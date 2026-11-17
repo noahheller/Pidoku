@@ -1,5 +1,6 @@
 package dev.noahheller.pidoku.pidokuapi.puzzle;
 
+import dev.noahheller.pidoku.pidokuapi.player.Player;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +28,18 @@ public class PuzzleService {
         return puzzles.findRandom(PuzzleSource.POOL, difficulty)
                 .orElseThrow(() -> new PuzzleUnavailableException(
                         "There are no " + difficulty.id() + " puzzles available right now."));
+    }
+
+    /**
+     * A random pool puzzle the player hasn't started yet. Once they've started every puzzle of
+     * this difficulty, any of them: a repeat beats having nothing to play.
+     *
+     * @throws PuzzleUnavailableException if the pool has no puzzle of this difficulty
+     */
+    @Transactional(readOnly = true)
+    public Puzzle randomFromPool(Difficulty difficulty, Player player) {
+        return puzzles.findRandomUnseen(PuzzleSource.POOL, difficulty, player.getId())
+                .orElseGet(() -> randomFromPool(difficulty));
     }
 
     @Transactional(readOnly = true)

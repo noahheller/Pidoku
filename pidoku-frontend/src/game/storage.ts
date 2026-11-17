@@ -4,6 +4,7 @@ import type { PuzzleDef } from './puzzleFile';
 const PROGRESS_PREFIX = 'pidoku:progress:';
 const CUSTOM_PUZZLES_KEY = 'pidoku:custom-puzzles';
 const SETTINGS_KEY = 'pidoku:settings';
+const PENDING_COMPLETIONS_KEY = 'pidoku:pending-completions';
 
 export interface Settings {
   showMistakes: boolean;
@@ -37,7 +38,11 @@ export function saveProgress(puzzleId: string, progress: SavedProgress): void {
 }
 
 export function clearProgress(puzzleId: string): void {
-  localStorage.removeItem(PROGRESS_PREFIX + puzzleId);
+  try {
+    localStorage.removeItem(PROGRESS_PREFIX + puzzleId);
+  } catch {
+    // Storage disabled: there was nothing saved to clear.
+  }
 }
 
 export function loadCustomPuzzles(): PuzzleDef[] {
@@ -46,6 +51,22 @@ export function loadCustomPuzzles(): PuzzleDef[] {
 
 export function saveCustomPuzzles(puzzles: PuzzleDef[]): void {
   write(CUSTOM_PUZZLES_KEY, puzzles);
+}
+
+/** A solved puzzle the API hasn't been told about yet (see api/completions.ts). */
+export interface PendingCompletion {
+  attemptId: number;
+  grid: number[];
+  mistakes: number;
+}
+
+export function loadPendingCompletions(): PendingCompletion[] {
+  const pending = read<PendingCompletion[]>(PENDING_COMPLETIONS_KEY);
+  return Array.isArray(pending) ? pending : [];
+}
+
+export function savePendingCompletions(pending: PendingCompletion[]): void {
+  write(PENDING_COMPLETIONS_KEY, pending);
 }
 
 export function loadSettings(): Settings {

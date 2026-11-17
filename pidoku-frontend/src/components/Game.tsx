@@ -1,5 +1,7 @@
 import { ArrowLeft, Check, CircleX, Copy, Timer, Trophy } from 'lucide-react';
-import { useCallback, useEffect, useReducer, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { startAttempt, type Attempt } from '../api/client';
+import { recordCompletion } from '../api/completions';
 import { formatTime } from '../game/format';
 import { gameReducer, newGame, type GameAction } from '../game/game';
 import type { PuzzleDef } from '../game/puzzleFile';
@@ -22,6 +24,38 @@ export function Game({ puzzle, onExit }: GameProps) {
   useEffect(() => {
     saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed });
   }, [puzzle.id, values, notes, mistakes, elapsedMs, completed]);
+
+  // Records the game on the server, for puzzles that came from the API. The attempt starts when
+  // the puzzle is opened unsolved (the API hands back the unfinished attempt if there is one, so
+  // reopening doesn't restart its clock) and completes when the puzzle is solved in this visit.
+  // A failed start is ignored: the game plays the same when the API or sign-in is unavailable,
+  // it just isn't recorded. A failed completion is retried later (see api/completions.ts).
+  const attempt = useRef<Promise<Attempt | null> | null>(null);
+  const latest = useRef({ values, mistakes });
+  useEffect(() => {
+    latest.current = { values, mistakes };
+  }, [values, mistakes]);
+  useEffect(() => {
+    const { apiId } = puzzle;
+    if (apiId === undefined) return;
+    if (!completed) {
+      attempt.current = startAttempt(apiId).catch(() => null);
+      return;
+    }
+    const started = attempt.current;
+    attempt.current = null;
+    if (started) void recordCompletion(started, latest.current.values, latest.current.mistakes);
+  }, [puzzle, completed]);
+
+  // Restarting resets the timer on screen, so the server's clock for the attempt starts again too.
+  const { apiId } = puzzle;
+  const act = useCallback(
+    (action: GameAction) => {
+      if (action.type === 'restart' && apiId !== undefined) attempt.current = startAttempt(apiId, true).catch(() => null);
+      dispatch(action);
+    },
+    [apiId],
+  );
 
   useEffect(() => {
     if (completed) return;
@@ -80,7 +114,7 @@ export function Game({ puzzle, onExit }: GameProps) {
         <Board state={state} showErrors={settings.showMistakes} onSelect={onSelect} />
         <div className="grid w-full gap-4 sm:w-[min(100%,360px)]">
           <NumberPad state={state} dispatch={dispatch} />
-          <Controls state={state} dispatch={dispatch} showErrors={settings.showMistakes} onToggleErrors={toggleErrors} />
+          <Controls state={state} dispatch={act} showErrors={settings.showMistakes} onToggleErrors={toggleErrors} />
           <RulesHint rules={rules} />
         </div>
       </div>
