@@ -14,7 +14,7 @@ public record DailyPuzzlesResponse(LocalDate date, List<PuzzleResponse> puzzles)
     /** @param dailies one date's dailies, easiest first (as {@link DailyPuzzleService#forDate} returns them) */
     public static DailyPuzzlesResponse from(LocalDate date, List<DailyPuzzle> dailies) {
         return new DailyPuzzlesResponse(date, dailies.stream()
-                .map(daily -> PuzzleResponse.from(daily.getPuzzle()))
+                .map(daily -> PuzzleResponse.from(daily.getPuzzle(), daily.getDate()))
                 .toList());
     }
 }

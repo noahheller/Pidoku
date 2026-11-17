@@ -4,7 +4,6 @@ import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
 import dev.noahheller.pidoku.pidokuapi.puzzle.GeneratedPuzzle;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Puzzle;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleNotFoundException;
-import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleRepository;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleService;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleSource;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleUnavailableException;
@@ -18,7 +17,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -29,15 +27,13 @@ import java.util.Set;
 public class DailyPuzzleService {
 
     private final DailyPuzzleRepository dailies;
-    private final PuzzleRepository puzzles;
     private final PuzzleService puzzleService;
     private final List<Difficulty> difficulties;
     private final Clock clock;
 
-    public DailyPuzzleService(DailyPuzzleRepository dailies, PuzzleRepository puzzles, PuzzleService puzzleService,
+    public DailyPuzzleService(DailyPuzzleRepository dailies, PuzzleService puzzleService,
                               DailyProperties properties, Clock clock) {
         this.dailies = dailies;
-        this.puzzles = puzzles;
         this.puzzleService = puzzleService;
         this.difficulties = properties.difficulties();
         this.clock = clock;
@@ -104,20 +100,6 @@ public class DailyPuzzleService {
             }
         }
         return empty;
-    }
-
-    /**
-     * Fills a slot with a random pool puzzle of the slot's difficulty.
-     *
-     * @return the new daily, or empty if the pool has no puzzle of that difficulty
-     */
-    @Transactional
-    public Optional<DailyPuzzle> fillFromPool(DailySlot slot) {
-        return puzzles.findRandomForUpdate(PuzzleSource.POOL, slot.difficulty())
-                .map(puzzle -> {
-                    puzzle.moveFromPoolToDaily();
-                    return dailies.save(new DailyPuzzle(slot, puzzle));
-                });
     }
 
     /**

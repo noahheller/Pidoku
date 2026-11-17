@@ -1,51 +1,83 @@
-import { ArrowLeft, Check, CircleX, Copy, Timer, Trophy } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleX, Info, Play, Timer, X } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { startAttempt, type Attempt } from '../api/client';
 import { recordCompletion } from '../api/completions';
-import { formatTime } from '../game/format';
+import { dailyNumber } from '../game/daily';
+import { countClues, formatTime } from '../game/format';
 import { gameReducer, newGame, type GameAction } from '../game/game';
 import type { PuzzleDef } from '../game/puzzleFile';
 import {isPlayable, PI_DIGITS, type Rules} from '../game/rules';
-import { loadProgress, loadSettings, saveProgress, saveSettings } from '../game/storage';
+import { loadProgress, loadResult, loadSettings, saveProgress, saveResult, saveSettings } from '../game/storage';
 import { Board } from './Board';
 import { Controls } from './Controls';
 import { NumberPad } from './NumberPad';
+import { Result, type Recorded } from './Result';
 
 interface GameProps {
   puzzle: PuzzleDef;
+  /** Played before and being started over: restart the server's clock on any unfinished attempt. */
+  replay?: boolean;
+  /** Shown above the board, e.g. "You've played every hard puzzle. Here's one again." */
+  notice?: string | null;
   onExit: () => void;
 }
 
-export function Game({ puzzle, onExit }: GameProps) {
+export function Game({ puzzle, replay = false, notice = null, onExit }: GameProps) {
   const [state, dispatch] = useReducer(gameReducer, puzzle, (p) => newGame(p, loadProgress(p.id)));
   const [settings, setSettings] = useState(loadSettings);
   const { values, notes, mistakes, elapsedMs, completed, rules } = state;
+  // A daily waits on its start screen until the player presses Start: its ranked time is the
+  // server's wall-clock time, so the start has to be deliberate. Once started (there's saved
+  // progress) it opens straight to the board. Other puzzles start when opened.
+  const [ready, setReady] = useState(() => !puzzle.dailyDate || loadProgress(puzzle.id) !== null);
+  const [recorded, setRecorded] = useState<Recorded>(() => {
+    const saved = loadResult(puzzle.id);
+    return saved ? { status: 'recorded', ...saved } : { status: 'none' };
+  });
 
   useEffect(() => {
-    saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed });
-  }, [puzzle.id, values, notes, mistakes, elapsedMs, completed]);
+    // Nothing saved before Start, or the start screen would be skipped next time.
+    if (ready) saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed });
+  }, [ready, puzzle.id, values, notes, mistakes, elapsedMs, completed]);
 
   // Records the game on the server, for puzzles that came from the API. The attempt starts when
-  // the puzzle is opened unsolved (the API hands back the unfinished attempt if there is one, so
-  // reopening doesn't restart its clock) and completes when the puzzle is solved in this visit.
+  // the puzzle is opened unsolved, or for a daily when Start is pressed (the API hands back the
+  // unfinished attempt if there is one, so reopening doesn't restart its clock) and completes when
+  // the puzzle is solved in this visit.
   // A failed start is ignored: the game plays the same when the API or sign-in is unavailable,
   // it just isn't recorded. A failed completion is retried later (see api/completions.ts).
   const attempt = useRef<Promise<Attempt | null> | null>(null);
-  const latest = useRef({ values, mistakes });
+  // Only the first start of a replay restarts the clock; later ones (StrictMode's second run of
+  // the effect) continue that attempt.
+  const restartOnStart = useRef(replay);
+  const latest = useRef({ values, mistakes, elapsedMs });
   useEffect(() => {
-    latest.current = { values, mistakes };
-  }, [values, mistakes]);
+    latest.current = { values, mistakes, elapsedMs };
+  }, [values, mistakes, elapsedMs]);
   useEffect(() => {
     const { apiId } = puzzle;
-    if (apiId === undefined) return;
+    if (apiId === undefined || !ready) return;
     if (!completed) {
-      attempt.current = startAttempt(apiId).catch(() => null);
+      attempt.current = startAttempt(apiId, restartOnStart.current).catch(() => null);
+      restartOnStart.current = false;
       return;
     }
     const started = attempt.current;
     attempt.current = null;
-    if (started) void recordCompletion(started, latest.current.values, latest.current.mistakes);
-  }, [puzzle, completed]);
+    if (!started) return;
+    const { values: grid, mistakes: wrong, elapsedMs: activeMs } = latest.current;
+    setRecorded({ status: 'saving' });
+    void recordCompletion(started, { grid, mistakes: wrong, activeMs }).then((done) => {
+      if (done?.elapsedMs != null) {
+        const result = { elapsedMs: done.elapsedMs, late: done.late };
+        saveResult(puzzle.id, result);
+        setRecorded({ status: 'recorded', ...result });
+      } else {
+        // Kept and sent later (or refused); either way there's no server time to show yet.
+        setRecorded({ status: 'unsent' });
+      }
+    });
+  }, [puzzle, ready, completed]);
 
   // Restarting resets the timer on screen, so the server's clock for the attempt starts again too.
   const { apiId } = puzzle;
@@ -58,14 +90,15 @@ export function Game({ puzzle, onExit }: GameProps) {
   );
 
   useEffect(() => {
-    if (completed) return;
+    if (completed || !ready) return;
     const timer = setInterval(() => {
       if (document.visibilityState === 'visible') dispatch({ type: 'tick', ms: 1000 });
     }, 1000);
     return () => clearInterval(timer);
-  }, [completed]);
+  }, [completed, ready]);
 
   useEffect(() => {
+    if (!ready) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       const action = actionForKey(event, rules);
@@ -76,7 +109,7 @@ export function Game({ puzzle, onExit }: GameProps) {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [rules]);
+  }, [rules, ready]);
 
   const onSelect = useCallback((index: number) => dispatch({ type: 'select', index }), []);
 
@@ -92,7 +125,7 @@ export function Game({ puzzle, onExit }: GameProps) {
         <button type="button" className="btn btn-ghost btn-sm text-primary" onClick={onExit}>
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
         </button>
-        <h1 className="flex flex-1 items-center gap-2 text-2xl font-bold">
+        <h1 className="flex flex-1 items-center gap-2 text-xl font-bold sm:text-2xl">
           {puzzle.name}
           {puzzle.difficulty && puzzle.difficulty !== puzzle.name && <span className="badge badge-outline badge-sm font-semibold tracking-normal text-base-content/70">{puzzle.difficulty}</span>}
         </h1>
@@ -108,17 +141,21 @@ export function Game({ puzzle, onExit }: GameProps) {
         </div>
       </header>
 
-      {completed && <CompletionBanner puzzle={puzzle} elapsedMs={elapsedMs} mistakes={mistakes} onExit={onExit} />}
+      {notice && <Notice text={notice} />}
 
-      <div className="flex flex-wrap items-start justify-center gap-6">
+      {!ready && <StartScreen puzzle={puzzle} onStart={() => setReady(true)} />}
+
+      {completed && <Result puzzle={puzzle} elapsedMs={elapsedMs} mistakes={mistakes} recorded={recorded} onExit={onExit} />}
+
+      {ready && <div className="flex flex-wrap items-start justify-center gap-6">
         <Board state={state} showErrors={settings.showMistakes} onSelect={onSelect} />
         <div className="grid w-full gap-4 sm:w-[min(100%,360px)]">
           <NumberPad state={state} dispatch={dispatch} />
           <Controls state={state} dispatch={act} showErrors={settings.showMistakes} onToggleErrors={toggleErrors} />
           <RulesHint rules={rules} />
         </div>
-      </div>
-      {!completed && <Shortcuts />}
+      </div>}
+      {ready && !completed && <Shortcuts />}
     </main>
   );
 }
@@ -198,34 +235,48 @@ function RulesHint({ rules }: { rules: Rules }) {
   );
 }
 
-function CompletionBanner({ puzzle, elapsedMs, mistakes, onExit }: { puzzle: PuzzleDef; elapsedMs: number; mistakes: number; onExit: () => void }) {
-  const [copied, setCopied] = useState(false);
-  const result = `in ${formatTime(elapsedMs)}${puzzle.solution ? ` with ${mistakes} mistake${mistakes === 1 ? '' : 's'}` : ''}`;
-  const shareText = `I solved Pidoku ${puzzle.name} ${result} π`;
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(shareText);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  };
-
+function Notice({ text }: { text: string }) {
+  const [shown, setShown] = useState(true);
+  if (!shown) return null;
   return (
-    <section className="alert alert-success alert-soft flex flex-wrap border-2 border-success" role="status">
-      <strong className="flex items-center gap-1.5 text-lg">
-        <Trophy className="size-5" aria-hidden="true" /> Solved!
-      </strong> <span>Finished {result}.</span>
-      <div className="ml-auto flex gap-2">
-        <button type="button" className="btn btn-sm" onClick={copy}>
-          {copied ? <Check className="size-4 shrink-0" aria-hidden="true" /> : <Copy className="size-4 shrink-0" aria-hidden="true" />}
-          {copied ? 'Copied' : 'Copy result'}
-        </button>
-        <button type="button" className="btn btn-sm btn-primary" onClick={onExit}>
-          More puzzles
+    <div role="status" className="alert alert-soft alert-info">
+      <Info className="size-5 shrink-0" aria-hidden="true" />
+      <span>{text}</span>
+      <button type="button" className="btn btn-ghost btn-xs btn-circle" aria-label="Dismiss" onClick={() => setShown(false)}>
+        <X className="size-4" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+/**
+ * A daily before it starts: what it is, and a Start button. The board stays hidden, so the clock
+ * can't be beaten by studying it first.
+ */
+function StartScreen({ puzzle, onStart }: { puzzle: PuzzleDef; onStart: () => void }) {
+  const date = puzzle.dailyDate!;
+  return (
+    <section className="card mx-auto w-full max-w-md border border-base-300 bg-base-100 shadow-sm" aria-labelledby="start-title">
+      <div className="card-body items-center gap-4 p-6 text-center sm:p-8">
+        <p className="flex items-center gap-1.5 text-sm text-base-content/60">
+          <CalendarDays className="size-4" aria-hidden="true" /> Pidoku #{dailyNumber(date)} · {formatLongDate(date)}
+        </p>
+        <h2 id="start-title" className="text-3xl font-bold">
+          {puzzle.difficulty}
+        </h2>
+        <p className="text-sm text-base-content/60">{countClues(puzzle.givens)} clues</p>
+        <p className="text-base-content/80">
+          The clock starts when you press Start and keeps running until you solve it, even if you leave the page.
+        </p>
+        <button type="button" className="btn btn-primary btn-lg w-full" onClick={onStart} autoFocus>
+          <Play className="size-5" aria-hidden="true" /> Start
         </button>
       </div>
     </section>
   );
+}
+
+/** "Tuesday, 17 November" for a YYYY-MM-DD date, formatted as written (see PuzzlePicker's formatDate). */
+function formatLongDate(date: string): string {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 }

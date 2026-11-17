@@ -3,8 +3,11 @@ package dev.noahheller.pidoku.pidokuapi.attempt;
 import java.time.Instant;
 
 /**
- * An attempt as the frontend receives it. {@code completedAt} and {@code elapsedMs} are null
- * while it's unfinished.
+ * An attempt as the frontend receives it. {@code completedAt}, {@code elapsedMs} and
+ * {@code activeMs} are null while it's unfinished.
+ *
+ * @param elapsedMs the server-measured solve time, which leaderboards rank
+ * @param late      the completion was sent some time after the solve (see {@code Attempt#complete})
  */
 public record AttemptResponse(
         long id,
@@ -13,7 +16,9 @@ public record AttemptResponse(
         Instant completedAt,
         Long elapsedMs,
         int mistakes,
-        int hintsUsed
+        int hintsUsed,
+        Long activeMs,
+        boolean late
 ) {
 
     public static AttemptResponse from(Attempt attempt) {
@@ -24,6 +29,8 @@ public record AttemptResponse(
                 attempt.getCompletedAt(),
                 attempt.getElapsedMs(),
                 attempt.getMistakes(),
-                attempt.getHintsUsed());
+                attempt.getHintsUsed(),
+                attempt.getActiveMs(),
+                attempt.isLate());
     }
 }

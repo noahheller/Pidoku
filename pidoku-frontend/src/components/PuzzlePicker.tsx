@@ -1,16 +1,25 @@
-import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, RotateCw, Shuffle, Upload, X } from 'lucide-react';
-import { useState } from 'react';
-import { DIFFICULTIES, fetchRandom, type Difficulty } from '../api/client';
+import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, Flame, RotateCw, Shuffle, Upload, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { DIFFICULTIES, fetchStreak, localDate, type Difficulty } from '../api/client';
+import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
 import { countClues, formatTime } from '../game/format';
 import { parsePuzzleJson, PuzzleFormatError, type PuzzleDef } from '../game/puzzleFile';
 import { PI_DIGITS } from '../game/rules';
-import { loadProgress } from '../game/storage';
+import { clearProgress, clearResult, loadProgress, loadStreak, saveStreak, type CachedStreak } from '../game/storage';
+
+/** How to open a puzzle (see App's routes). */
+export interface PlayOptions {
+  /** Start it from scratch, restarting any unfinished attempt's clock. */
+  replay?: boolean;
+  /** Shown above the board when it opens. */
+  notice?: string | null;
+}
 
 interface PuzzlePickerProps {
   bundled: PuzzleDef[];
   custom: PuzzleDef[];
-  onPlay: (puzzle: PuzzleDef) => void;
+  onPlay: (puzzle: PuzzleDef, options?: PlayOptions) => void;
   onAddCustom: (puzzles: PuzzleDef[]) => void;
   onRemoveCustom: (id: string) => void;
 }
@@ -29,11 +38,12 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
       </header>
 
       <section aria-labelledby="today-title">
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
+        <div className="mb-3 flex flex-wrap items-baseline gap-x-3">
           <h2 id="today-title" className="text-lg font-semibold">
             Today
           </h2>
           {daily.state.status === 'loaded' && <span className="text-sm text-base-content/60">{formatDate(daily.state.daily.date)}</span>}
+          <StreakBadge />
         </div>
         {daily.state.status === 'loading' && <PuzzleListSkeleton count={3} />}
         {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.daily.puzzles} onPlay={onPlay} />}
@@ -49,10 +59,10 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
       </section>
 
       <RandomPuzzle
-        onPlay={(puzzle) => {
+        onPlay={(puzzle, options) => {
           // Also kept in "Your puzzles", so leaving it doesn't lose it.
           onAddCustom([puzzle]);
-          onPlay(puzzle);
+          onPlay(puzzle, options);
         }}
       />
 
@@ -158,15 +168,22 @@ function PuzzleListSkeleton({ count }: { count: number }) {
 }
 
 /** One button per difficulty; each fetches a random pool puzzle and starts it. */
-function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef) => void }) {
+function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef, options: PlayOptions) => void }) {
   const [loading, setLoading] = useState<Difficulty | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const play = (difficulty: Difficulty) => {
     setLoading(difficulty);
     setError(null);
-    fetchRandom(difficulty)
-      .then(onPlay)
+    pickRandom(difficulty, (puzzle) => loadProgress(puzzle.id) !== null)
+      .then(({ puzzle, replay, notice }) => {
+        if (replay) {
+          // A puzzle they've played: start it over rather than reopening the old, finished board.
+          clearProgress(puzzle.id);
+          clearResult(puzzle.id);
+        }
+        onPlay(puzzle, { replay, notice });
+      })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(null));
   };
@@ -176,7 +193,7 @@ function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef) => void }) {
       <h2 id="random-title" className="text-lg font-semibold">
         Random puzzle
       </h2>
-      <p className="mb-3 text-sm text-base-content/60">A fresh puzzle at the difficulty you pick.</p>
+      <p className="mb-3 text-sm text-base-content/60">A puzzle you haven't played yet, at the difficulty you pick.</p>
       <div className="flex flex-wrap gap-2">
         {DIFFICULTIES.map((difficulty) => (
           <button
@@ -209,6 +226,43 @@ function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef) => void }) {
  */
 function formatDate(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+}
+
+/**
+ * The player's streak, once they have one. Only players who've had a result shown have a cached
+ * streak, so a first-time visitor isn't signed in just to find they have none; for everyone else
+ * the cached one shows at once (if it's from today) while a fresh one is fetched.
+ */
+function StreakBadge() {
+  const [streak, setStreak] = useState<CachedStreak | null>(() => {
+    const cached = loadStreak();
+    return cached?.asOf === localDate(new Date()) ? cached : null;
+  });
+
+  useEffect(() => {
+    if (!loadStreak()) return;
+    const controller = new AbortController();
+    const now = new Date();
+    fetchStreak(controller.signal, now)
+      .then((fresh) => {
+        const cached = { ...fresh, asOf: localDate(now) };
+        saveStreak(cached);
+        setStreak(cached);
+      })
+      .catch(() => {
+        // Keep whatever was cached.
+      });
+    return () => controller.abort();
+  }, []);
+
+  if (!streak || streak.current === 0) return null;
+  return (
+    <span className="flex w-full items-center gap-1 text-sm font-semibold text-warning sm:ml-auto sm:w-auto">
+      <Flame className="size-4" aria-hidden="true" />
+      {streak.current}-day streak
+      {!streak.solvedToday && <span className="font-normal text-base-content/60">· solve one today to keep it</span>}
+    </span>
+  );
 }
 
 function ProgressBadge({ id }: { id: string }) {

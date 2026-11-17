@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#3b5bdb"/>
+  <!-- Drawn smaller than favicon.svg: launchers crop maskable icons to a circle or squircle, keeping only the middle 80%. -->
+  <g fill="none" stroke="#fff" stroke-width="40" stroke-linecap="round" stroke-linejoin="round" transform="translate(256 264) scale(0.78) translate(-256 -264)">
+    <path d="M124 206 Q140 168 188 170 H388"/>
+    <path d="M222 176 Q224 296 168 360"/>
+    <path d="M316 176 V318 Q316 360 358 352"/>
+  </g>
+</svg>

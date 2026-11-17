@@ -1,5 +1,7 @@
 package dev.noahheller.pidoku.pidokuapi.puzzle;
 
+import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
+import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
 import dev.noahheller.pidoku.pidokuapi.support.IntegrationTest;
 import dev.noahheller.pidoku.pidokuapi.support.TestPuzzles;
 import org.junit.jupiter.api.Nested;
@@ -9,6 +11,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
+
+import java.time.LocalDate;
 
 import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.player;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -21,6 +25,9 @@ class PuzzleControllerTest extends IntegrationTest {
 
     @Autowired
     PuzzleService puzzleService;
+
+    @Autowired
+    DailyPuzzleService dailyPuzzleService;
 
     private Puzzle store(Difficulty difficulty, PuzzleSource source) {
         return puzzleService.store(TestPuzzles.generated(difficulty), source);
@@ -98,13 +105,37 @@ class PuzzleControllerTest extends IntegrationTest {
         }
 
         @Test
-        void repeatsAPuzzleOnceThePlayerHasStartedThemAll() {
-            Puzzle only = store(Difficulty.HARD, PuzzleSource.POOL);
-            startAttempt("alice", only);
+        void aPuzzleTheyHaventStartedIsNotARepeat() {
+            store(Difficulty.HARD, PuzzleSource.POOL);
+            startAttempt("alice", store(Difficulty.EASY, PuzzleSource.POOL));
 
             assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard").with(player("alice")))
                     .hasStatusOk()
-                    .bodyJson().extractingPath("$.id").asNumber().isEqualTo(only.getId().intValue());
+                    .bodyJson().extractingPath("$.repeat").isEqualTo(false);
+        }
+
+        @Test
+        void onceThePlayerHasStartedThemAllRepeatsTheOneStartedLongestAgo() {
+            Puzzle older = store(Difficulty.HARD, PuzzleSource.POOL);
+            Puzzle newer = store(Difficulty.HARD, PuzzleSource.POOL);
+            startAttempt("alice", older);
+            startAttempt("alice", newer);
+            jdbc.update("UPDATE attempts SET started_at = started_at - interval '1 day' WHERE puzzle_id = ?", older.getId());
+
+            var json = assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard").with(player("alice")))
+                    .hasStatusOk().bodyJson();
+            json.extractingPath("$.id").asNumber().isEqualTo(older.getId().intValue());
+            json.extractingPath("$.repeat").isEqualTo(true);
+            json.extractingPath("$.shareCode").isEqualTo(older.getShareCode());
+        }
+
+        @Test
+        void signedOutItIsNeverMarkedARepeat() {
+            store(Difficulty.HARD, PuzzleSource.POOL);
+
+            assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard"))
+                    .hasStatusOk()
+                    .bodyJson().extractingPath("$.repeat").isEqualTo(false);
         }
 
         @Test
@@ -149,6 +180,28 @@ class PuzzleControllerTest extends IntegrationTest {
                     .hasStatusOk()
                     .bodyJson()
                     .extractingPath("$.id").asNumber().isEqualTo(stored.getId().intValue());
+        }
+
+        @Test
+        void saysWhichDateADailyIsFor() {
+            LocalDate date = dailyPuzzleService.today();
+            Puzzle daily = dailyPuzzleService.fillWithNew(new DailySlot(date, Difficulty.HARD),
+                    TestPuzzles.generated(Difficulty.HARD)).getPuzzle();
+
+            assertThat(mvc.get().uri("/api/puzzles/{code}", daily.getShareCode()))
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.dailyDate").isEqualTo(date.toString());
+        }
+
+        @Test
+        void aPuzzleThatIsntADailyHasNoDailyDate() {
+            Puzzle stored = store(Difficulty.MEDIUM, PuzzleSource.POOL);
+
+            assertThat(mvc.get().uri("/api/puzzles/{code}", stored.getShareCode()))
+                    .hasStatusOk()
+                    .bodyJson()
+                    .extractingPath("$.dailyDate").isNull();
         }
 
         @Test

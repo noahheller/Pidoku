@@ -18,6 +18,7 @@ const apiPuzzle = (overrides: Partial<ApiPuzzle> = {}): ApiPuzzle => ({
   score: 120,
   dependency: 4.2,
   hardestStrategy: 'NAKED_PAIR',
+  dailyDate: null,
   ...overrides,
 });
 
@@ -31,6 +32,8 @@ describe('toPuzzleDef', () => {
     expect(toPuzzleDef(apiPuzzle(), 'Easy')).toEqual({
       id: 'api-89TU533C',
       apiId: 5,
+      shareCode: '89TU533C',
+      dailyDate: undefined,
       name: 'Easy',
       difficulty: 'Easy',
       size: 9,
@@ -40,6 +43,11 @@ describe('toPuzzleDef', () => {
       hardestStrategy: 'NAKED_PAIR',
       dependency: 4.2,
     });
+  });
+
+  it('names a puzzle after its difficulty, and a daily as one, keeping its date', () => {
+    expect(toPuzzleDef(apiPuzzle({ difficulty: 'hard' })).name).toBe('Hard');
+    expect(toPuzzleDef(apiPuzzle({ difficulty: 'hard', dailyDate: '2026-11-17' }))).toMatchObject({ name: 'Daily Hard', dailyDate: '2026-11-17' });
   });
 
   it('rejects grids of the wrong length', () => {
@@ -77,9 +85,15 @@ describe('fetchDaily', () => {
 describe('fetchRandom', () => {
   it('asks for the difficulty and names the puzzle after it', async () => {
     respond(200, apiPuzzle({ difficulty: 'fiendish' }));
-    const puzzle = await fetchRandom('fiendish');
+    const { puzzle, repeat } = await fetchRandom('fiendish');
     expect(puzzle.name).toBe('Fiendish');
+    expect(repeat).toBe(false);
     expect(fetch).toHaveBeenCalledWith('/api/puzzles/random?difficulty=fiendish', expect.anything());
+  });
+
+  it('says when the puzzle is a repeat', async () => {
+    respond(200, { ...apiPuzzle(), repeat: true });
+    await expect(fetchRandom('easy')).resolves.toMatchObject({ repeat: true });
   });
 
   it('sends the ID token when signed in', async () => {
@@ -101,7 +115,7 @@ describe('fetchRandom', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('', { status: 401 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(apiPuzzle()), { status: 200 }));
-    await expect(fetchRandom('easy')).resolves.toMatchObject({ id: 'api-89TU533C' });
+    await expect(fetchRandom('easy')).resolves.toMatchObject({ puzzle: { id: 'api-89TU533C' } });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(fetchMock.mock.calls[1][1]?.headers).not.toHaveProperty('Authorization');
   });
@@ -128,7 +142,7 @@ describe('fetchRandom', () => {
 });
 
 describe('attempts', () => {
-  const attempt: Attempt = { id: 12, puzzleId: 5, startedAt: '2026-11-16T10:00:00Z', completedAt: null, elapsedMs: null, mistakes: 0, hintsUsed: 0 };
+  const attempt: Attempt = { id: 12, puzzleId: 5, startedAt: '2026-11-16T10:00:00Z', completedAt: null, elapsedMs: null, mistakes: 0, hintsUsed: 0, activeMs: null, late: false };
 
   it('starts an attempt at a puzzle as the signed-in player', async () => {
     signIn('token-1');
@@ -150,8 +164,15 @@ describe('attempts', () => {
   it('completes an attempt with the grid and mistakes', async () => {
     signIn('token-1');
     const fetchMock = respond(200, { ...attempt, completedAt: '2026-11-16T10:04:12Z', elapsedMs: 252000, mistakes: 2 });
-    await expect(completeAttempt(12, [3, 1, 4], 2)).resolves.toMatchObject({ elapsedMs: 252000 });
+    await expect(completeAttempt(12, { grid: [3, 1, 4], mistakes: 2 })).resolves.toMatchObject({ elapsedMs: 252000 });
     expect(fetchMock).toHaveBeenCalledWith('/api/attempts/12/complete', expect.objectContaining({ method: 'POST', body: JSON.stringify({ grid: [3, 1, 4], mistakes: 2 }) }));
+  });
+
+  it('sends the active time and how late the completion is when given', async () => {
+    signIn('token-1');
+    const fetchMock = respond(200, { ...attempt, completedAt: '2026-11-16T10:04:12Z', elapsedMs: 252000 });
+    await completeAttempt(12, { grid: [3], mistakes: 0, activeMs: 250000, lateByMs: 60000 });
+    expect(fetchMock).toHaveBeenCalledWith('/api/attempts/12/complete', expect.objectContaining({ body: JSON.stringify({ grid: [3], mistakes: 0, activeMs: 250000, lateByMs: 60000 }) }));
   });
 
   it('fails without calling the API when the player is signed out', async () => {
