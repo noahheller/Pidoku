@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Puzzles that aren't tied to a date or a campaign level. {@code GET /api/puzzles/daily} lives in
+ * Puzzles that aren't tied to a date or a campaign level. {@code GET /api/puzzles/daily/{date}} lives in
  * {@code DailyPuzzleController}; Spring matches the literal paths before {@code /{shareCode}}, and
  * share codes are always 8 upper-case characters, so they can't collide.
  */

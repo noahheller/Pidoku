@@ -31,9 +31,20 @@ own difficulty and the puzzle has to be generated on demand.
 
 ### Daily puzzle rules
 - Every day has three dailies: one easy, one medium and one hard.
-- "Today" is the **UTC** date. The dailies change at 00:00 UTC for everyone, a solve counts
-  toward the leaderboard of the UTC date and difficulty its puzzle belongs to, and streaks
-  count consecutive UTC dates.
+- "Today" is the **player's local date**. The frontend asks for the dailies of the date on
+  the player's device, so a new day starts at each player's own midnight and everyone gets
+  the same puzzles for the same calendar date (as Wordle does). A solve counts toward the
+  leaderboard of the date and difficulty its puzzle belongs to, and streaks count consecutive
+  local dates. (Changed from 00:00 UTC in milestone 2, which was mid-evening in the US.)
+- Consequences accepted for a game among friends: a date's puzzles are "today's" for about 50
+  hours worldwide, so a friend further east sees them first; a date's leaderboard stays open
+  that long; and setting a device clock forward shows the next date a few hours early. The
+  API limits that by only serving dates that are today somewhere in the world (yesterday to
+  tomorrow in UTC).
+- A complete day's response never changes, so Firebase Hosting's CDN caches it for a day
+  (`s-maxage`); browsers don't (`max-age=0`), and an incomplete day isn't cached.
+  `firebase deploy` clears the CDN cache, so an API change that alters the response needs a
+  hosting deploy too (CI does both).
 - The number in "Pidoku #123" is days since launch (launch day is #1).
 
 ## Milestones
@@ -77,7 +88,7 @@ Decisions made while building it:
 | Table | Columns | Created in |
 |---|---|---|
 | `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at | V1 (milestone 1) |
-| `daily_puzzles` | (puzzle_date (UTC), difficulty) → puzzle_id | V2 (milestone 1) |
+| `daily_puzzles` | (puzzle_date, difficulty) → puzzle_id | V2 (milestone 1) |
 | `players` | id, firebase_uid (nullable at first), display_name, created_at | milestone 3 |
 | `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used | milestone 3 |
 | `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 5 |
@@ -124,12 +135,12 @@ the public read endpoints (and `/actuator/health`). Milestone 3 adds Firebase to
 | Endpoint | Purpose | Milestone |
 |---|---|---|
 | `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle, skipping ones the player has seen (once sign-in exists in milestone 3) | 1 (done) |
-| `GET /api/puzzles/daily` | Today's (UTC) easy, medium and hard puzzles | 1 (done) |
+| `GET /api/puzzles/daily/{date}` | A date's easy, medium and hard puzzles; the frontend sends the player's local date | 1 (done) |
 | `GET /api/puzzles/{shareCode}` | A shared puzzle | 1 (done) |
 | `POST /api/attempts` | Final grid and mistakes. The server checks the grid against the solution, records the attempt and unlocks the next level. | 3, 5 |
 | `GET /api/campaign` | Levels with lock, progress and star state for the player | 5 |
 | `GET /api/campaign/{n}` | Givens for level n (only if unlocked) | 5 |
-| `GET /api/puzzles/daily/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies (friends filter later) | 6 |
+| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies (friends filter later) | 6 |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 7 |
 
 - Solutions stay on the server in principle. Checking mistakes live would then need a
@@ -225,7 +236,7 @@ and so on, then get a puzzle generated for it.
 
 ## 6. Attempts, leaderboards and friends
 
-- Daily: easy, medium and hard each UTC day, a streak counter, and a share line like
+- Daily: easy, medium and hard each calendar date, a streak counter, and a share line like
   "Pidoku #123 Hard 4:12 ✓". To decide: whether a streak needs any daily solved that day,
   or a particular one.
 - One leaderboard per daily (date and difficulty). It uses the server-measured time from

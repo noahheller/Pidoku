@@ -129,7 +129,7 @@ trying out changes.
 | Endpoint | Returns |
 |---|---|
 | `GET /api/puzzles/random?difficulty=hard` | A random puzzle from the pool |
-| `GET /api/puzzles/daily` | Today's (UTC) date and its daily puzzles (easy, medium and hard), easiest first |
+| `GET /api/puzzles/daily/{date}` | The daily puzzles (easy, medium and hard, easiest first) for a date such as `2026-11-17`. The frontend asks for the player's local date. Only dates that are today somewhere in the world are served; a complete day is cached by Firebase's CDN |
 | `GET /api/puzzles/{shareCode}` | The puzzle behind a share code (case-insensitive) |
 | `GET /actuator/health` | Health check |
 

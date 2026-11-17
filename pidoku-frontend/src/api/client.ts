@@ -23,7 +23,7 @@ export interface ApiPuzzle {
 }
 
 export interface DailyPuzzles {
-  /** The UTC date these are the dailies for, as YYYY-MM-DD. */
+  /** The date these are the dailies for (the player's local date), as YYYY-MM-DD. */
   date: string;
   /** One per daily difficulty, easiest first. */
   puzzles: PuzzleDef[];
@@ -41,9 +41,19 @@ export class ApiError extends Error {
   }
 }
 
-export async function fetchDaily(signal?: AbortSignal): Promise<DailyPuzzles> {
-  const body = await getJson<{ date: string; puzzles: ApiPuzzle[] }>('/api/puzzles/daily', signal, "Today's puzzles aren't ready yet. Try again in a little while.");
+/**
+ * The daily puzzles for the player's own date, so a new day starts at their local midnight.
+ * Everyone gets the same puzzles for the same calendar date.
+ */
+export async function fetchDaily(signal?: AbortSignal, now: Date = new Date()): Promise<DailyPuzzles> {
+  const body = await getJson<{ date: string; puzzles: ApiPuzzle[] }>(`/api/puzzles/daily/${localDate(now)}`, signal, "Today's puzzles aren't ready yet. Try again in a little while.");
   return { date: body.date, puzzles: body.puzzles.map((p) => toPuzzleDef(p, `Daily ${capitalize(p.difficulty)}`)) };
+}
+
+/** YYYY-MM-DD in the device's own time zone (toISOString would give the UTC date). */
+export function localDate(now: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
 export async function fetchRandom(difficulty: Difficulty, signal?: AbortSignal): Promise<PuzzleDef> {

@@ -43,10 +43,10 @@ describe('toPuzzleDef', () => {
 describe('fetchDaily', () => {
   it('names each daily after its difficulty, keeping the order', async () => {
     respond(200, { date: '2026-11-16', puzzles: [apiPuzzle(), apiPuzzle({ shareCode: 'ABCDEFGH', difficulty: 'hard' })] });
-    const daily = await fetchDaily();
+    const daily = await fetchDaily(undefined, new Date(2026, 10, 16, 23, 30));
     expect(daily.date).toBe('2026-11-16');
     expect(daily.puzzles.map((p) => p.name)).toEqual(['Daily Easy', 'Daily Hard']);
-    expect(fetch).toHaveBeenCalledWith('/api/puzzles/daily', expect.anything());
+    expect(fetch).toHaveBeenCalledWith('/api/puzzles/daily/2026-11-16', expect.anything());
   });
 
   it('explains a 503 as the puzzles not being ready yet', async () => {

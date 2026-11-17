@@ -33,7 +33,7 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
           <h2 id="today-title" className="text-lg font-semibold">
             Today
           </h2>
-          {daily.state.status === 'loaded' && <span className="text-sm text-base-content/60">{formatUtcDate(daily.state.daily.date)}</span>}
+          {daily.state.status === 'loaded' && <span className="text-sm text-base-content/60">{formatDate(daily.state.daily.date)}</span>}
         </div>
         {daily.state.status === 'loading' && <PuzzleListSkeleton count={3} />}
         {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.daily.puzzles} onPlay={onPlay} />}
@@ -202,8 +202,12 @@ function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef) => void }) {
   );
 }
 
-/** "Monday, 16 November" for a YYYY-MM-DD UTC date, in the player's locale. */
-function formatUtcDate(date: string): string {
+/**
+ * "Monday, 16 November" for a YYYY-MM-DD date, in the player's locale. The date is already the
+ * player's local date, so it's formatted as written: parsing and printing both in UTC keeps the player's
+ * time zone from shifting it by a day.
+ */
+function formatDate(date: string): string {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 }
 
