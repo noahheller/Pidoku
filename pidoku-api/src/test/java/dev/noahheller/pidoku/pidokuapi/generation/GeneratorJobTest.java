@@ -120,6 +120,56 @@ class GeneratorJobTest extends IntegrationTest {
             assertThat(generator.calls(Difficulty.EASY)).isEqualTo(POOL_SIZE);
         }
 
+        /** Records that a player has played a puzzle (finished, so the same one can be played again). */
+        private void start(long playerId, long puzzleId) {
+            jdbc.update("""
+                    INSERT INTO attempts (player_id, puzzle_id, started_at, completed_at, elapsed_ms)
+                    VALUES (?, ?, now(), now(), 0)
+                    """, playerId, puzzleId);
+        }
+
+        private long newPlayer(String uid) {
+            return jdbc.queryForObject("INSERT INTO players (firebase_uid) VALUES (?) RETURNING id", Long.class, uid);
+        }
+
+        private List<Long> poolIds(Difficulty difficulty) {
+            return jdbc.queryForList("SELECT id FROM puzzles WHERE source = 'POOL' AND difficulty = ? ORDER BY id",
+                    Long.class, difficulty.name());
+        }
+
+        @Test
+        void growsSoTheMostActivePlayerStillHasAFullPoolTheyHaventStarted() {
+            poolRefiller.refill();
+            long alice = newPlayer("alice");
+            long bob = newPlayer("bob");
+            List<Long> hard = poolIds(Difficulty.HARD);
+            start(alice, hard.get(0));
+            start(alice, hard.get(1));
+            start(alice, hard.get(1)); // the same puzzle again counts once
+            start(bob, hard.get(0));
+            generator.reset();
+
+            poolRefiller.refill();
+
+            // Alice started 2, so the pool grows by 2; bob's 1 is covered by that.
+            assertThat(generator.calls(Difficulty.HARD)).isEqualTo(2);
+            assertThat(puzzleService.countInPool(Difficulty.HARD)).isEqualTo(POOL_SIZE + 2);
+            assertThat(generator.calls(Difficulty.EASY)).isZero();
+        }
+
+        @Test
+        void aPlayerWhoStartedEveryPuzzleGetsAWholeNewPoolsWorth() {
+            poolRefiller.refill();
+            long alice = newPlayer("alice");
+            poolIds(Difficulty.HARD).forEach(id -> start(alice, id));
+            generator.reset();
+
+            poolRefiller.refill();
+
+            assertThat(generator.calls(Difficulty.HARD)).isEqualTo(POOL_SIZE);
+            assertThat(puzzleService.countInPool(Difficulty.HARD)).isEqualTo(POOL_SIZE * 2);
+        }
+
         @Test
         void survivesTimeouts() {
             generator.setTimingOut(true);
@@ -133,21 +183,21 @@ class GeneratorJobTest extends IntegrationTest {
     class Dailies {
 
         @Test
-        void takesDailiesFromThePoolWhenItCan() {
+        void neverTakesDailiesFromThePool() {
+            // Pool puzzles may already have been played through the Random buttons.
             poolRefiller.refill();
             generator.reset();
 
             assertThat(dailyPuzzleScheduler.scheduleUpcoming()).isEqualTo(DAILY_SLOTS);
 
-            assertThat(generator.totalCalls()).isZero();
-            assertThat(dailies.count()).isEqualTo(DAILY_SLOTS);
-            for (Difficulty difficulty : DAILY_DIFFICULTIES) {
-                assertThat(puzzleService.countInPool(difficulty)).as(difficulty.id()).isEqualTo(POOL_SIZE - DAYS_AHEAD);
+            assertThat(generator.totalCalls()).isEqualTo(DAILY_SLOTS);
+            for (Difficulty difficulty : Difficulty.values()) {
+                assertThat(puzzleService.countInPool(difficulty)).as(difficulty.id()).isEqualTo(POOL_SIZE);
             }
         }
 
         @Test
-        void generatesDailiesWhenThePoolIsEmpty() {
+        void generatesEachDailyOfItsSlotsDifficulty() {
             assertThat(dailyPuzzleScheduler.scheduleUpcoming()).isEqualTo(DAILY_SLOTS);
 
             for (Difficulty difficulty : Difficulty.values()) {
@@ -219,7 +269,6 @@ class GeneratorJobTest extends IntegrationTest {
             assertThat(puzzleService.countInPool(difficulty)).as(difficulty.id()).isEqualTo(POOL_SIZE);
         }
         assertThat(dailies.count()).isEqualTo(DAILY_SLOTS);
-        // The dailies came from the first refill, then the second refill replaced them.
         assertThat(generator.totalCalls()).isEqualTo(POOL_SIZE * DIFFICULTIES + DAILY_SLOTS);
     }
 }

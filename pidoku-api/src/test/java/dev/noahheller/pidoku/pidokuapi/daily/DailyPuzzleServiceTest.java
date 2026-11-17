@@ -1,7 +1,6 @@
 package dev.noahheller.pidoku.pidokuapi.daily;
 
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
-import dev.noahheller.pidoku.pidokuapi.puzzle.Puzzle;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleRepository;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleService;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleSource;
@@ -34,27 +33,6 @@ class DailyPuzzleServiceTest extends IntegrationTest {
 
     @Autowired
     DailyPuzzleRepository dailies;
-
-    @Test
-    void fillFromPoolMovesAPuzzleOfTheSlotsDifficultyOutOfThePool() {
-        Puzzle hard = puzzleService.store(TestPuzzles.generated(Difficulty.HARD), PuzzleSource.POOL);
-        puzzleService.store(TestPuzzles.generated(Difficulty.EASY), PuzzleSource.POOL);
-
-        DailyPuzzle daily = dailyPuzzleService.fillFromPool(HARD_SLOT).orElseThrow();
-
-        assertThat(daily.getPuzzle().getId()).isEqualTo(hard.getId());
-        assertThat(puzzles.findById(hard.getId()).orElseThrow().getSource()).isEqualTo(PuzzleSource.DAILY);
-        assertThat(puzzleService.countInPool(Difficulty.HARD)).isZero();
-        assertThat(puzzleService.countInPool(Difficulty.EASY)).isOne();
-    }
-
-    @Test
-    void fillFromPoolReturnsEmptyWhenThePoolHasNoneOfThatDifficulty() {
-        puzzleService.store(TestPuzzles.generated(Difficulty.EASY), PuzzleSource.POOL);
-
-        assertThat(dailyPuzzleService.fillFromPool(HARD_SLOT)).isEmpty();
-        assertThat(dailies.count()).isZero();
-    }
 
     @Test
     void fillWithNewStoresThePuzzleAsADaily() {

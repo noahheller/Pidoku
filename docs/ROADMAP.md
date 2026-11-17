@@ -57,7 +57,8 @@ own difficulty and the puzzle has to be generated on demand.
 3. Anonymous sign-in and players, so everything after this knows who the player is.
    **Built;** still to deploy and try once on the live site.
 4. The daily loop: a start screen, a result screen with the server's time, streaks, a share
-   line, display names and share links.
+   line, display names and share links. **Built;** still to deploy (with milestone 3) and try on
+   a phone.
 5. Leaderboards, Google sign-in and friends.
 
    **— v1: the game is worth sending to friends and putting on a resume —**
@@ -104,7 +105,7 @@ Decisions made while building it:
 | `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at | V1 (milestone 1) |
 | `daily_puzzles` | (puzzle_date, difficulty) → puzzle_id | V2 (milestone 1) |
 | `players` | id, firebase_uid, display_name (null until chosen), created_at | V3 (milestone 3) |
-| `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used | V3 (milestone 3) |
+| `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used; active_ms and late added in V4 | V3 (milestone 3), V4 (milestone 4) |
 | `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 8 |
 
 Column notes:
@@ -113,7 +114,8 @@ Column notes:
   sequential ids.
 - `source`: `pool`, `campaign`, `daily` or `custom`. The random endpoint only serves
   `pool` puzzles, so it never hands out today's daily, a campaign level, or a player's
-  custom puzzle. Assigning a puzzle to the campaign or a day moves it out of `pool`.
+  custom puzzle. A puzzle's source never changes: dailies (and campaign levels) are generated
+  for that use, never taken from the pool, so no one can have played them through Random.
 - `strategy_uses`: a JSONB map of strategy → times used, from
   `SolveTrace.getAllUseCounts()` (e.g. `{"NAKED_PAIR": 3, "X_WING": 1}`). Custom
   generation uses it to find a stored puzzle that matches a player's settings before
@@ -134,14 +136,26 @@ Constraints and indexes:
 
 ### Generator job
 - Runs as the `generator` Spring profile of the API, with no web server.
-- Tops each difficulty up to N `pool` puzzles (default 50), generating in parallel.
-- Fills the daily slots (easy, medium and hard) for the next 31 days, moving puzzles from
-  `pool` to `daily`, then refills the pool to replace them.
+- Fills the daily slots (easy, medium and hard) for the next 31 days with newly generated
+  puzzles, first, since they're what players wait for. Once the 31 days are filled, a normal
+  night generates three.
+- Then tops up the pool, generating in parallel: each difficulty gets enough new puzzles that
+  the player who has started the most of its pool puzzles still has N (default 50) they haven't
+  started. So the pool grows as people play; with no one playing it holds N. A run never adds
+  more than N of a difficulty, since no one can have started more than the pool holds.
+- Pool puzzles are never removed: attempts and share links point at them, they're tiny, and
+  the random endpoint skips the ones a player has started.
+- Until milestone 4, dailies were taken from the pool, so a daily could be a puzzle someone had
+  already played through Random. Migration V5 cleared the slots no one had been served yet
+  (two or more days ahead) and put their puzzles back in the pool.
 - Shares one `PidokuBuilder` across threads: the engine is thread-safe, with each call's
   random state created from its seed inside `generate`.
-- "N puzzles players haven't seen" isn't built: the pool is simply kept at N, and the random
-  endpoint repeats a puzzle once a player has started all of a difficulty's. With 50 per
-  difficulty that's far off for a game among friends; revisit if someone gets there.
+- Random puzzles: signed in, the endpoint skips puzzles the player has started (finished or
+  not). If they've started them all before the next night's top-up, it sends the one they started
+  longest ago with `"repeat": true`, and the frontend says "You've played every hard puzzle.
+  Here's one again." and starts it fresh (old progress wiped, the server's clock restarted).
+  The frontend also asks again, up to five times, when it gets a puzzle this browser has
+  progress on that the server doesn't know about (played signed out, or the start never arrived).
 
 ### Security configuration
 `spring-boot-starter-security` is already a dependency, and by default it requires
@@ -152,14 +166,14 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 ### Endpoints
 | Endpoint | Purpose | Milestone |
 |---|---|---|
-| `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle. Sign-in is optional; signed in, it skips puzzles the player has started | 1, 3 (done) |
+| `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle. Sign-in is optional; signed in, it skips puzzles the player has started, and once they've started them all sends a `repeat` | 1, 3, 4 (done) |
 | `GET /api/puzzles/daily/{date}` | A date's easy, medium and hard puzzles; the frontend sends the player's local date | 1 (done) |
-| `GET /api/puzzles/{shareCode}` | A shared puzzle | 1 (done) |
+| `GET /api/puzzles/{shareCode}` | A shared puzzle, with `dailyDate` if it's a daily | 1, 4 (done) |
 | `GET /api/players/me` | The signed-in player, created on first use | 3 (done) |
 | `POST /api/attempts` | Puzzle id in → the player's unfinished attempt at it, started now if there isn't one. Starts the server's clock. | 3 (done) |
-| `POST /api/attempts/{id}/complete` | Final grid and mistakes. The server checks the grid against the solution and records the time since the start. Gains `activeMs` and `lateByMs` in milestone 4, and unlocks the next campaign level in milestone 8. | 3 (done), 4, 8 |
-| `PATCH /api/players/me` | Sets the display name | 4 |
-| `GET /api/players/me/streak` | Current and best streak (or part of `GET /api/players/me`) | 4 |
+| `POST /api/attempts/{id}/complete` | Final grid and mistakes. The server checks the grid against the solution and records the time since the start. Takes `activeMs` and `lateByMs` (milestone 4), and unlocks the next campaign level in milestone 8. | 3, 4 (done), 8 |
+| `PATCH /api/players/me` | Sets the display name | 4 (done) |
+| `GET /api/players/me/streak?today=2026-11-17` | Current and best streak, as of the player's local date | 4 (done) |
 | `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies, optionally friends only | 5 |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
 | `POST /api/puzzles/generate` | A puzzle for the player's own difficulty settings | 7 |
@@ -263,6 +277,48 @@ Decisions made while building it:
 
 What a player sees around a daily puzzle, before any leaderboard: enough to play every day and
 to tell friends about it.
+
+**Status: built.** Tested with the API's integration tests, the frontend's unit tests, and by
+playing a daily end to end in a phone-sized headless Chromium against a local API and real
+anonymous Firebase sign-in. Still to do: deploy (migration V4 runs on Neon), install it to a real
+phone's home screen, and play a daily there.
+
+Decisions made while building it:
+- **Launch date: 2026-11-17** (`LAUNCH_DATE` in `pidoku-frontend/src/game/daily.ts`), so that
+  date is Pidoku #1. Change it before anyone shares a result, never after.
+- Share line: `Pidoku #123 Hard 4:12 ✓` with the `/p/{shareCode}` link on the next line. ✓ means
+  no mistakes; otherwise it says how many, e.g. `2✗`. The time is the server's when it has one.
+  Other API puzzles get the same line without a number; puzzles from a file get no link.
+- A daily is any puzzle with a `dailyDate`, which `GET /api/puzzles/{shareCode}` now returns too,
+  so a daily opened from a friend's share link also gets the start screen and the share line.
+  Changing the daily response needs a hosting deploy to clear the CDN (see "Daily puzzle rules");
+  the frontend also takes the date from the response, so an old cached copy still works.
+- The start screen hides the board, so it can't be studied before the clock starts. Nothing is
+  saved before Start, so a daily with saved progress opens straight to the board.
+- Streaks: `GET /api/players/me/streak?today=…`, computed from attempts on every request rather
+  than stored. A solve counts for its date only if it happened while that date was today
+  somewhere (from its midnight at UTC+14 to its midnight at UTC-12). That stops a missed day being
+  filled in later through an old daily's share link, and stops an attempt from before the puzzle
+  was a daily (the pool problem in Open items) from counting.
+- The home screen shows the streak only for players who've seen a result before (it's cached in
+  localStorage), so first-time visitors still aren't signed in on page load.
+- Late solves: `completed_at` is the solve time the client claims (arrival minus `lateByMs`), never
+  before `started_at`, and `elapsed_ms` runs from start to that. `late` is true when `lateByMs` is
+  over 0. Solves queued before this change have no solve time, so they're sent without
+  `lateByMs` and timed as before.
+- Display names: trimmed, inner whitespace collapsed to one space, 1–40 characters counted as
+  Postgres counts them (code points, so an emoji is one), no control or invisible characters
+  (zero-width joiners are allowed, for emoji). Asked for under the first recorded result; "Not
+  now" is remembered in this browser and the prompt doesn't come back. There's no other place to
+  change the name yet; milestone 5's leaderboards need one.
+- Router: React Router (declarative mode). Routes are `/`, `/p/{shareCode}` and
+  `/local/{id}` for puzzles that only exist in this browser. Opening a puzzle from the home
+  screen passes it in the history state, so only a share link opened cold fetches it.
+- Phones: the number pad was already one row of seven under the board. Added `touch-action:
+  manipulation` (fast taps don't double-tap zoom; pinch zoom still works), 16 px inputs (iOS
+  zooms into smaller ones), safe-area padding, a web app manifest, a π icon (also the new
+  favicon, replacing Vite's) and an Apple touch icon. No service worker: browsers install
+  without one now, and caching the app shell would fight `firebase deploy`'s cache clearing.
 
 - **Start screen for dailies.** Opening a daily shows its difficulty and a Start button, and the
   attempt (the server's clock) starts on Start, not on opening. The ranked time is wall-clock,
@@ -419,9 +475,9 @@ are done before v1 is called done.
 
 - The API client has replaced the bundled puzzles as the main source; the bundled ones are the
   offline fallback, and loading engine JSON stays as a dev tool.
-- Home screen today: Today's dailies, Random puzzle, Your puzzles, Load a puzzle. To come:
-  streak and leaderboard (4, 5), Generate (7), Campaign (8).
-- Routes arrive with share links (milestone 4).
+- Home screen today: Today's dailies with the streak, Random puzzle, Your puzzles, Load a puzzle.
+  To come: leaderboard (5), Generate (7), Campaign (8).
+- Routes: `/`, `/p/{shareCode}` and `/local/{id}` (milestone 4). Campaign levels will add theirs.
 
 ## Engine follow-ups
 
@@ -436,13 +492,9 @@ are done before v1 is called done.
 
 - Calibration: none of the scoring weights have been checked against real players.
 - The new strategy names have only been checked on the puzzle cards, not in the game screen.
-- Milestone 3 hasn't been deployed or tried on the live site yet.
-- **A daily can be a puzzle someone has already played.** The generator job fills daily slots
-  from the random pool (`DailyPuzzleService.fillFromPool`), which the Random buttons also serve
-  from, so a player may have seen a future daily's solution or already hold a finished attempt
-  at it, and that old attempt would be the one a leaderboard ranks. Fix before leaderboards
-  (milestone 5): generate dailies fresh instead of taking them from the pool. A normal night
-  costs the same, three generated puzzles, since the pool is refilled afterwards anyway.
-  Dailies already scheduled from the pool (up to 31 days ahead) would still need checking for
-  earlier attempts.
+- Milestones 3 and 4 haven't been deployed or tried on the live site yet.
+- The display name can only be set from the prompt under a result. Add somewhere to change it
+  before leaderboards show it (milestone 5).
+- ~~A daily can be a puzzle someone has already played.~~ Fixed: dailies are generated fresh
+  (milestone 4). Today's and tomorrow's dailies on the day V5 runs may still be old pool puzzles.
 - Whether a solve that used hints ranks on the leaderboard (decide in milestone 6).

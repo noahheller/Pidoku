@@ -64,6 +64,13 @@ class AttemptControllerTest extends IntegrationTest {
                 .exchange();
     }
 
+    private MvcTestResult complete(String uid, long attemptId, String extraJson) {
+        return mvc.post().uri("/api/attempts/{id}/complete", attemptId).with(player(uid))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"grid\": %s, \"mistakes\": 0, %s}".formatted(SOLVED, extraJson))
+                .exchange();
+    }
+
     private int attemptCount() {
         return jdbc.queryForObject("SELECT count(*) FROM attempts", Integer.class);
     }
@@ -174,6 +181,59 @@ class AttemptControllerTest extends IntegrationTest {
             // Measured by the server: 90 s plus however long the test took.
             json.extractingPath("$.elapsedMs").asNumber()
                     .satisfies(ms -> assertThat(ms.longValue()).isBetween(90_000L, 150_000L));
+        }
+
+        @Test
+        void aCompletionSentStraightAwayIsNotLate() {
+            long id = started("alice");
+
+            var json = assertThat(complete("alice", id, SOLVED, 0)).hasStatusOk().bodyJson();
+
+            json.extractingPath("$.late").isEqualTo(false);
+            json.extractingPath("$.activeMs").isNull();
+        }
+
+        @Test
+        void recordsTheClientsActiveTime() {
+            long id = started("alice");
+
+            assertThat(complete("alice", id, "\"activeMs\": 61000")).hasStatusOk()
+                    .bodyJson().extractingPath("$.activeMs").asNumber().isEqualTo(61000);
+            assertThat(jdbc.queryForObject("SELECT active_ms FROM attempts", Long.class)).isEqualTo(61_000L);
+        }
+
+        @Test
+        void aLateCompletionTakesTheDelayOffTheTime() {
+            long id = started("alice");
+            jdbc.update("UPDATE attempts SET started_at = started_at - interval '10 minutes'");
+
+            var json = assertThat(complete("alice", id, "\"lateByMs\": 240000")).hasStatusOk().bodyJson();
+
+            json.extractingPath("$.late").isEqualTo(true);
+            // 10 minutes since the start, less the 4 sent late, plus however long the test took.
+            json.extractingPath("$.elapsedMs").asNumber()
+                    .satisfies(ms -> assertThat(ms.longValue()).isBetween(360_000L, 420_000L));
+            assertThat(jdbc.queryForObject(
+                    "SELECT completed_at BETWEEN now() - interval '5 minutes' AND now() - interval '3 minutes' FROM attempts",
+                    Boolean.class)).isTrue();
+        }
+
+        @Test
+        void aDelayLongerThanTheAttemptRecordsZeroNotANegativeTime() {
+            long id = started("alice");
+
+            var json = assertThat(complete("alice", id, "\"lateByMs\": 86400000")).hasStatusOk().bodyJson();
+
+            json.extractingPath("$.elapsedMs").asNumber().isEqualTo(0);
+            assertThat(jdbc.queryForObject("SELECT completed_at = started_at FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void negativeActiveOrLateTimesAreABadRequest() {
+            long id = started("alice");
+
+            assertThat(complete("alice", id, "\"activeMs\": -1")).hasStatus(HttpStatus.BAD_REQUEST);
+            assertThat(complete("alice", id, "\"lateByMs\": -1")).hasStatus(HttpStatus.BAD_REQUEST);
         }
 
         @Test

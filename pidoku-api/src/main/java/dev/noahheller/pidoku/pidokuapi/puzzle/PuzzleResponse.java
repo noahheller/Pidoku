@@ -1,5 +1,7 @@
 package dev.noahheller.pidoku.pidokuapi.puzzle;
 
+import java.time.LocalDate;
+
 /**
  * A puzzle as the frontend receives it. Grids are flat, row-major arrays with 0 for an empty cell,
  * matching the frontend's {@code PuzzleDef}.
@@ -9,6 +11,8 @@ package dev.noahheller.pidoku.pidokuapi.puzzle;
  *
  * @param hardestStrategy the engine's strategy name, e.g. {@code NAKED_PAIR}
  * @param dependency      average cells fillable with a single over the first 25 steps
+ * @param dailyDate       the date the puzzle is the daily for, or null if it isn't a daily. Lets a
+ *                        daily opened from a share link get the daily's start screen and result.
  */
 public record PuzzleResponse(
         long id,
@@ -20,10 +24,17 @@ public record PuzzleResponse(
         int clueCount,
         int score,
         double dependency,
-        String hardestStrategy
+        String hardestStrategy,
+        LocalDate dailyDate
 ) {
 
+    /** A puzzle that isn't a daily. */
     public static PuzzleResponse from(Puzzle puzzle) {
+        return from(puzzle, null);
+    }
+
+    /** @param dailyDate the date the puzzle is the daily for, or null if it isn't one */
+    public static PuzzleResponse from(Puzzle puzzle, LocalDate dailyDate) {
         return new PuzzleResponse(
                 puzzle.getId(),
                 puzzle.getShareCode(),
@@ -34,6 +45,7 @@ public record PuzzleResponse(
                 puzzle.getClueCount(),
                 puzzle.getScore(),
                 puzzle.getDependency(),
-                puzzle.getHardestStrategy());
+                puzzle.getHardestStrategy(),
+                dailyDate);
     }
 }
