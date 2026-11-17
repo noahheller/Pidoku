@@ -28,19 +28,21 @@ public class PuzzleController {
 
     /**
      * A random puzzle from the pool. Sign-in is optional: with a Firebase ID token, puzzles the
-     * player has already started are skipped while there are others.
+     * player has already started are skipped. Once they've started them all, they get the one they
+     * started longest ago, with {@code "repeat": true} so the frontend can say so.
      */
     @GetMapping("/random")
-    public PuzzleResponse random(@RequestParam Difficulty difficulty, @AuthenticationPrincipal Jwt token) {
-        Puzzle puzzle = playerService.find(token)
+    public RandomPuzzleResponse random(@RequestParam Difficulty difficulty, @AuthenticationPrincipal Jwt token) {
+        PuzzleService.RandomPick pick = playerService.find(token)
                 .map(player -> puzzleService.randomFromPool(difficulty, player))
-                .orElseGet(() -> puzzleService.randomFromPool(difficulty));
-        return PuzzleResponse.from(puzzle);
+                .orElseGet(() -> new PuzzleService.RandomPick(puzzleService.randomFromPool(difficulty), false));
+        return new RandomPuzzleResponse(PuzzleResponse.from(pick.puzzle()), pick.repeat());
     }
 
-    /** The puzzle behind a share link. */
+    /** The puzzle behind a share link ({@code /p/{shareCode}} in the frontend). */
     @GetMapping("/{shareCode}")
     public PuzzleResponse byShareCode(@PathVariable String shareCode) {
-        return PuzzleResponse.from(puzzleService.byShareCode(shareCode));
+        Puzzle puzzle = puzzleService.byShareCode(shareCode);
+        return PuzzleResponse.from(puzzle, puzzleService.dailyDate(puzzle).orElse(null));
     }
 }

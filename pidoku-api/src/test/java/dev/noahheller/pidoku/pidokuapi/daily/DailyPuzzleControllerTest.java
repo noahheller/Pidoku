@@ -44,6 +44,8 @@ class DailyPuzzleControllerTest extends IntegrationTest {
         // Checked path by path: a lenient JSON comparison would ignore the array's order.
         assertThat(response).bodyJson().extractingPath("$.puzzles[*].difficulty").asArray()
                 .containsExactly("easy", "medium", "hard");
+        assertThat(response).bodyJson().extractingPath("$.puzzles[*].dailyDate").asArray()
+                .containsOnly(today.toString());
         assertThat(response).bodyJson().extractingPath("$.puzzles[*].id")
                 .convertTo(InstanceOfAssertFactories.list(Long.class))
                 .containsExactly(easy, medium, hard);

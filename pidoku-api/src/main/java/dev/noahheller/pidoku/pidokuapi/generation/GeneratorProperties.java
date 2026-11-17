@@ -10,7 +10,8 @@ import java.time.Duration;
 /**
  * Settings under {@code pidoku.generator}, used by the generator job.
  *
- * @param poolSizePerDifficulty how many unplayed puzzles of each difficulty the random pool should hold
+ * @param poolSizePerDifficulty how many puzzles of each difficulty the random pool should hold that
+ *                              even its most active player hasn't started
  * @param dailyDaysAhead        how many days of daily puzzles to have assigned, counting today
  * @param parallelism           puzzles generated at once; 0 means one per available processor
  * @param timeout               how long one puzzle may take before generation gives up on it

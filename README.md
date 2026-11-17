@@ -20,6 +20,16 @@ See [docs/ROADMAP.md](docs/ROADMAP.md) for design decisions and what's planned n
 
 Requirements: JDK 25, Node 22+, and Docker (for API tests and the container image).
 
+The quickest way to play locally, once `pidoku-api/.env` points at the Neon `dev` branch (see
+[Neon dev branch](#neon-dev-branch)):
+
+```bash
+scripts/dev.sh              # API on :8080 + frontend on http://localhost:5173; Ctrl+C stops both
+scripts/dev.sh --generate   # first fills the dev database with puzzles, then the same
+```
+
+Or run the pieces yourself:
+
 ```bash
 ./gradlew build                 # builds and tests the engine and API (API tests use Testcontainers)
 ./gradlew :pidoku-api:bootRun   # runs the API
@@ -51,8 +61,10 @@ connection for a single transaction. If `DATABASE_DIRECT_URL` isn't set, Flyway 
 ### Generator job
 
 Puzzles are generated ahead of time and stored, not generated per request. The generator job
-tops up the random pool (`pidoku.generator.pool-size-per-difficulty` puzzles of each difficulty)
-and fills the daily puzzles for the next `pidoku.generator.daily-days-ahead` days. It's the same
+fills the daily puzzles for the next `pidoku.generator.daily-days-ahead` days with newly generated
+puzzles, then tops up the random pool (`pidoku.generator.pool-size-per-difficulty` puzzles of
+each difficulty that even its most active player hasn't started, so the pool grows as people play).
+Dailies never come from the pool, so no one can have played one already. It's the same
 application run with the `generator` profile: no web server, it does its work and exits.
 
 ```bash
@@ -129,7 +141,8 @@ trying out changes.
 Every visitor is signed in anonymously with Firebase Authentication: no sign-up, just a uid that
 stays with the browser. The frontend sends the account's ID token to the API, which checks it
 against Google's public keys and creates the `players` row on first use. Opening a puzzle from the
-API starts an attempt and solving it completes it, so solve times are measured by the server.
+API starts an attempt (for a daily, pressing Start does) and solving it completes it, so solve
+times are measured by the server.
 
 The Firebase project is set up for this (to repeat it in another project):
 
@@ -169,19 +182,21 @@ endpoints the old API doesn't have.
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/puzzles/random?difficulty=hard` | A random puzzle from the pool. Signed in, one the player hasn't started yet, while there are any |
+| `GET /api/puzzles/random?difficulty=hard` | A random puzzle from the pool. Signed in, one the player hasn't started yet; once they've started them all, the one they started longest ago with `"repeat": true` |
 | `GET /api/puzzles/daily/{date}` | The daily puzzles (easy, medium and hard, easiest first) for a date such as `2026-11-17`. The frontend asks for the player's local date. Only dates that are today somewhere in the world are served; a complete day is cached by Firebase's CDN |
-| `GET /api/puzzles/{shareCode}` | The puzzle behind a share code (case-insensitive) |
+| `GET /api/puzzles/{shareCode}` | The puzzle behind a share code (case-insensitive). The frontend opens it at `/p/{shareCode}` |
 | `GET /api/players/me` 🔒 | The signed-in player, created on first use |
+| `PATCH /api/players/me` 🔒 | `{"displayName": "Ada"}` → the player, renamed. Trimmed, whitespace collapsed, 1–40 characters, no control characters; 400 otherwise |
+| `GET /api/players/me/streak?today=2026-11-17` 🔒 | `{"current": 3, "best": 5, "solvedToday": true}`: consecutive dates with a solved daily, as of the player's local date. 400 if that date isn't today anywhere |
 | `POST /api/attempts` 🔒 | `{"puzzleId": 12}` → the player's unfinished attempt at the puzzle, started now if there isn't one. With `"restart": true` its clock starts again from now |
-| `POST /api/attempts/{id}/complete` 🔒 | `{"grid": [...], "mistakes": 2}` → the attempt, completed, with the server-measured `elapsedMs`. 422 if the grid isn't the solution |
+| `POST /api/attempts/{id}/complete` 🔒 | `{"grid": [...], "mistakes": 2, "activeMs": 251000}` → the attempt, completed, with the server-measured `elapsedMs`. A completion sent late adds `"lateByMs"`, which is taken off the time and marks it `late`. 422 if the grid isn't the solution |
 | `GET /actuator/health` | Health check |
 
 🔒 needs `Authorization: Bearer <Firebase ID token>`; without one it's a 401. See [Sign-in](#sign-in).
 
 Difficulties are `trivial`, `relaxing`, `easy`, `medium`, `hard` and `fiendish`. Puzzles come back
 with flat, row-major `givens` and `solution` arrays (0 is an empty cell), plus `score`,
-`dependency` and `hardestStrategy`. Errors are [problem details](https://www.rfc-editor.org/rfc/rfc9457):
+`dependency`, `hardestStrategy` and `dailyDate` (null unless it's a daily). Errors are [problem details](https://www.rfc-editor.org/rfc/rfc9457):
 404 for an unknown share code, 503 when the generator job hasn't produced a puzzle yet, 400 for a
 bad request.
 

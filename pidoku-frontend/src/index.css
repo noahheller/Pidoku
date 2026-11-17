@@ -56,6 +56,13 @@
 }
 
 @layer base {
+  html {
+    /* Tapping cells and digits quickly shouldn't double-tap zoom on phones; pinch zoom still works. */
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
   body {
     @apply min-h-screen bg-base-200 text-base-content antialiased;
     /* Faint engineering-paper grid behind everything. */
@@ -64,6 +71,8 @@
       linear-gradient(var(--grid-line) 1px, transparent 1px),
       linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
     background-size: 1.5rem 1.5rem;
+    /* Installed to the home screen with viewport-fit=cover, keep clear of the notch and home bar. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
 
   code {
