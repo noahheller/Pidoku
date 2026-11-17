@@ -11,7 +11,7 @@ import java.time.LocalDate;
 import java.util.Objects;
 
 /**
- * One daily puzzle's place: a UTC date and a difficulty, e.g. the medium daily for 2026-11-10.
+ * One daily puzzle's place: a calendar date and a difficulty, e.g. the medium daily for 2026-11-10.
  * It's the primary key of {@code daily_puzzles}, so each slot holds at most one puzzle.
  */
 @Embeddable

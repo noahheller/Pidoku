@@ -7,8 +7,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.player;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @AutoConfigureMockMvc
@@ -22,6 +24,13 @@ class PuzzleControllerTest extends IntegrationTest {
 
     private Puzzle store(Difficulty difficulty, PuzzleSource source) {
         return puzzleService.store(TestPuzzles.generated(difficulty), source);
+    }
+
+    private void startAttempt(String uid, Puzzle puzzle) {
+        assertThat(mvc.post().uri("/api/attempts").with(player(uid))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"puzzleId\": %d}".formatted(puzzle.getId())))
+                .hasStatusOk();
     }
 
     @Nested
@@ -73,6 +82,37 @@ class PuzzleControllerTest extends IntegrationTest {
 
             assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard"))
                     .hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
+        }
+
+        @Test
+        void skipsPuzzlesTheSignedInPlayerHasStarted() {
+            Puzzle seen = store(Difficulty.HARD, PuzzleSource.POOL);
+            Puzzle unseen = store(Difficulty.HARD, PuzzleSource.POOL);
+            startAttempt("alice", seen);
+
+            for (int i = 0; i < 10; i++) {
+                assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard").with(player("alice")))
+                        .hasStatusOk()
+                        .bodyJson().extractingPath("$.id").asNumber().isEqualTo(unseen.getId().intValue());
+            }
+        }
+
+        @Test
+        void repeatsAPuzzleOnceThePlayerHasStartedThemAll() {
+            Puzzle only = store(Difficulty.HARD, PuzzleSource.POOL);
+            startAttempt("alice", only);
+
+            assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard").with(player("alice")))
+                    .hasStatusOk()
+                    .bodyJson().extractingPath("$.id").asNumber().isEqualTo(only.getId().intValue());
+        }
+
+        @Test
+        void aSignedInPlayerWhoHasPlayedNothingGetsAnyPuzzleAndNoPlayerRow() {
+            store(Difficulty.HARD, PuzzleSource.POOL);
+
+            assertThat(mvc.get().uri("/api/puzzles/random?difficulty=hard").with(player("newcomer"))).hasStatusOk();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM players", Integer.class)).isZero();
         }
 
         @Test

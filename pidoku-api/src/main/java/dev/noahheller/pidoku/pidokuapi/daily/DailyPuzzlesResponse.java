@@ -6,12 +6,12 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * @param date    the UTC date these are the dailies for
+ * @param date    the date these are the dailies for (the player's local date, as asked for)
  * @param puzzles one per daily difficulty, easiest first; each says its own difficulty
  */
 public record DailyPuzzlesResponse(LocalDate date, List<PuzzleResponse> puzzles) {
 
-    /** @param dailies one date's dailies, easiest first (as {@link DailyPuzzleService#forToday()} returns them) */
+    /** @param dailies one date's dailies, easiest first (as {@link DailyPuzzleService#forDate} returns them) */
     public static DailyPuzzlesResponse from(LocalDate date, List<DailyPuzzle> dailies) {
         return new DailyPuzzlesResponse(date, dailies.stream()
                 .map(daily -> PuzzleResponse.from(daily.getPuzzle()))

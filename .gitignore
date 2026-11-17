@@ -49,3 +49,6 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+### Firebase CLI ###
+.firebase/
+firebase-debug.log

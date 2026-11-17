@@ -37,7 +37,7 @@ class DailyPuzzleControllerTest extends IntegrationTest {
         long easy = fill(today, Difficulty.EASY);
         long medium = fill(today, Difficulty.MEDIUM);
 
-        MvcTestResult response = mvc.get().uri("/api/puzzles/daily").exchange();
+        MvcTestResult response = mvc.get().uri("/api/puzzles/daily/{date}", dailyPuzzleService.today()).exchange();
 
         assertThat(response).hasStatusOk();
         assertThat(response).bodyJson().extractingPath("$.date").isEqualTo(today.toString());
@@ -53,7 +53,7 @@ class DailyPuzzleControllerTest extends IntegrationTest {
     void returnsWhateverTodayHasIfTheJobFilledOnlySomeSlots() {
         fill(dailyPuzzleService.today(), Difficulty.MEDIUM);
 
-        assertThat(mvc.get().uri("/api/puzzles/daily"))
+        assertThat(mvc.get().uri("/api/puzzles/daily/{date}", dailyPuzzleService.today()))
                 .hasStatusOk()
                 .bodyJson()
                 .extractingPath("$.puzzles[*].difficulty").asArray().containsExactly("medium");
@@ -65,12 +65,12 @@ class DailyPuzzleControllerTest extends IntegrationTest {
         fill(today.minusDays(1), Difficulty.EASY);
         fill(today.plusDays(1), Difficulty.EASY);
 
-        assertThat(mvc.get().uri("/api/puzzles/daily")).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(mvc.get().uri("/api/puzzles/daily/{date}", dailyPuzzleService.today())).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     @Test
     void noDailiesForTodayIsServiceUnavailable() {
-        assertThat(mvc.get().uri("/api/puzzles/daily"))
+        assertThat(mvc.get().uri("/api/puzzles/daily/{date}", dailyPuzzleService.today()))
                 .hasStatus(HttpStatus.SERVICE_UNAVAILABLE)
                 .bodyJson()
                 .extractingPath("$.detail").asString().contains("no daily puzzles");
