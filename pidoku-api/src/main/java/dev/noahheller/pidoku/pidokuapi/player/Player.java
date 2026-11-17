@@ -12,7 +12,8 @@ import java.time.Instant;
 
 /**
  * One Firebase account (table {@code players}, created in V3). Rows are inserted by
- * {@link PlayerRepository#insertIfAbsent}, never through JPA, so the entity is read-only.
+ * {@link PlayerRepository#insertIfAbsent}, never through JPA; the display name is the only thing
+ * that changes afterwards.
  */
 @Getter
 @Entity
@@ -27,7 +28,7 @@ public class Player {
     @Column(name = "firebase_uid", nullable = false, updatable = false, unique = true, length = 128)
     private String firebaseUid;
 
-    /** Null until the player picks one (milestone 4). */
+    /** Null until the player picks one. Already checked by {@link DisplayName} when set. */
     @Column(name = "display_name", length = 40)
     private String displayName;
 
@@ -36,5 +37,9 @@ public class Player {
 
     /** For JPA. */
     protected Player() {
+    }
+
+    public void rename(DisplayName displayName) {
+        this.displayName = displayName.value();
     }
 }

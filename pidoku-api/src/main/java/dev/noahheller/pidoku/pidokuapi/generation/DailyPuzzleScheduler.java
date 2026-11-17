@@ -2,19 +2,26 @@ package dev.noahheller.pidoku.pidokuapi.generation;
 
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
 import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
+import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Makes sure every date from today through {@link GeneratorProperties#dailyDaysAhead()} days has
  * its daily puzzles: one per daily difficulty (see {@code DailyProperties}). Filled slots are
  * never changed.
  *
- * <p>Each slot is filled from the random pool when the pool has a puzzle of that difficulty, and
- * with a puzzle generated on the spot otherwise.
+ * <p>Every daily is a newly generated puzzle, never one from the random pool: a pool puzzle may
+ * already have been played (or solved) by someone through the Random buttons, which would spoil it
+ * as a daily and put an old attempt on its leaderboard. Once the next 31 days are filled, a normal
+ * night generates three puzzles, one per daily difficulty.
  */
 @Slf4j
 @Component
@@ -36,25 +43,23 @@ public class DailyPuzzleScheduler {
         LocalDate today = dailyPuzzleService.today();
         LocalDate last = today.plusDays(daysAhead - 1L);
         List<DailySlot> empty = dailyPuzzleService.emptySlots(today, last);
+        // Per difficulty, earliest date first, so if generation falls short the nearest dates are filled.
+        Map<Difficulty, List<DailySlot>> byDifficulty = empty.stream()
+                .collect(Collectors.groupingBy(DailySlot::difficulty, LinkedHashMap::new, Collectors.toList()));
         int filled = 0;
-        for (DailySlot slot : empty) {
-            if (fill(slot)) {
-                filled++;
-            } else {
-                log.warn("Could not find a puzzle for the {} {} daily; the next run will try again",
-                        slot.date(), slot.difficulty().id());
+        for (var entry : byDifficulty.entrySet()) {
+            Iterator<DailySlot> slots = entry.getValue().iterator();
+            // Generated in parallel; each puzzle is stored as soon as it's ready, so a job that dies
+            // partway keeps the dailies it already made.
+            int made = batchGenerator.generate(entry.getKey(), entry.getValue().size(),
+                    puzzle -> dailyPuzzleService.fillWithNew(slots.next(), puzzle));
+            if (made < entry.getValue().size()) {
+                log.warn("Generated only {} of {} {} dailies; the next run will try again",
+                        made, entry.getValue().size(), entry.getKey().id());
             }
+            filled += made;
         }
         log.info("Filled {} of the {} empty daily slots between {} and {}", filled, empty.size(), today, last);
         return filled;
-    }
-
-    private boolean fill(DailySlot slot) {
-        if (dailyPuzzleService.fillFromPool(slot).isPresent()) {
-            return true;
-        }
-        log.info("Pool has no {} puzzle for the {} daily, generating one", slot.difficulty().id(), slot.date());
-        return batchGenerator.generate(slot.difficulty(), 1,
-                puzzle -> dailyPuzzleService.fillWithNew(slot, puzzle)) == 1;
     }
 }

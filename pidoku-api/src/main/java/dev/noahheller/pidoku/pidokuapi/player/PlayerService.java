@@ -30,6 +30,19 @@ public class PlayerService {
     }
 
     /**
+     * Sets the display name of the player a token belongs to, creating the player if needed.
+     *
+     * @throws InvalidDisplayNameException if the name isn't allowed (see {@link DisplayName})
+     */
+    @Transactional
+    public Player rename(Jwt token, String displayName) {
+        DisplayName name = DisplayName.of(displayName);
+        Player player = forToken(token);
+        player.rename(name);
+        return player;
+    }
+
+    /**
      * The player a token belongs to, if there is a token and its player exists. For endpoints
      * that work without sign-in and shouldn't create players.
      */

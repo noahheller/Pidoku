@@ -19,6 +19,10 @@ export interface PuzzleDef {
   dependency?: number | null;
   /** The puzzle's id in the Pidoku API, for recording attempts. Only puzzles from the API have one. */
   apiId?: number;
+  /** For a share link (/p/{shareCode}). Only puzzles from the API have one. */
+  shareCode?: string;
+  /** The date (YYYY-MM-DD) this puzzle is the daily for. Dailies get a start screen and a share line. */
+  dailyDate?: string;
 }
 
 export class PuzzleFormatError extends Error {}

@@ -41,7 +41,10 @@ public class Attempt {
     @Column(name = "started_at", nullable = false)
     private Instant startedAt;
 
-    /** Null while the attempt is unfinished. */
+    /**
+     * When the puzzle was solved: when the completion arrived, or for a late one, that minus the
+     * delay the client reported. Null while the attempt is unfinished.
+     */
     @Column(name = "completed_at")
     private Instant completedAt;
 
@@ -55,6 +58,17 @@ public class Attempt {
 
     @Column(name = "hints_used", nullable = false)
     private int hintsUsed;
+
+    /**
+     * The client's own timer (paused while the tab was hidden), for calibration. Null while
+     * unfinished or if the client didn't send it.
+     */
+    @Column(name = "active_ms")
+    private Long activeMs;
+
+    /** The completion arrived some time after the solve, and the times were moved back by that delay. */
+    @Column(nullable = false)
+    private boolean late;
 
     /** For JPA. */
     protected Attempt() {
@@ -76,14 +90,28 @@ public class Attempt {
         this.startedAt = now;
     }
 
-    /** @throws IllegalStateException if the attempt is already complete */
-    public void complete(Instant now, int mistakes) {
+    /**
+     * Records the solve.
+     *
+     * @param now      when the completion arrived (server time)
+     * @param mistakes wrong digits entered, as counted by the client
+     * @param activeMs the client's own timer, or null if it didn't send one
+     * @param lateBy   how long before {@code now} the puzzle was really solved, as the client claims;
+     *                 null or zero for a completion sent straight away. The solve is then recorded at
+     *                 {@code now - lateBy}, but never before the attempt started.
+     * @throws IllegalStateException if the attempt is already complete
+     */
+    public void complete(Instant now, int mistakes, Long activeMs, Duration lateBy) {
         if (isCompleted()) {
             throw new IllegalStateException("attempt " + id + " is already complete");
         }
-        this.completedAt = now;
-        // Never negative, even if the server's clock stepped back in between.
-        this.elapsedMs = Math.max(0, Duration.between(startedAt, now).toMillis());
+        this.late = lateBy != null && lateBy.isPositive();
+        Instant solvedAt = late ? now.minus(lateBy) : now;
+        // Never before the start, so elapsed_ms is never negative: not for a delay longer than the
+        // attempt, and not if the server's clock stepped back in between.
+        this.completedAt = solvedAt.isBefore(startedAt) ? startedAt : solvedAt;
+        this.elapsedMs = Duration.between(startedAt, completedAt).toMillis();
         this.mistakes = mistakes;
+        this.activeMs = activeMs;
     }
 }

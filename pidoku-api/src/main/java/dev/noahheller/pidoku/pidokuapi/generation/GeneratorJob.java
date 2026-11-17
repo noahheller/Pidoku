@@ -12,9 +12,9 @@ import org.springframework.stereotype.Component;
  * exits. An exception fails startup and gives a non-zero exit code, which marks the Cloud Run Job
  * execution as failed.
  *
- * <p>Order matters: the pool is filled first so dailies can be taken from it (generating in
- * parallel rather than one at a time), then refilled to replace the puzzles the dailies took.
- * On a typical night that's three generated puzzles, one per daily difficulty.
+ * <p>Dailies come first: they're what players are waiting for, so if the job runs out of time
+ * they're the part that's done. Then the random pool is topped up. Dailies are always generated
+ * fresh, never taken from the pool (see {@link DailyPuzzleScheduler}).
  */
 @Slf4j
 @Component
@@ -34,9 +34,8 @@ public class GeneratorJob implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) {
         long start = System.nanoTime();
-        int pooled = poolRefiller.refill();
         int dailies = dailyPuzzleScheduler.scheduleUpcoming();
-        pooled += poolRefiller.refill();
+        int pooled = poolRefiller.refill();
         log.info("Generator job finished in {} s: {} puzzles added to the pool, {} daily slots filled",
                 (System.nanoTime() - start) / 1_000_000_000, pooled, dailies);
     }

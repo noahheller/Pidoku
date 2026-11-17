@@ -21,6 +21,8 @@ export interface ApiPuzzle {
   score: number;
   dependency: number;
   hardestStrategy: string;
+  /** The date (YYYY-MM-DD) the puzzle is the daily for, or null if it isn't a daily. */
+  dailyDate: string | null;
 }
 
 /** One go at a puzzle, timed by the server (pidoku-api's AttemptResponse). */
@@ -33,6 +35,37 @@ export interface Attempt {
   elapsedMs: number | null;
   mistakes: number;
   hintsUsed: number;
+  /** The client's own timer as sent on completion; null if it wasn't sent. */
+  activeMs: number | null;
+  /** The completion was sent some time after the solve, and the server took that delay off. */
+  late: boolean;
+}
+
+/** The signed-in player (pidoku-api's PlayerResponse). */
+export interface Player {
+  id: number;
+  /** Null until the player picks one. */
+  displayName: string | null;
+  createdAt: string;
+}
+
+/** The player's run of consecutive dates with a solved daily (pidoku-api's Streak). */
+export interface Streak {
+  /** Ends today, or yesterday if today has no solve yet; 0 if neither has one. */
+  current: number;
+  best: number;
+  solvedToday: boolean;
+}
+
+/** What the game reports when a puzzle is solved. */
+export interface Completion {
+  /** The finished grid, flat and row-major. */
+  grid: number[];
+  mistakes: number;
+  /** The game's own timer, which pauses while the tab is hidden. */
+  activeMs?: number;
+  /** How long ago the puzzle was solved, for a completion that couldn't be sent at the time. */
+  lateByMs?: number;
 }
 
 export interface DailyPuzzles {
@@ -61,7 +94,14 @@ export class ApiError extends Error {
 export async function fetchDaily(signal?: AbortSignal, now: Date = new Date()): Promise<DailyPuzzles> {
   // No ID token here: the response is the same for everyone and comes from the CDN's cache.
   const body = await request<{ date: string; puzzles: ApiPuzzle[] }>(`/api/puzzles/daily/${localDate(now)}`, { signal }, "Today's puzzles aren't ready yet. Try again in a little while.");
-  return { date: body.date, puzzles: body.puzzles.map((p) => toPuzzleDef(p, `Daily ${capitalize(p.difficulty)}`)) };
+  // dailyDate comes with each puzzle, but the response's date is the same thing.
+  return { date: body.date, puzzles: body.puzzles.map((p) => toPuzzleDef({ ...p, dailyDate: p.dailyDate ?? body.date })) };
+}
+
+/** The puzzle behind a share link (/p/{shareCode}). */
+export async function fetchByShareCode(shareCode: string, signal?: AbortSignal): Promise<PuzzleDef> {
+  const body = await request<ApiPuzzle>(`/api/puzzles/${encodeURIComponent(shareCode)}`, { signal }, BUSY);
+  return toPuzzleDef(body);
 }
 
 /** YYYY-MM-DD in the device's own time zone (toISOString would give the UTC date). */
@@ -70,22 +110,30 @@ export function localDate(now: Date): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/** A puzzle from the random endpoint. */
+export interface RandomPuzzle {
+  puzzle: PuzzleDef;
+  /** The player has started every puzzle of this difficulty, so this is one they've played before. */
+  repeat: boolean;
+}
+
 /**
- * A random puzzle. Signed in, the API skips puzzles the player has already started; sign-in is
- * optional here, so if the token is refused the puzzle is fetched without it.
+ * A random puzzle. Signed in, the API skips puzzles the player has already started, and once
+ * they've started them all says the one it sends is a `repeat`. Sign-in is optional here, so if
+ * the token is refused the puzzle is fetched without it.
  */
-export async function fetchRandom(difficulty: Difficulty, signal?: AbortSignal): Promise<PuzzleDef> {
+export async function fetchRandom(difficulty: Difficulty, signal?: AbortSignal): Promise<RandomPuzzle> {
   const url = `/api/puzzles/random?difficulty=${encodeURIComponent(difficulty)}`;
   const unavailable = `There are no ${difficulty} puzzles ready right now. Try another difficulty or come back later.`;
   const token = await idToken();
-  let body: ApiPuzzle;
+  let body: ApiPuzzle & { repeat?: boolean };
   try {
-    body = await request<ApiPuzzle>(url, { signal, token }, unavailable);
+    body = await request<typeof body>(url, { signal, token }, unavailable);
   } catch (e) {
     if (!(e instanceof ApiError && e.status === 401)) throw e;
-    body = await request<ApiPuzzle>(url, { signal }, unavailable);
+    body = await request<typeof body>(url, { signal }, unavailable);
   }
-  return toPuzzleDef(body, capitalize(body.difficulty));
+  return { puzzle: toPuzzleDef(body), repeat: body.repeat === true };
 }
 
 /**
@@ -101,8 +149,27 @@ export async function startAttempt(puzzleId: number, restart = false): Promise<A
 }
 
 /** Completes an attempt with the solved grid. The returned `elapsedMs` is the server-measured solve time. */
-export async function completeAttempt(attemptId: number, grid: number[], mistakes: number, signal?: AbortSignal): Promise<Attempt> {
-  return request<Attempt>(`/api/attempts/${attemptId}/complete`, { method: 'POST', body: { grid, mistakes }, token: await requireToken(), signal }, BUSY);
+export async function completeAttempt(attemptId: number, completion: Completion, signal?: AbortSignal): Promise<Attempt> {
+  return request<Attempt>(`/api/attempts/${attemptId}/complete`, { method: 'POST', body: completion, token: await requireToken(), signal }, BUSY);
+}
+
+/** The signed-in player, signing them in (and creating the player) if needed. */
+export async function fetchPlayer(signal?: AbortSignal): Promise<Player> {
+  return request<Player>('/api/players/me', { token: await requireToken(), signal }, BUSY);
+}
+
+/**
+ * Sets the name friends see. The server trims it and allows 1–40 characters.
+ *
+ * @throws ApiError with the server's reason (fit to show) if the name isn't allowed
+ */
+export async function updateDisplayName(displayName: string): Promise<Player> {
+  return request<Player>('/api/players/me', { method: 'PATCH', body: { displayName }, token: await requireToken() }, BUSY);
+}
+
+/** The player's current and best streak, as of their own local date. */
+export async function fetchStreak(signal?: AbortSignal, now: Date = new Date()): Promise<Streak> {
+  return request<Streak>(`/api/players/me/streak?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
 }
 
 async function requireToken(): Promise<string> {
@@ -111,8 +178,8 @@ async function requireToken(): Promise<string> {
   return token;
 }
 
-/** Converts an API puzzle into the game's PuzzleDef. */
-export function toPuzzleDef(puzzle: ApiPuzzle, name: string): PuzzleDef {
+/** Converts an API puzzle into the game's PuzzleDef, named e.g. "Daily Hard" or "Hard". */
+export function toPuzzleDef(puzzle: ApiPuzzle, name = `${puzzle.dailyDate ? 'Daily ' : ''}${capitalize(puzzle.difficulty)}`): PuzzleDef {
   const cells = puzzle.size * puzzle.size;
   if (puzzle.givens?.length !== cells || puzzle.solution?.length !== cells) {
     throw new ApiError('The server sent a puzzle in an unexpected format.', null);
@@ -121,6 +188,8 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name: string): PuzzleDef {
     // Share codes are unique and stable, so saved progress finds the puzzle again.
     id: `api-${puzzle.shareCode}`,
     apiId: puzzle.id,
+    shareCode: puzzle.shareCode,
+    dailyDate: puzzle.dailyDate ?? undefined,
     name,
     difficulty: capitalize(puzzle.difficulty),
     size: puzzle.size,
@@ -133,7 +202,7 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name: string): PuzzleDef {
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST';
+  method?: 'GET' | 'POST' | 'PATCH';
   /** Sent as JSON. */
   body?: unknown;
   /** A Firebase ID token to sign the request with; left out, the request is anonymous. */

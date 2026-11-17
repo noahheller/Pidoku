@@ -5,6 +5,9 @@ const PROGRESS_PREFIX = 'pidoku:progress:';
 const CUSTOM_PUZZLES_KEY = 'pidoku:custom-puzzles';
 const SETTINGS_KEY = 'pidoku:settings';
 const PENDING_COMPLETIONS_KEY = 'pidoku:pending-completions';
+const RESULT_PREFIX = 'pidoku:result:';
+const STREAK_KEY = 'pidoku:streak';
+const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 
 export interface Settings {
   showMistakes: boolean;
@@ -58,6 +61,10 @@ export interface PendingCompletion {
   attemptId: number;
   grid: number[];
   mistakes: number;
+  /** The game's own timer. Missing from solves saved before it was recorded. */
+  activeMs?: number;
+  /** When it was solved (Date.now()), so the API can take the delay off the time. Missing from solves saved before milestone 4. */
+  solvedAt?: number;
 }
 
 export function loadPendingCompletions(): PendingCompletion[] {
@@ -67,6 +74,54 @@ export function loadPendingCompletions(): PendingCompletion[] {
 
 export function savePendingCompletions(pending: PendingCompletion[]): void {
   write(PENDING_COMPLETIONS_KEY, pending);
+}
+
+/** A solve as the server recorded it, kept so reopening a solved puzzle shows the recorded time. */
+export interface RecordedResult {
+  elapsedMs: number;
+  late: boolean;
+}
+
+export function loadResult(puzzleId: string): RecordedResult | null {
+  return read<RecordedResult>(RESULT_PREFIX + puzzleId);
+}
+
+export function saveResult(puzzleId: string, result: RecordedResult): void {
+  write(RESULT_PREFIX + puzzleId, result);
+}
+
+export function clearResult(puzzleId: string): void {
+  try {
+    localStorage.removeItem(RESULT_PREFIX + puzzleId);
+  } catch {
+    // Storage disabled: there was nothing saved to clear.
+  }
+}
+
+/** The streak as last fetched, shown on the home screen while it's fetched again. */
+export interface CachedStreak {
+  current: number;
+  best: number;
+  solvedToday: boolean;
+  /** The player's local date when it was fetched (YYYY-MM-DD). */
+  asOf: string;
+}
+
+export function loadStreak(): CachedStreak | null {
+  return read<CachedStreak>(STREAK_KEY);
+}
+
+export function saveStreak(streak: CachedStreak): void {
+  write(STREAK_KEY, streak);
+}
+
+/** Whether the player chose not to pick a display name when asked. */
+export function isNamePromptDismissed(): boolean {
+  return read<boolean>(NAME_PROMPT_DISMISSED_KEY) === true;
+}
+
+export function dismissNamePrompt(): void {
+  write(NAME_PROMPT_DISMISSED_KEY, true);
 }
 
 export function loadSettings(): Settings {

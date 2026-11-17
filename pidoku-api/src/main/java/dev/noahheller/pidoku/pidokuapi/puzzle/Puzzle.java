@@ -18,8 +18,8 @@ import java.util.Map;
 import java.util.SplittableRandom;
 
 /**
- * A stored puzzle (table {@code puzzles}, created in V1). Everything except {@link #getSource()}
- * is fixed once stored, so share codes and campaign levels keep pointing at the same grid.
+ * A stored puzzle (table {@code puzzles}, created in V1). Fixed once stored, so share codes and
+ * campaign levels keep pointing at the same grid, and a puzzle keeps the use it was made for.
  */
 @Entity
 @Table(name = "puzzles")
@@ -36,7 +36,7 @@ public class Puzzle {
 
     @Getter
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 16)
+    @Column(nullable = false, updatable = false, length = 16)
     private PuzzleSource source;
 
     @Getter
@@ -127,18 +127,6 @@ public class Puzzle {
         this.strategyUses = generated.strategyUses();
         this.engineVersion = generated.engineVersion();
         this.seed = generated.seed();
-    }
-
-    /**
-     * Takes this puzzle out of the random pool to become a daily puzzle.
-     *
-     * @throws IllegalStateException if the puzzle isn't in the pool
-     */
-    public void moveFromPoolToDaily() {
-        if (source != PuzzleSource.POOL) {
-            throw new IllegalStateException("puzzle " + id + " is " + source + ", not in the pool");
-        }
-        source = PuzzleSource.DAILY;
     }
 
     public Map<String, Integer> getStrategyUses() {
