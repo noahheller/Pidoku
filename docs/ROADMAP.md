@@ -2,7 +2,9 @@
 
 Pidoku is Sudoku using the first nine digits of π: every row, column and box holds
 3 1 4 1 5 9 2 6 5, so 1 and 5 appear twice and 7, 8 and 0 never appear.
-It's a resume project and a game to play with friends.
+It has two goals: a game that's fun to play with friends, and a full-stack project that looks
+good on a resume. The milestone order follows the first goal (what gets friends playing daily
+comes first); the "Showcase" section covers the second.
 
 ## Decisions made
 
@@ -17,7 +19,7 @@ not generated during a request (Hard and Fiendish take about 4–11 seconds). St
 also keep share codes and campaign levels stable when the engine changes. Every puzzle is
 stamped with an `engine_version`.
 
-The one exception is **custom generation** (milestone 4), where the player designs their
+The one exception is **custom generation** (milestone 7), where the player designs their
 own difficulty and the puzzle has to be generated on demand.
 
 ### How difficulty is scored
@@ -31,22 +33,45 @@ own difficulty and the puzzle has to be generated on demand.
 
 ### Daily puzzle rules
 - Every day has three dailies: one easy, one medium and one hard.
-- "Today" is the **UTC** date. The dailies change at 00:00 UTC for everyone, a solve counts
-  toward the leaderboard of the UTC date and difficulty its puzzle belongs to, and streaks
-  count consecutive UTC dates.
+- "Today" is the **player's local date**. The frontend asks for the dailies of the date on
+  the player's device, so a new day starts at each player's own midnight and everyone gets
+  the same puzzles for the same calendar date (as Wordle does). A solve counts toward the
+  leaderboard of the date and difficulty its puzzle belongs to, and streaks count consecutive
+  local dates. (Changed from 00:00 UTC in milestone 2, which was mid-evening in the US.)
+- Consequences accepted for a game among friends: a date's puzzles are "today's" for about 50
+  hours worldwide, so a friend further east sees them first; a date's leaderboard stays open
+  that long; and setting a device clock forward shows the next date a few hours early. The
+  API limits that by only serving dates that are today somewhere in the world (yesterday to
+  tomorrow in UTC).
+- A complete day's response never changes, so Firebase Hosting's CDN caches it for a day
+  (`s-maxage`); browsers don't (`max-age=0`), and an incomplete day isn't cached.
+  `firebase deploy` clears the CDN cache, so an API change that alters the response needs a
+  hosting deploy too.
 - The number in "Pidoku #123" is days since launch (launch day is #1).
 
 ## Milestones
 
 1. Schema, generator job and read endpoints, tested locally against Testcontainers. **Done.**
-2. Deploy early: Cloud Run, the nightly generator job, Neon and Firebase with CI/CD, even
-   with only the daily and random endpoints.
+2. Deploy early: Cloud Run, the nightly generator job, Neon and Firebase with CI/CD.
+   **CI/CD is tabled** (see section 2); deploys are by hand until it's back.
 3. Anonymous sign-in and players, so everything after this knows who the player is.
-4. Custom generation: players build their own difficulty.
-5. Campaign mode, end to end.
-6. Attempts, leaderboards, Google sign-in and friends.
-7. Hints and share codes.
-8. Calibrate difficulty once real data exists.
+   **Built;** still to deploy and try once on the live site.
+4. The daily loop: a start screen, a result screen with the server's time, streaks, a share
+   line, display names and share links.
+5. Leaderboards, Google sign-in and friends.
+
+   **— v1: the game is worth sending to friends and putting on a resume —**
+
+6. Hints.
+7. Custom generation: players build their own difficulty.
+8. Campaign mode, end to end.
+9. Calibrate difficulty once real data exists. (Collecting the data starts in milestone 4.)
+
+Why this order: the daily puzzles with a leaderboard, a streak and a share line are what bring
+a group of friends back every day, and with attempts recorded (milestone 3) they're the
+cheapest thing left to build. Custom generation and campaign are bigger and matter less to
+that loop, so they come after v1; custom generation stays ahead of campaign. This replaces the
+earlier order (custom generation, campaign, then leaderboards and friends).
 
 ## 1. Database, generator job and API
 
@@ -57,8 +82,8 @@ for how to run them.
 Decisions made while building it:
 - Each table is created by the milestone that first uses it, not all up front: once a Flyway
   migration has run on Neon it can't be edited, so a table created before its feature exists
-  would lock in guesses. `players` and `attempts` come with milestone 3, `campaign_levels` with
-  milestone 5. The designs below are still the plan.
+  would lock in guesses. `players` and `attempts` came with milestone 3, `campaign_levels` comes with
+  milestone 8. The designs below are still the plan.
 - The generator job is a Spring profile of the API (`generator`), not a separate module: one
   build and one image, run as the API service or as the Cloud Run Job.
 - Relaxing is now a built-in engine difficulty (`DifficultyProfile.relaxing()`), so the API
@@ -77,10 +102,10 @@ Decisions made while building it:
 | Table | Columns | Created in |
 |---|---|---|
 | `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at | V1 (milestone 1) |
-| `daily_puzzles` | (puzzle_date (UTC), difficulty) → puzzle_id | V2 (milestone 1) |
-| `players` | id, firebase_uid (nullable at first), display_name, created_at | milestone 3 |
-| `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used | milestone 3 |
-| `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 5 |
+| `daily_puzzles` | (puzzle_date, difficulty) → puzzle_id | V2 (milestone 1) |
+| `players` | id, firebase_uid, display_name (null until chosen), created_at | V3 (milestone 3) |
+| `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used | V3 (milestone 3) |
+| `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 8 |
 
 Column notes:
 - `share_code`: unique, random, 8 characters from an unambiguous alphabet (no 0/O, 1/I/L).
@@ -93,17 +118,19 @@ Column notes:
   `SolveTrace.getAllUseCounts()` (e.g. `{"NAKED_PAIR": 3, "X_WING": 1}`). Custom
   generation uses it to find a stored puzzle that matches a player's settings before
   generating a new one, so it's stored from the start to avoid a backfill later.
-- `clue_count`, `max_step_cost`, `bottleneck_steps`: inputs for calibration (milestone 8),
+- `clue_count`, `max_step_cost`, `bottleneck_steps`: inputs for calibration (milestone 9),
   from `SolveTrace`. Stored now so calibration doesn't need to re-solve every puzzle.
 
 Constraints and indexes:
 - `source` and `difficulty` limited to the known values by CHECK constraints, and grids to
   the right length and digits.
 - `puzzles(source, difficulty)` for drawing from the pool.
-- `attempts(puzzle_id, elapsed_ms)` for leaderboards (milestone 3).
-- One leaderboard attempt per player per daily puzzle: a unique index on
-  `(player_id, puzzle_id)` for daily puzzles, or a `counts_for_leaderboard` flag with a
-  partial unique index. Later attempts are still recorded, just not ranked.
+- `attempts(puzzle_id, elapsed_ms)` over finished attempts, for leaderboards (created in V3,
+  used from milestone 5).
+- A player has at most one unfinished attempt per puzzle (a partial unique index); finished
+  ones aren't limited, so puzzles can be replayed.
+- One leaderboard attempt per player per daily puzzle (milestone 5): the player's first
+  finished attempt counts. Later attempts are still recorded, just not ranked.
 
 ### Generator job
 - Runs as the `generator` Spring profile of the API, with no web server.
@@ -112,25 +139,32 @@ Constraints and indexes:
   `pool` to `daily`, then refills the pool to replace them.
 - Shares one `PidokuBuilder` across threads: the engine is thread-safe, with each call's
   random state created from its seed inside `generate`.
-- "N puzzles players haven't seen" needs players, so it arrives with milestone 3; until then
-  the pool is simply kept at N.
+- "N puzzles players haven't seen" isn't built: the pool is simply kept at N, and the random
+  endpoint repeats a puzzle once a player has started all of a difficulty's. With 50 per
+  difficulty that's far off for a game among friends; revisit if someone gets there.
 
 ### Security configuration
 `spring-boot-starter-security` is already a dependency, and by default it requires
 authentication on every endpoint. Milestone 1 needs a `SecurityFilterChain` that permits
-the public read endpoints (and `/actuator/health`). Milestone 3 adds Firebase token checks.
+the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase token checks
+(section 3).
 
 ### Endpoints
 | Endpoint | Purpose | Milestone |
 |---|---|---|
-| `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle, skipping ones the player has seen (once sign-in exists in milestone 3) | 1 (done) |
-| `GET /api/puzzles/daily` | Today's (UTC) easy, medium and hard puzzles | 1 (done) |
+| `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle. Sign-in is optional; signed in, it skips puzzles the player has started | 1, 3 (done) |
+| `GET /api/puzzles/daily/{date}` | A date's easy, medium and hard puzzles; the frontend sends the player's local date | 1 (done) |
 | `GET /api/puzzles/{shareCode}` | A shared puzzle | 1 (done) |
-| `POST /api/attempts` | Final grid and mistakes. The server checks the grid against the solution, records the attempt and unlocks the next level. | 3, 5 |
-| `GET /api/campaign` | Levels with lock, progress and star state for the player | 5 |
-| `GET /api/campaign/{n}` | Givens for level n (only if unlocked) | 5 |
-| `GET /api/puzzles/daily/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies (friends filter later) | 6 |
-| `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 7 |
+| `GET /api/players/me` | The signed-in player, created on first use | 3 (done) |
+| `POST /api/attempts` | Puzzle id in → the player's unfinished attempt at it, started now if there isn't one. Starts the server's clock. | 3 (done) |
+| `POST /api/attempts/{id}/complete` | Final grid and mistakes. The server checks the grid against the solution and records the time since the start. Gains `activeMs` and `lateByMs` in milestone 4, and unlocks the next campaign level in milestone 8. | 3 (done), 4, 8 |
+| `PATCH /api/players/me` | Sets the display name | 4 |
+| `GET /api/players/me/streak` | Current and best streak (or part of `GET /api/players/me`) | 4 |
+| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies, optionally friends only | 5 |
+| `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
+| `POST /api/puzzles/generate` | A puzzle for the player's own difficulty settings | 7 |
+| `GET /api/campaign` | Levels with lock, progress and star state for the player | 8 |
+| `GET /api/campaign/{n}` | Givens for level n (only if unlocked) | 8 |
 
 - Solutions stay on the server in principle. Checking mistakes live would then need a
   `POST /check` call or a per-cell hashed solution. First version: send the solution and
@@ -166,7 +200,12 @@ the public read endpoints (and `/actuator/health`). Milestone 3 adds Firebase to
   - Credentials in Secret Manager, passed to Cloud Run as environment variables.
 - **Frontend on Firebase Hosting**: a rewrite sends `/api/**` to the Cloud Run service.
   Same origin means no CORS setup and one domain.
-- **CI/CD with GitHub Actions**
+- **CI/CD with GitHub Actions** — **tabled.** GitHub Actions can't run on the account for now
+  (a billing issue). The workflow is written (`.github/workflows/ci.yml`) but hasn't been
+  proven by a run; pick it up when Actions is available again. Until then, run the tests
+  locally and deploy by hand (README, "Deploying by hand"). If the billing issue outlasts
+  milestone 5, run the same steps from Cloud Build triggers on the existing Google Cloud
+  project instead: v1 shouldn't ship without CI.
   - Every PR: Gradle tests (with Testcontainers) and npm test, lint and build.
   - Merge to main: Jib build and `gcloud run deploy`, then `firebase deploy`.
   - Authenticate with Workload Identity Federation, so no service-account keys are stored.
@@ -176,9 +215,15 @@ the public read endpoints (and `/actuator/health`). Milestone 3 adds Firebase to
 
 ## 3. Anonymous sign-in and players
 
-Moved ahead of custom generation and campaign, because several earlier features need to
-know who the player is: skipping puzzles already seen, unlocking campaign levels, rate
-limiting custom generation, and `attempts.player_id`.
+Comes before everything else that needs to know who the player is: attempts, streaks,
+leaderboards, skipping puzzles already seen, rate limiting custom generation and unlocking
+campaign levels.
+
+**Status: built.** The Firebase project has the Anonymous provider enabled and a web app
+(`pidoku-web`), whose config is in `pidoku-frontend/src/api/firebaseConfig.ts`. Checked with a
+real anonymous account: Firebase issues a token and the API accepts it (and refuses a tampered
+one). Still to do: deploy the API and the frontend, and play one puzzle on the live site to see
+the attempt recorded.
 
 - Anonymous Firebase sign-in: every visitor gets a uid with no sign-up.
 - API side: Spring Security checks the Firebase ID token, and a `players` row keyed by
@@ -186,7 +231,108 @@ limiting custom generation, and `attempts.player_id`.
 - Starting a puzzle creates an `attempts` row with a server-side `started_at`, so solve
   times are measured by the server rather than claimed by the client.
 
-## 4. Custom generation
+Decisions made while building it:
+- The API verifies tokens as a plain OAuth2 resource server (Google's public keys, issuer and
+  audience), not with the Firebase Admin SDK: no service-account credentials, and nothing extra
+  to load at cold start. The Admin SDK would only be needed to revoke tokens or manage users.
+- The frontend loads the Firebase SDK on first use, in its own chunk, and signs in the first
+  time it needs a token (a random puzzle or an attempt), not on page load.
+- The daily request never carries the token, so the CDN keeps caching it.
+- `firebase_uid` is NOT NULL: with sign-in arriving before players do anything, there's no
+  player without one.
+- Recording a solve is two calls, start and complete, rather than the one `POST /api/attempts`
+  first sketched: the server can only measure the time if it saw the start.
+- A solve time is wall-clock time from starting the puzzle to solving it, including time
+  away. The timer on screen pauses while the tab is hidden, so it can read less than the
+  recorded time (milestone 4 deals with this).
+- Opening a puzzle with an unfinished attempt continues that attempt, on any device; solving
+  it and playing again starts a new one.
+- The Restart button starts the attempt's clock again (`"restart": true`), so the server's time
+  matches the timer on screen. That lets a player look at a puzzle, restart and solve it fast;
+  decide in milestone 5 whether dailies allow Restart.
+- A solve the API couldn't be told about (offline, API down) is kept in localStorage and sent
+  when the page next loads or the connection returns. Its recorded time runs until it arrives,
+  so it's slower than the real one, never faster. Milestone 4 corrects this ("Late-sent
+  solves").
+- `mistakes` is whatever the client reports. Like the solution being sent to the client, it
+  can be cheated.
+- Sign-in is best-effort in the frontend: offline or blocked, the game plays as before and the
+  attempt just isn't recorded.
+
+## 4. The daily loop
+
+What a player sees around a daily puzzle, before any leaderboard: enough to play every day and
+to tell friends about it.
+
+- **Start screen for dailies.** Opening a daily shows its difficulty and a Start button, and the
+  attempt (the server's clock) starts on Start, not on opening. The ranked time is wall-clock,
+  so the start has to be deliberate, and the screen says the clock keeps running once started.
+  Other puzzles keep starting when opened.
+- **Result screen.** On solving a daily: the server-measured time, mistakes, the streak, and
+  the share line.
+- **Share line**, copied to the clipboard: "Pidoku #123 Hard 4:12 ✓" plus a link. The number is
+  days since launch (launch day is #1), so the launch date gets fixed here.
+- **Streaks.** A day counts if the player solved any of that date's dailies, so an easy solve
+  keeps a streak alive. Streaks count consecutive local dates, computed on the server from
+  finished attempts at daily puzzles. Show current and best.
+- **Display names.** `PATCH /api/players/me` sets `display_name` (trimmed, 1–40 characters); the
+  frontend asks for it the first time a result is shown. Needed before leaderboards.
+- **Share links.** `/p/{shareCode}` opens that exact puzzle; the endpoint has existed since
+  milestone 1. The frontend has no URLs yet (the open puzzle is React state), so this adds a
+  router, which campaign levels will need too. firebase.json already serves index.html for
+  every path.
+- **Active time.** Add `attempts.active_ms`, the client's own timer (paused while the tab is
+  hidden), sent with the completing call. Leaderboards rank the server's `elapsed_ms`;
+  `active_ms` is for calibration, where time away is noise. It goes in now because it can't be
+  backfilled: every solve recorded without it is lost to calibration.
+- **Late-sent solves.** A solve finished offline or while the API was down is sent later
+  (milestone 3), and today its recorded time runs until it arrives. Fix it in the same migration
+  and request change as `active_ms`:
+  - The frontend saves when the puzzle was solved alongside the queued completion, and sends
+    how long ago that was (`lateByMs`) when it finally gets through.
+  - The server records `elapsed_ms` minus that delay, never below zero, and sets
+    `attempts.late` (false for a completion sent straight away).
+  - Leaderboards (milestone 5) show late solves with a marker rather than leaving them off, so
+    a dropped connection doesn't cost anyone their result, and they count for streaks.
+  - The delay is the client's claim, so it can be faked for a faster time. Accepted like the
+    other cheats, since the solution is in the browser anyway; the marker makes it visible to
+    friends. If the game ever goes beyond friends, late solves should keep counting for streaks
+    but stop ranking.
+- **Phones.** Friends will mostly play on a phone, so check the game screen there (number pad
+  reach, board size, no accidental zoom) and add a web app manifest and icons so it installs to
+  the home screen.
+
+## 5. Leaderboards, Google sign-in and friends
+
+- One leaderboard per daily (date and difficulty), ranked by the server-measured `elapsed_ms`.
+  Solves sent late (`attempts.late`, milestone 4) are ranked too, with a marker.
+  Only each player's first finished attempt at a daily counts; later ones are recorded but not
+  ranked. Shown on the result screen and from the day's puzzle list.
+- Cheating: the client still has the solution, so a determined player can cheat. That's
+  accepted for a game among friends; server-side timing removes the easiest cheat
+  (posting any time you like).
+- **Google sign-in.** Let players upgrade the anonymous account to Google (Firebase account
+  linking keeps the same uid, so the `players` row and its attempts carry over). Until they do,
+  the account lives in one browser's storage: clearing it loses the streak. Prompt for it once
+  there's a streak worth keeping. To handle: signing in on a second device with a Google
+  account that's already linked means switching to that account and dropping the device's
+  anonymous one.
+- **Friends.** A friend code to start with, then the leaderboard can be filtered to friends.
+  Needs a `friendships` table.
+
+**v1 ends here.** Before calling it v1, do the Showcase items below marked v1.
+
+## 6. Hints
+
+- The Hints button calls `POST /api/puzzles/{id}/hint` with the current grid. The server runs
+  the human solver and returns the easiest next move: the strategy name ("Hidden single
+  (box)") and the cell to highlight, or "this cell is wrong" if the grid has a mistake.
+- The server increments `attempts.hints_used`. To decide: whether a solve with hints ranks on
+  the leaderboard, is marked there, or is left off.
+- This shows the engine off better than anything else in the UI, since it explains moves the
+  way the difficulty rating counts them.
+
+## 7. Custom generation
 
 Players build their own difficulty: which strategies may be used, min and max clue count,
 and so on, then get a puzzle generated for it.
@@ -203,18 +349,19 @@ and so on, then get a puzzle generated for it.
 - Cloud Run throttles CPU once a response is sent, so generation stays inside the request
   rather than running in the background.
 - Protecting the CPU: one generation can occupy a full CPU for several seconds, and at a
-  concurrency of about 40 a few of them would slow every other request.
-  - Rate limit per player.
+  concurrency of about 40 a few of them would slow every other request. Build only this:
   - Cap concurrent generations per instance (about 2) with a semaphore; extra requests
     get a "busy, try again" response.
-  - If that isn't enough, run generation as a separate Cloud Run service with low
-    concurrency so the rest of the API isn't affected.
-  - `max-instances=3` already caps the cost, but not the slowdown.
+  - The timeout above, and sign-in required.
+  - `max-instances=3` already caps the cost.
+- Not built unless the above proves too little: a per-player rate limit, and running
+  generation as a separate Cloud Run service with low concurrency. For a game among friends
+  the semaphore is expected to be enough.
 - The shared-candidate solver speedup becomes worth doing here, since players wait on it.
 - Generated puzzles are stored with `source = custom`, so they get share codes like any
   other puzzle but never enter the random pool.
 
-## 5. Campaign
+## 8. Campaign
 
 - A one-off script generates about 100 puzzles, sorts them by score and stores them as
   levels 1–100 (`source = campaign`).
@@ -222,44 +369,59 @@ and so on, then get a puzzle generated for it.
 - Once published, a level is never regenerated; new levels are added at the end.
 - Frontend: a level map or grid with locks, and up to 3 stars per level (finished, no
   mistakes, under a target time). Progress synced to the server and cached in the browser.
+- Target times come from real solve times, not from the hand-picked score: a percentile of
+  recorded `active_ms` for puzzles of similar score, or the calibrated model if milestone 9
+  has happened by then. Store them per level so they can be re-set without touching the
+  puzzles.
 
-## 6. Attempts, leaderboards and friends
+## 9. Calibrating difficulty
 
-- Daily: easy, medium and hard each UTC day, a streak counter, and a share line like
-  "Pidoku #123 Hard 4:12 ✓". To decide: whether a streak needs any daily solved that day,
-  or a particular one.
-- One leaderboard per daily (date and difficulty). It uses the server-measured time from
-  milestone 3, and only each player's first completed attempt at a daily puzzle counts.
-- Cheating: the client still has the solution, so a determined player can cheat. That's
-  accepted for a game among friends; server-side timing removes the easiest cheat
-  (posting any time you like).
-- Let players upgrade from anonymous to Google sign-in so progress follows them across
-  devices.
-- Friends: a friend code to start with, then the leaderboard is filtered to your friends.
+The part of the project nobody else's Sudoku clone has: the difficulty model fitted to how long
+real people took.
 
-## 7. Hints and share codes
-
-- Hints button calls the hint endpoint, shows the strategy name ("Hidden single (box)")
-  and highlights the cell. The server increments `attempts.hints_used`.
-- Share codes: a URL like `/p/{shareCode}` opens that exact puzzle.
-
-## Frontend overview
-
-- An API client replaces the bundled puzzles. Offline JSON loading stays as a dev and
-  fallback mode.
-- Home screen: Campaign, Daily, Generate (custom difficulty) and Load JSON.
-
-## 8. Calibrating difficulty
-
-- `attempts` collects real solve times and mistakes.
-- After a few hundred solves, fit a linear model predicting median solve time from:
-  hardest step (`max_step_cost`), top-10 step sum, dependency, bottlenecks
-  (`bottleneck_steps`) and `clue_count`. Train on half the puzzles and test on the other half.
+- Data: finished attempts, using `active_ms` (collected from milestone 4) rather than the
+  wall-clock time, plus mistakes.
+- Only dailies get several solves of the same puzzle; a random pool puzzle usually gets one.
+  So don't fit on per-puzzle medians alone: divide each solve by that player's own typical
+  time first (e.g. their median over all their solves), so one solve of a puzzle is still a
+  usable data point and fast and slow players don't skew a puzzle that only one of them played.
+- Fit a linear model predicting that normalised solve time from: hardest step
+  (`max_step_cost`), top-10 step sum, dependency, bottlenecks (`bottleneck_steps`) and
+  `clue_count`. Train on half the puzzles and test on the other half.
+- Start when there are a few hundred solves across at least a few dozen puzzles. With five
+  friends playing the three dailies that's about a month.
 - Replace the hand-picked weights, re-set the score ranges, and record the fit (r²) in the
   README.
 - Re-score stored puzzles: a one-off job recomputes `score` and `difficulty` for every
   puzzle with the new weights. Campaign levels keep their order and their puzzles even if
   their labels change; pool puzzles may move between difficulties.
+
+## Showcase
+
+What someone looking at the repository for two minutes sees. Not a milestone; items marked v1
+are done before v1 is called done.
+
+- **README (v1).** Lead with the live link, a screenshot or short GIF of a game, and one
+  architecture diagram (browser → Firebase Hosting and its CDN → Cloud Run → Neon, with the
+  nightly generator job and Firebase sign-in). Then the engineering worth reading about, with
+  its numbers: the technique-based difficulty rating, the strategy soundness property test, the
+  AOT cache (ready context 8 s → 4 s), the CDN-cached dailies, server-measured solve times.
+  Remove what's out of date ("the frontend currently runs fully offline").
+- **CI (v1).** A passing badge. GitHub Actions when it's available again, Cloud Build if not
+  (section 2).
+- **One end-to-end test (v1).** Playwright: load the site against a local API, open a daily,
+  solve it from the solution, see the result screen. The frontend's tests cover the game logic
+  and the API client, but nothing checks the pieces together.
+- **Calibration write-up (after milestone 9).** A short section or page: the model, the data,
+  the fit, a chart of predicted against actual solve time.
+
+## Frontend overview
+
+- The API client has replaced the bundled puzzles as the main source; the bundled ones are the
+  offline fallback, and loading engine JSON stays as a dev tool.
+- Home screen today: Today's dailies, Random puzzle, Your puzzles, Load a puzzle. To come:
+  streak and leaderboard (4, 5), Generate (7), Campaign (8).
+- Routes arrive with share links (milestone 4).
 
 ## Engine follow-ups
 
@@ -274,3 +436,13 @@ and so on, then get a puzzle generated for it.
 
 - Calibration: none of the scoring weights have been checked against real players.
 - The new strategy names have only been checked on the puzzle cards, not in the game screen.
+- Milestone 3 hasn't been deployed or tried on the live site yet.
+- **A daily can be a puzzle someone has already played.** The generator job fills daily slots
+  from the random pool (`DailyPuzzleService.fillFromPool`), which the Random buttons also serve
+  from, so a player may have seen a future daily's solution or already hold a finished attempt
+  at it, and that old attempt would be the one a leaderboard ranks. Fix before leaderboards
+  (milestone 5): generate dailies fresh instead of taking them from the pool. A normal night
+  costs the same, three generated puzzles, since the pool is refilled afterwards anyway.
+  Dailies already scheduled from the pool (up to 31 days ahead) would still need checking for
+  earlier attempts.
+- Whether a solve that used hints ranks on the leaderboard (decide in milestone 6).

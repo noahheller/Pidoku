@@ -124,14 +124,60 @@ Things that keep the cache valid (see `pidoku-api/build.gradle`):
 `./gradlew :pidoku-api:jibDockerBuild` still builds an image without a cache, which is quicker for
 trying out changes.
 
+## Sign-in
+
+Every visitor is signed in anonymously with Firebase Authentication: no sign-up, just a uid that
+stays with the browser. The frontend sends the account's ID token to the API, which checks it
+against Google's public keys and creates the `players` row on first use. Opening a puzzle from the
+API starts an attempt and solving it completes it, so solve times are measured by the server.
+
+The Firebase project is set up for this (to repeat it in another project):
+
+1. Enable the **Anonymous** provider: Firebase console → Authentication → Sign-in method.
+2. Register a web app and print its config:
+
+   ```bash
+   firebase apps:create WEB pidoku-web --project pidoku
+   firebase apps:sdkconfig WEB --project pidoku
+   ```
+
+3. Put that config in `pidoku-frontend/src/api/firebaseConfig.ts`. It isn't secret. Set to
+   `null`, the game plays signed out and nothing is recorded.
+
+The API needs no credentials for this. It accepts tokens issued for the Firebase project in
+`pidoku.firebase.project-id` (`application.properties`).
+
+## Deploying by hand
+
+CI/CD is tabled (see the roadmap), so for now, from the repository root with `gcloud` and
+`firebase` signed in:
+
+```bash
+./gradlew build && (cd pidoku-frontend && npm run lint && npm test)
+
+IMAGE=us-east4-docker.pkg.dev/pidoku/pidoku-repository/pidoku-api:$(git rev-parse --short HEAD)
+scripts/build-image.sh "$IMAGE"
+gcloud run deploy pidoku-api-service --project pidoku --region us-east4 --image "$IMAGE"
+gcloud run jobs update pidoku-api --project pidoku --region us-east4 --image "$IMAGE"
+firebase deploy --only hosting --project pidoku   # builds the frontend first
+```
+
+The API goes first: it runs new database migrations on startup, and the frontend may call
+endpoints the old API doesn't have.
+
 ## API
 
 | Endpoint | Returns |
 |---|---|
-| `GET /api/puzzles/random?difficulty=hard` | A random puzzle from the pool |
-| `GET /api/puzzles/daily` | Today's (UTC) date and its daily puzzles (easy, medium and hard), easiest first |
+| `GET /api/puzzles/random?difficulty=hard` | A random puzzle from the pool. Signed in, one the player hasn't started yet, while there are any |
+| `GET /api/puzzles/daily/{date}` | The daily puzzles (easy, medium and hard, easiest first) for a date such as `2026-11-17`. The frontend asks for the player's local date. Only dates that are today somewhere in the world are served; a complete day is cached by Firebase's CDN |
 | `GET /api/puzzles/{shareCode}` | The puzzle behind a share code (case-insensitive) |
+| `GET /api/players/me` 🔒 | The signed-in player, created on first use |
+| `POST /api/attempts` 🔒 | `{"puzzleId": 12}` → the player's unfinished attempt at the puzzle, started now if there isn't one. With `"restart": true` its clock starts again from now |
+| `POST /api/attempts/{id}/complete` 🔒 | `{"grid": [...], "mistakes": 2}` → the attempt, completed, with the server-measured `elapsedMs`. 422 if the grid isn't the solution |
 | `GET /actuator/health` | Health check |
+
+🔒 needs `Authorization: Bearer <Firebase ID token>`; without one it's a 401. See [Sign-in](#sign-in).
 
 Difficulties are `trivial`, `relaxing`, `easy`, `medium`, `hard` and `fiendish`. Puzzles come back
 with flat, row-major `givens` and `solution` arrays (0 is an empty cell), plus `score`,

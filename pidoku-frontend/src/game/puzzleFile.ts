@@ -17,6 +17,8 @@ export interface PuzzleDef {
    * Optional because puzzles saved before this field existed don't have it.
    */
   dependency?: number | null;
+  /** The puzzle's id in the Pidoku API, for recording attempts. Only puzzles from the API have one. */
+  apiId?: number;
 }
 
 export class PuzzleFormatError extends Error {}

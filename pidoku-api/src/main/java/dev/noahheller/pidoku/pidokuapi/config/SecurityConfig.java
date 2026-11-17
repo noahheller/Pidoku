@@ -4,6 +4,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -13,9 +14,16 @@ import org.springframework.security.web.SecurityFilterChain;
  * Who may call what. Spring Security denies everything by default, so every endpoint has to be
  * opened here.
  *
- * <p>For now there are no accounts: the puzzle read endpoints and the health check are public and
- * everything else is denied. Milestone 3 (anonymous Firebase sign-in) adds token checks for the
- * endpoints that need a player.
+ * <p>Players are Firebase accounts (the frontend signs every visitor in anonymously) and send
+ * their Firebase ID token as {@code Authorization: Bearer <token>}. The token is a JWT signed by
+ * Google, verified here as an OAuth2 resource server; what makes a token valid is configured under
+ * {@code spring.security.oauth2.resourceserver.jwt} in application.properties. Controllers get the
+ * verified token with {@code @AuthenticationPrincipal Jwt} and turn it into a player with
+ * PlayerService.
+ *
+ * <p>The puzzle read endpoints and the health check are public, attempts and players need a
+ * token, and everything else is denied. A request with a bad token is a 401 even on a public
+ * endpoint.
  *
  * <p>Only loaded in a web application: the generator job runs without a web server, where there is
  * nothing to secure (and no {@link HttpSecurity} to build a filter chain from).
@@ -33,8 +41,10 @@ public class SecurityConfig {
                         // Where Spring Boot renders errors, so a failed public request gets its real
                         // status instead of a 403 from the error page.
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/attempts/**", "/api/players/**").authenticated()
                         .anyRequest().denyAll())
                 // A stateless JSON API with no cookies or sessions, so there's nothing for CSRF to steal.
+                .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sessions -> sessions.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .build();

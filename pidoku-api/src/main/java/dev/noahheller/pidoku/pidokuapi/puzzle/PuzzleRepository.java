@@ -20,6 +20,14 @@ public interface PuzzleRepository extends JpaRepository<Puzzle, Long> {
     }
 
     /**
+     * Like {@link #findRandom(PuzzleSource, Difficulty)}, but only puzzles the player has never
+     * started (has no attempt at).
+     */
+    default Optional<Puzzle> findRandomUnseen(PuzzleSource source, Difficulty difficulty, long playerId) {
+        return nativeFindRandomUnseen(source.name(), difficulty.name(), playerId);
+    }
+
+    /**
      * Like {@link #findRandom(PuzzleSource, Difficulty)}, but row-locks the puzzle for the rest of
      * the transaction and skips puzzles another transaction has locked. Use it to take a puzzle out
      * of the pool without two callers taking the same one.
@@ -39,6 +47,16 @@ public interface PuzzleRepository extends JpaRepository<Puzzle, Long> {
             LIMIT 1
             """, nativeQuery = true)
     Optional<Puzzle> nativeFindRandom(@Param("source") String source, @Param("difficulty") String difficulty);
+
+    @Query(value = """
+            SELECT * FROM puzzles p
+            WHERE p.source = :source AND p.difficulty = :difficulty
+              AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.player_id = :playerId AND a.puzzle_id = p.id)
+            ORDER BY random()
+            LIMIT 1
+            """, nativeQuery = true)
+    Optional<Puzzle> nativeFindRandomUnseen(@Param("source") String source, @Param("difficulty") String difficulty,
+                                            @Param("playerId") long playerId);
 
     @Query(value = """
             SELECT * FROM puzzles
