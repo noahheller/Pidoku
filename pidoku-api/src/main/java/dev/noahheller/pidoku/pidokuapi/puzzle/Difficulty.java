@@ -16,10 +16,10 @@ import java.util.stream.Collectors;
  */
 public enum Difficulty {
     TRIVIAL,
-    RELAXING,
     EASY,
     MEDIUM,
     HARD,
+    EXPERT,
     FIENDISH;
 
     /** Lower-case name used in the API. */

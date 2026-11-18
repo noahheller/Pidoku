@@ -73,10 +73,10 @@ class PidokuBuilderTest {
 
     @Test
     void sameSeedProducesSamePuzzleWhateverRanBefore() {
-        DifficultyProfile easy = DifficultyProfile.easy();
-        int[][] first = BUILDER.generate(easy, 99).getPuzzle();
-        BUILDER.generate(easy, 5);
-        assertArrayEquals(first, BUILDER.generate(easy, 99).getPuzzle());
+        DifficultyProfile medium = DifficultyProfile.medium();
+        int[][] first = BUILDER.generate(medium, 99).getPuzzle();
+        BUILDER.generate(medium, 5);
+        assertArrayEquals(first, BUILDER.generate(medium, 99).getPuzzle());
     }
 
     @Test

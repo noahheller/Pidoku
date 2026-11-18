@@ -15,7 +15,7 @@ comes first); the "Showcase" section covers the second.
 
 ### Puzzles are generated ahead of time
 Campaign, daily and random puzzles are made by a background job and stored in the database,
-not generated during a request (Hard and Fiendish take about 4–11 seconds). Stored puzzles
+not generated during a request (Expert and Fiendish take about 4–11 seconds). Stored puzzles
 also keep share codes and campaign levels stable when the engine changes. Every puzzle is
 stamped with an `engine_version`.
 
@@ -87,8 +87,9 @@ Decisions made while building it:
   milestone 8. The designs below are still the plan.
 - The generator job is a Spring profile of the API (`generator`), not a separate module: one
   build and one image, run as the API service or as the Cloud Run Job.
-- Relaxing is now a built-in engine difficulty (`DifficultyProfile.relaxing()`), so the API
-  offers six: trivial, relaxing, easy, medium, hard and fiendish.
+- The API offers six difficulties: trivial, easy, medium, hard, expert and fiendish. They were
+  renamed one step up (Relaxing → Easy, Easy → Medium, Medium → Hard, Hard → Expert) with the
+  engine profiles unchanged; V7 relabels stored puzzles and dailies.
 - Each day has three dailies, one easy, one medium and one hard (`pidoku.daily.difficulties`
   in `application.properties`). A daily is identified by its slot, (date, difficulty), and a
   foreign key on `(puzzle_id, difficulty)` makes the database refuse a puzzle of the wrong
@@ -475,7 +476,7 @@ and so on, then get a puzzle generated for it.
 
 - A one-off script generates about 100 puzzles, sorts them by score and stores them as
   levels 1–100 (`source = campaign`).
-- Difficulty rises gently, e.g. 10 Trivial → 15 Relaxing → 20 Easy → and so on.
+- Difficulty rises gently, e.g. 10 Trivial → 15 Easy → 20 Medium → and so on.
 - Once published, a level is never regenerated; new levels are added at the end.
 - Frontend: a level map or grid with locks, and up to 3 stars per level (finished, no
   mistakes, under a target time). Progress synced to the server and cached in the browser.

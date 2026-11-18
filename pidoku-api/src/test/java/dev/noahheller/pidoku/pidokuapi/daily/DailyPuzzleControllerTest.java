@@ -62,6 +62,18 @@ class DailyPuzzleControllerTest extends IntegrationTest {
     }
 
     @Test
+    void leavesOutDailiesInDifficultiesThatNoLongerGetOne() {
+        LocalDate today = dailyPuzzleService.today();
+        fill(today, Difficulty.MEDIUM);
+        fill(today, Difficulty.EXPERT);
+
+        assertThat(mvc.get().uri("/api/puzzles/daily/{date}", today))
+                .hasStatusOk()
+                .bodyJson()
+                .extractingPath("$.puzzles[*].difficulty").asArray().containsExactly("medium");
+    }
+
+    @Test
     void doesNotServeOtherDaysPuzzles() {
         LocalDate today = dailyPuzzleService.today();
         fill(today.minusDays(1), Difficulty.EASY);
