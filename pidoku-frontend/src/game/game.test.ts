@@ -32,6 +32,21 @@ describe('gameReducer', () => {
     expect(s.mistakes).toBe(1);
   });
 
+  it('restarting clears the board, the time and the mistakes', () => {
+    const s = play(newGame(easy), { type: 'select', index: firstEmpty }, { type: 'input', digit: wrongDigit }, { type: 'tick', ms: 5000 }, { type: 'restart' });
+    expect(s.values).toEqual(easy.givens);
+    expect(s.elapsedMs).toBe(0);
+    expect(s.mistakes).toBe(0);
+  });
+
+  it('restarting a daily clears the board but keeps its time and mistakes', () => {
+    const daily = { ...easy, dailyDate: '2026-11-17' };
+    const s = play(newGame(daily), { type: 'select', index: firstEmpty }, { type: 'input', digit: wrongDigit }, { type: 'tick', ms: 5000 }, { type: 'restart' });
+    expect(s.values).toEqual(daily.givens);
+    expect(s.elapsedMs).toBe(5000);
+    expect(s.mistakes).toBe(1);
+  });
+
   it('clears a cell when the same digit is entered again', () => {
     const s = play(newGame(easy), { type: 'select', index: firstEmpty }, { type: 'input', digit: answer }, { type: 'input', digit: answer });
     expect(s.values[firstEmpty]).toBe(0);

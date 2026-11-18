@@ -19,3 +19,12 @@ export function describeOpenMoves(dependency: number | null | undefined): string
   if (rounded <= 1) return 'Usually just one move open at a time';
   return `About ${rounded} moves open at a time`;
 }
+
+/**
+ * "Tuesday, 17 November" for a YYYY-MM-DD date, in the player's locale. The date is already the
+ * player's local date, so it's formatted as written: parsing and printing both in UTC keeps the
+ * player's time zone from shifting it by a day.
+ */
+export function formatDate(date: string): string {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
+}

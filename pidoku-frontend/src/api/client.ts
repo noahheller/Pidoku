@@ -46,7 +46,65 @@ export interface Player {
   id: number;
   /** Null until the player picks one. */
   displayName: string | null;
+  /** What friends enter (or open as /f/{code}) to add this player. */
+  friendCode: string;
   createdAt: string;
+}
+
+/** One of the player's friends (pidoku-api's Friend). */
+export interface Friend {
+  /** Their player id, for removing them. */
+  id: number;
+  displayName: string | null;
+  /** Their current daily streak, as of the player's own date; null if it wasn't asked for. */
+  currentStreak: number | null;
+}
+
+/** The difficulties each day has a daily of, easiest first (`pidoku.daily.difficulties` in the API). */
+export const DAILY_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly Difficulty[];
+
+/** One player's ranked solve of a daily (pidoku-api's Leaderboard.Entry). */
+export interface LeaderboardEntry {
+  /** 1 for the fastest; equal times share a rank. */
+  rank: number;
+  displayName: string | null;
+  /** The server-measured solve time. */
+  elapsedMs: number;
+  mistakes: number;
+  /** Sent late, so the time is partly what the player's device claimed. */
+  late: boolean;
+  /** The signed-in player's own solve. */
+  you: boolean;
+  /** Solved earliest of everyone on this board (late solves can't be). */
+  firstToFinish: boolean;
+  /** The fastest solve with no mistakes on this board. */
+  fastestClean: boolean;
+}
+
+/** The fastest solves of one daily (pidoku-api's Leaderboard). */
+export interface Leaderboard {
+  date: string;
+  difficulty: Difficulty;
+  friendsOnly: boolean;
+  /** Only solves with no mistakes are ranked. */
+  cleanOnly: boolean;
+  /** Everyone ranked, including those beyond `entries`. */
+  total: number;
+  /** The fastest, best first (at most 50). */
+  entries: LeaderboardEntry[];
+  /** The player's own entry, also when it's beyond `entries`; null if they haven't solved it. */
+  you: LeaderboardEntry | null;
+  /** Whoever solved it earliest, also when beyond `entries`; null if no one has. */
+  firstToFinish: LeaderboardEntry | null;
+  /** The fastest solve with no mistakes, also when beyond `entries`; null if there's none. */
+  fastestClean: LeaderboardEntry | null;
+}
+
+/** Which leaderboard: whose times, and whether solves with mistakes count. */
+export interface LeaderboardFilter {
+  friendsOnly: boolean;
+  /** Rank only solves with no mistakes. */
+  cleanOnly: boolean;
 }
 
 /** The player's run of consecutive dates with a solved daily (pidoku-api's Streak). */
@@ -172,6 +230,68 @@ export async function fetchStreak(signal?: AbortSignal, now: Date = new Date()):
   return request<Streak>(`/api/players/me/streak?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
 }
 
+/** The player's friends, each with their current streak as of the player's own date. */
+export async function fetchFriends(signal?: AbortSignal, now: Date = new Date()): Promise<Friend[]> {
+  return request<Friend[]>(`/api/friends?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
+}
+
+/** One friend's stats (pidoku-api's FriendProfile), from their first solve of each daily. */
+export interface FriendProfile {
+  id: number;
+  displayName: string | null;
+  /** When you became friends (ISO timestamp). */
+  friendsSince: string;
+  currentStreak: number;
+  bestStreak: number;
+  dailiesSolved: number;
+  /** How many of those had no mistakes. */
+  cleanSolves: number;
+  /** Their fastest solve of each daily difficulty they've played, in ms, easiest first. */
+  bestTimes: Partial<Record<Difficulty, number>>;
+  /** The last week of dailies, newest date first. */
+  recent: { date: string; difficulty: Difficulty; elapsedMs: number; mistakes: number; late: boolean }[];
+}
+
+/**
+ * One friend's profile, as of the player's own date.
+ *
+ * @throws ApiError 404 if they aren't friends (any more)
+ */
+export async function fetchFriendProfile(friendId: number, signal?: AbortSignal, now: Date = new Date()): Promise<FriendProfile> {
+  return request<FriendProfile>(`/api/friends/${friendId}?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
+}
+
+/**
+ * Adds the player with this friend code as a friend, both ways.
+ *
+ * @throws ApiError with the server's reason (fit to show) for an unknown code or the player's own
+ */
+export async function addFriend(friendCode: string): Promise<Friend> {
+  return request<Friend>('/api/friends', { method: 'POST', body: { friendCode }, token: await requireToken() }, BUSY);
+}
+
+/** Removes a friend, for both players. */
+export async function removeFriend(friendId: number): Promise<void> {
+  await request<void>(`/api/friends/${friendId}`, { method: 'DELETE', token: await requireToken() }, BUSY);
+}
+
+/**
+ * The fastest solves of one daily: overall, or only those with no mistakes. Sign-in is optional
+ * for everyone's times (signed in, the player's own entry is marked), and needed for friends only.
+ */
+export async function fetchLeaderboard(date: string, difficulty: Difficulty, { friendsOnly, cleanOnly }: LeaderboardFilter, signal?: AbortSignal): Promise<Leaderboard> {
+  const url = `/api/puzzles/daily/${encodeURIComponent(date)}/leaderboard?difficulty=${encodeURIComponent(difficulty)}${friendsOnly ? '&friends=true' : ''}${cleanOnly ? '&clean=true' : ''}`;
+  if (friendsOnly) return request<Leaderboard>(url, { token: await requireToken(), signal }, BUSY);
+  const token = await idToken();
+  try {
+    return await request<Leaderboard>(url, { token, signal }, BUSY);
+  } catch (e) {
+    // Like fetchRandom: a refused token still gets everyone's times.
+    if (!(token && e instanceof ApiError && e.status === 401)) throw e;
+    return request<Leaderboard>(url, { signal }, BUSY);
+  }
+}
+
 async function requireToken(): Promise<string> {
   const token = await idToken();
   if (token === null) throw new ApiError("Couldn't sign you in, so this game isn't being recorded.", null);
@@ -202,7 +322,7 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name = `${puzzle.dailyDate ? 'Dai
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   /** Sent as JSON. */
   body?: unknown;
   /** A Firebase ID token to sign the request with; left out, the request is anonymous. */
@@ -227,6 +347,7 @@ async function request<T>(url: string, { method = 'GET', body, token, signal }: 
     throw new ApiError(UNREACHABLE, null);
   }
   if (response.ok) {
+    if (response.status === 204) return undefined as T;
     try {
       return (await response.json()) as T;
     } catch {

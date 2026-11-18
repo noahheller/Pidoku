@@ -14,6 +14,15 @@ export function dailyNumber(date: string): number {
   return Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${LAUNCH_DATE}T00:00:00Z`)) / DAY_MS) + 1;
 }
 
+/**
+ * "Pidoku #123 · " for a date from launch day on, or "" before it: dailies were generated before
+ * launch, and "#0" or "#-3" would look broken.
+ */
+export function dailyLabel(date: string): string {
+  const n = dailyNumber(date);
+  return n >= 1 ? `Pidoku #${n} · ` : '';
+}
+
 export interface ShareDetails {
   /** e.g. "Hard" */
   difficulty: string | null;
@@ -43,4 +52,9 @@ export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, url }: S
 /** The share link for a puzzle from the API, on this site. */
 export function shareUrl(shareCode: string, origin: string = window.location.origin): string {
   return `${origin}/p/${shareCode}`;
+}
+
+/** A friend's invite link (`/f/{friendCode}`), on this site. */
+export function friendUrl(friendCode: string, origin: string = window.location.origin): string {
+  return `${origin}/f/${friendCode}`;
 }

@@ -8,6 +8,9 @@ const PENDING_COMPLETIONS_KEY = 'pidoku:pending-completions';
 const RESULT_PREFIX = 'pidoku:result:';
 const STREAK_KEY = 'pidoku:streak';
 const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
+const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
+const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
+const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
 
 export interface Settings {
   showMistakes: boolean;
@@ -122,6 +125,51 @@ export function isNamePromptDismissed(): boolean {
 
 export function dismissNamePrompt(): void {
   write(NAME_PROMPT_DISMISSED_KEY, true);
+}
+
+/** Whether the player chose not to sign in with Google when it was suggested under a result. */
+export function isGooglePromptDismissed(): boolean {
+  return read<boolean>(GOOGLE_PROMPT_DISMISSED_KEY) === true;
+}
+
+export function dismissGooglePrompt(): void {
+  write(GOOGLE_PROMPT_DISMISSED_KEY, true);
+}
+
+/** Which leaderboard the player last looked at: everyone's times or just friends'. */
+export type LeaderboardScope = 'everyone' | 'friends';
+
+export function loadLeaderboardScope(): LeaderboardScope {
+  return read<LeaderboardScope>(LEADERBOARD_SCOPE_KEY) === 'friends' ? 'friends' : 'everyone';
+}
+
+export function saveLeaderboardScope(scope: LeaderboardScope): void {
+  write(LEADERBOARD_SCOPE_KEY, scope);
+}
+
+/** How the leaderboard was last ranked: fastest overall, or fastest with no mistakes. */
+export type LeaderboardRanking = 'fastest' | 'clean';
+
+export function loadLeaderboardRanking(): LeaderboardRanking {
+  return read<LeaderboardRanking>(LEADERBOARD_RANKING_KEY) === 'clean' ? 'clean' : 'fastest';
+}
+
+export function saveLeaderboardRanking(ranking: LeaderboardRanking): void {
+  write(LEADERBOARD_RANKING_KEY, ranking);
+}
+
+/**
+ * Forgets what belongs to the player rather than to this browser, after switching to another
+ * account: its streak, and whether it said no to picking a name.
+ */
+export function clearPlayerCaches(): void {
+  for (const key of [STREAK_KEY, NAME_PROMPT_DISMISSED_KEY, GOOGLE_PROMPT_DISMISSED_KEY]) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // Storage disabled: nothing was cached.
+    }
+  }
 }
 
 export function loadSettings(): Settings {

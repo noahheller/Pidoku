@@ -47,7 +47,10 @@ export function Controls({ state, dispatch, showErrors, onToggleErrors }: Contro
         type="button"
         className={BUTTON}
         onClick={() => {
-          if (confirm('Restart this puzzle? Your progress and time will be reset.')) dispatch({ type: 'restart' });
+          const message = state.puzzle.dailyDate
+            ? 'Clear the board and start this puzzle over? The clock keeps running: a daily’s time is from when you first pressed Start.'
+            : 'Restart this puzzle? Your progress and time will be reset.';
+          if (confirm(message)) dispatch({ type: 'restart' });
         }}
         title="Restart puzzle"
       >

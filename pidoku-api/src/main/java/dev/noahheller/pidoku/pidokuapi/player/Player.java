@@ -12,8 +12,8 @@ import java.time.Instant;
 
 /**
  * One Firebase account (table {@code players}, created in V3). Rows are inserted by
- * {@link PlayerRepository#insertIfAbsent}, never through JPA; the display name is the only thing
- * that changes afterwards.
+ * {@link PlayerRepository#insertIfAbsent}, never through JPA; afterwards JPA only changes the
+ * display name.
  */
 @Getter
 @Entity
@@ -31,6 +31,13 @@ public class Player {
     /** Null until the player picks one. Already checked by {@link DisplayName} when set. */
     @Column(name = "display_name", length = 40)
     private String displayName;
+
+    /**
+     * What friends type in (or open as {@code /f/{code}}) to add this player. Null until first
+     * asked for; assigned once by {@link PlayerRepository#assignFriendCode} and never changed.
+     */
+    @Column(name = "friend_code", insertable = false, updatable = false, unique = true, length = 8)
+    private String friendCode;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
