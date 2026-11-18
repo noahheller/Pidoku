@@ -43,9 +43,9 @@ public class DifficultyProfile {
                 .floor(Tier.BEGINNER)
                 .build();
     }
-    /** Between Trivial and Easy: singles only, with enough clues that there's usually more than one move available. */
-    public static DifficultyProfile relaxing() {
-        return new Builder("Relaxing")
+    /** Between Trivial and Medium: singles only, with enough clues that there's usually more than one move available. */
+    public static DifficultyProfile easy() {
+        return new Builder("Easy")
                 .scoreRange(25, 45)
                 .clueRange(38, 45)
                 .ceiling(Tier.BEGINNER)
@@ -53,8 +53,8 @@ public class DifficultyProfile {
                 .build();
     }
 
-    public static DifficultyProfile easy() {
-        return new Builder("Easy")
+    public static DifficultyProfile medium() {
+        return new Builder("Medium")
                 .scoreRange(35, 70)
                 .clueRange(30, 45)
                 .ceiling(Tier.BEGINNER)
@@ -62,8 +62,8 @@ public class DifficultyProfile {
                 .build();
     }
 
-    public static DifficultyProfile medium() {
-        return new Builder("Medium")
+    public static DifficultyProfile hard() {
+        return new Builder("Hard")
                 .scoreRange(65, 120)
                 .clueRange(25, 40)
                 .ceiling(Tier.EASY)
@@ -73,8 +73,8 @@ public class DifficultyProfile {
                 .build();
     }
 
-    public static DifficultyProfile hard() {
-        return new Builder("Hard")
+    public static DifficultyProfile expert() {
+        return new Builder("Expert")
                 .scoreRange(115, 170)
                 .clueRange(10, 30)
                 .ceiling(Tier.HARD)
@@ -96,7 +96,7 @@ public class DifficultyProfile {
     }
 
     public static DifficultyProfile[] premadeProfiles() {
-       return new DifficultyProfile[]{trivial(), relaxing(), easy(), medium(), hard(), fiendish()};
+       return new DifficultyProfile[]{trivial(), easy(), medium(), hard(), expert(), fiendish()};
     }
 
     /**

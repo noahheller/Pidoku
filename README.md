@@ -194,7 +194,7 @@ endpoints the old API doesn't have.
 
 🔒 needs `Authorization: Bearer <Firebase ID token>`; without one it's a 401. See [Sign-in](#sign-in).
 
-Difficulties are `trivial`, `relaxing`, `easy`, `medium`, `hard` and `fiendish`. Puzzles come back
+Difficulties are `trivial`, `easy`, `medium`, `hard`, `expert` and `fiendish`. Puzzles come back
 with flat, row-major `givens` and `solution` arrays (0 is an empty cell), plus `score`,
 `dependency`, `hardestStrategy` and `dailyDate` (null unless it's a daily). Errors are [problem details](https://www.rfc-editor.org/rfc/rfc9457):
 404 for an unknown share code, 503 when the generator job hasn't produced a puzzle yet, 400 for a

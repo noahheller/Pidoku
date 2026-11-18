@@ -80,7 +80,7 @@ public class DailyPuzzleService {
     }
 
     /**
-     * One date's dailies, easiest first, with their puzzles loaded. If the generator job filled
+     * One date's dailies in the configured difficulties, easiest first, with their puzzles loaded. If the generator job filled
      * only some of the date's slots, returns the ones it filled.
      *
      * @throws PuzzleNotFoundException    if the date isn't today anywhere in the world
@@ -92,7 +92,10 @@ public class DailyPuzzleService {
             throw new PuzzleNotFoundException("There are no daily puzzles for " + date
                     + ": it isn't that date anywhere right now. Check your device's date.");
         }
+        // Only the configured difficulties: a date can also hold one that has since been dropped
+        // from config (V7 left one on the dates it kept), and isComplete counts on this.
         List<DailyPuzzle> found = dailies.findAllWithPuzzle(date).stream()
+                .filter(daily -> difficulties.contains(daily.getDifficulty()))
                 .sorted(Comparator.comparing(DailyPuzzle::getDifficulty))
                 .toList();
         if (found.isEmpty()) {
