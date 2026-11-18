@@ -21,8 +21,8 @@ import org.springframework.security.web.SecurityFilterChain;
  * verified token with {@code @AuthenticationPrincipal Jwt} and turn it into a player with
  * PlayerService.
  *
- * <p>The puzzle read endpoints and the health check are public, attempts and players need a
- * token, and everything else is denied. A request with a bad token is a 401 even on a public
+ * <p>The puzzle read endpoints (leaderboards included) and the health check are public; attempts,
+ * players and friends need a token, and everything else is denied. A request with a bad token is a 401 even on a public
  * endpoint.
  *
  * <p>Only loaded in a web application: the generator job runs without a web server, where there is
@@ -41,7 +41,7 @@ public class SecurityConfig {
                         // Where Spring Boot renders errors, so a failed public request gets its real
                         // status instead of a 403 from the error page.
                         .requestMatchers("/error").permitAll()
-                        .requestMatchers("/api/attempts/**", "/api/players/**").authenticated()
+                        .requestMatchers("/api/attempts/**", "/api/players/**", "/api/friends", "/api/friends/**").authenticated()
                         .anyRequest().denyAll())
                 // A stateless JSON API with no cookies or sessions, so there's nothing for CSRF to steal.
                 .oauth2ResourceServer(resourceServer -> resourceServer.jwt(Customizer.withDefaults()))

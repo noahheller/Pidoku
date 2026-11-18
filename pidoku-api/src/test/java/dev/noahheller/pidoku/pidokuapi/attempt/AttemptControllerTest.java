@@ -38,7 +38,7 @@ class AttemptControllerTest extends IntegrationTest {
 
     @BeforeEach
     void storePuzzle() {
-        puzzle = puzzleService.store(TestPuzzles.generated(Difficulty.MEDIUM), PuzzleSource.DAILY);
+        puzzle = puzzleService.store(TestPuzzles.generated(Difficulty.MEDIUM), PuzzleSource.POOL);
     }
 
     private MvcTestResult start(String uid, long puzzleId) {
@@ -114,6 +114,21 @@ class AttemptControllerTest extends IntegrationTest {
             assertThat(attemptCount()).isEqualTo(1);
             assertThat(jdbc.queryForObject(
                     "SELECT started_at > now() - interval '60 seconds' FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void restartingADailyKeepsItsClockRunning() {
+            Puzzle daily = puzzleService.store(TestPuzzles.generated(Difficulty.MEDIUM, 7), PuzzleSource.DAILY);
+            start("alice", daily.getId());
+            jdbc.update("UPDATE attempts SET started_at = started_at - interval '90 seconds'");
+
+            assertThat(mvc.post().uri("/api/attempts").with(player("alice"))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"puzzleId\": %d, \"restart\": true}".formatted(daily.getId())))
+                    .hasStatusOk();
+
+            assertThat(jdbc.queryForObject(
+                    "SELECT started_at < now() - interval '80 seconds' FROM attempts", Boolean.class)).isTrue();
         }
 
         @Test

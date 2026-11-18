@@ -45,6 +45,18 @@ class PlayerControllerTest extends IntegrationTest {
                 .extractingPath("$.displayName").isNull();
     }
 
+    @Test
+    void everyPlayerGetsAFriendCodeThatNeverChanges() {
+        assertThat(mvc.get().uri("/api/players/me").with(player("alice")))
+                .bodyJson().extractingPath("$.friendCode").asString().matches("[2-9A-HJKMNP-Z]{8}");
+        String code = players.findByFirebaseUid("alice").orElseThrow().getFriendCode();
+
+        assertThat(mvc.get().uri("/api/players/me").with(player("alice")))
+                .bodyJson().extractingPath("$.friendCode").isEqualTo(code);
+        assertThat(mvc.get().uri("/api/players/me").with(player("bob")))
+                .bodyJson().extractingPath("$.friendCode").isNotEqualTo(code);
+    }
+
     private MvcTestResult rename(String uid, String json) {
         return mvc.patch().uri("/api/players/me").with(player(uid))
                 .contentType(MediaType.APPLICATION_JSON).content(json).exchange();
