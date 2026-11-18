@@ -160,7 +160,7 @@ class PuzzleControllerTest extends IntegrationTest {
                     .hasStatus(HttpStatus.BAD_REQUEST)
                     .bodyJson()
                     .extractingPath("$.detail").asString()
-                    .contains("'impossible'", "trivial, relaxing, easy, medium, hard, fiendish");
+                    .contains("'impossible'", "trivial, easy, medium, hard, expert, fiendish");
         }
 
         @Test

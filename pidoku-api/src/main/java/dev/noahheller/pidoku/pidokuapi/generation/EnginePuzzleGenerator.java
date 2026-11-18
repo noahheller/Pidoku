@@ -61,10 +61,10 @@ public class EnginePuzzleGenerator implements PuzzleGenerator {
     static DifficultyProfile profileFor(Difficulty difficulty) {
         return switch (difficulty) {
             case TRIVIAL -> DifficultyProfile.trivial();
-            case RELAXING -> DifficultyProfile.relaxing();
             case EASY -> DifficultyProfile.easy();
             case MEDIUM -> DifficultyProfile.medium();
             case HARD -> DifficultyProfile.hard();
+            case EXPERT -> DifficultyProfile.expert();
             case FIENDISH -> DifficultyProfile.fiendish();
         };
     }

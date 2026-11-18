@@ -15,7 +15,7 @@ class DifficultyTest {
     @Test
     void fromIdIgnoresCaseAndSurroundingSpaces() {
         assertThat(Difficulty.fromId("hard")).isEqualTo(Difficulty.HARD);
-        assertThat(Difficulty.fromId(" Relaxing ")).isEqualTo(Difficulty.RELAXING);
+        assertThat(Difficulty.fromId(" Expert ")).isEqualTo(Difficulty.EXPERT);
     }
 
     @Test
@@ -23,6 +23,6 @@ class DifficultyTest {
         assertThatIllegalArgumentException()
                 .isThrownBy(() -> Difficulty.fromId("impossible"))
                 .withMessageContaining("'impossible'")
-                .withMessageContaining("trivial, relaxing, easy, medium, hard, fiendish");
+                .withMessageContaining("trivial, easy, medium, hard, expert, fiendish");
     }
 }

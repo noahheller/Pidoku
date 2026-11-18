@@ -6,7 +6,7 @@ import { idToken } from './auth';
  * (firebase.json), and in development Vite proxies /api to the API on :8080 (vite.config.ts).
  */
 
-export const DIFFICULTIES = ['trivial', 'relaxing', 'easy', 'medium', 'hard', 'fiendish'] as const;
+export const DIFFICULTIES = ['trivial', 'easy', 'medium', 'hard', 'expert', 'fiendish'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
 /** A puzzle as the API sends it (pidoku-api's PuzzleResponse). */

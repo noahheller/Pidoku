@@ -20,7 +20,7 @@ import java.util.random.RandomGenerator;
 public class PidokuBuilder {
 
     /**
-     * Generous enough for every premade profile (Hard and Fiendish usually take a few
+     * Generous enough for every premade profile (Expert and Fiendish usually take a few
      * seconds, rarely over 15), short enough that an unsatisfiable profile fails fast.
      */
     public static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(60);

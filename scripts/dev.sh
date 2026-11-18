@@ -47,7 +47,7 @@ fi
 
 # --- Optional: fill the dev database with puzzles ---
 if $generate; then
-  echo "Generating puzzles into the dev database (Hard and Fiendish take a while)..."
+  echo "Generating puzzles into the dev database (Expert and Fiendish take a while)..."
   (cd "$ROOT" && ./gradlew :pidoku-api:bootRun --args='--spring.profiles.active=generator')
 fi
 
