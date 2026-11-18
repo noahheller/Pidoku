@@ -43,11 +43,11 @@ class HumanPidokuGeneratorTest {
 
     @Test
     void defaultTargetIsTheMiddleOfTheWindow() {
-        PidokuPuzzle puzzle = generate(3, DifficultyProfile.easy());
-        DifficultyProfile easy = DifficultyProfile.easy();
+        PidokuPuzzle puzzle = generate(3, DifficultyProfile.medium());
+        DifficultyProfile medium = DifficultyProfile.medium();
         int score = puzzle.getSolveTrace().getTotalScore();
         // Not exact (the search is limited), but well clear of the hard edge it used to hit.
-        assertTrue(Math.abs(score - easy.targetScore) <= (easy.maxScore - easy.minScore) / 4,
-                "score " + score + " is far from target " + easy.targetScore);
+        assertTrue(Math.abs(score - medium.targetScore) <= (medium.maxScore - medium.minScore) / 4,
+                "score " + score + " is far from target " + medium.targetScore);
     }
 }

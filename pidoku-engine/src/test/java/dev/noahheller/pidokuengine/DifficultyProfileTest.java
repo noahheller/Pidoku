@@ -10,8 +10,8 @@ class DifficultyProfileTest {
 
     @Test
     void targetDefaultsToTheMiddleOfABoundedWindow() {
-        DifficultyProfile hard = DifficultyProfile.hard();
-        assertEquals((hard.minScore + hard.maxScore) / 2, hard.targetScore);
+        DifficultyProfile expert = DifficultyProfile.expert();
+        assertEquals((expert.minScore + expert.maxScore) / 2, expert.targetScore);
     }
 
     /** Regression: the midpoint of an open-ended window overflowed int, and later was ~1 billion. */

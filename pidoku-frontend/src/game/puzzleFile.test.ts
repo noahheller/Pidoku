@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import easyJson from '../puzzles/03-easy.json';
+import easyJson from '../puzzles/02-easy.json';
 import { bundledPuzzles } from '../puzzles';
 import { parsePuzzleJson, PuzzleFormatError } from './puzzleFile';
 
@@ -19,12 +19,12 @@ describe('parsePuzzleJson', () => {
   });
 
   it('loads all bundled puzzles with names from their file names', () => {
-    expect(bundledPuzzles.map((p) => p.name)).toEqual(['Trivial', 'Relaxing', 'Easy', 'Medium', 'Hard', 'Fiendish']);
+    expect(bundledPuzzles.map((p) => p.name)).toEqual(['Trivial', 'Easy', 'Medium', 'Hard', 'Expert', 'Fiendish']);
   });
 
   it('ties bundled ids to their grid so a regenerated file gets fresh progress', () => {
     const easy = bundledPuzzles.find((p) => p.name === 'Easy')!;
-    expect(easy.id).toMatch(/^bundled-03-easy-[0-9a-z]+$/);
+    expect(easy.id).toMatch(/^bundled-02-easy-[0-9a-z]+$/);
     expect(new Set(bundledPuzzles.map((p) => p.id)).size).toBe(bundledPuzzles.length);
   });
 
