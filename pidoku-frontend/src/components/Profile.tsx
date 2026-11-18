@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, CircleAlert, Copy, LogOut, RotateCw, Share2, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { currentAccount, signInWithGoogle, signOut, SignInError, type Account } from '../api/auth';
@@ -261,7 +261,16 @@ function FriendList({ friends, onRemoved }: { friends: Friend[]; onRemoved: (id:
       <ul className="grid gap-1" aria-label="Your friends">
         {friends.map((friend) => (
           <li key={friend.id} className="flex items-center gap-2 rounded-field px-2 py-1.5 hover:bg-base-200">
-            <span className="min-w-0 flex-1 truncate">{friend.displayName ?? <span className="text-base-content/60 italic">Anonymous</span>}</span>
+            <Link to={`/friends/${friend.id}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-field py-0.5 focus-visible:outline-2 focus-visible:outline-primary">
+              <span className="min-w-0 flex-1 truncate">{friend.displayName ?? <span className="text-base-content/60 italic">Anonymous</span>}</span>
+              {friend.currentStreak !== null && friend.currentStreak > 0 && (
+                <span className="flex items-center gap-0.5 text-sm font-semibold text-warning tabular-nums" title={`${friend.currentStreak}-day streak`}>
+                  <Flame className="size-4" aria-hidden="true" /> {friend.currentStreak}
+                  <span className="sr-only">-day streak</span>
+                </span>
+              )}
+              <ChevronRight className="size-4 shrink-0 text-base-content/40" aria-hidden="true" />
+            </Link>
             <button
               type="button"
               className="btn btn-circle btn-ghost btn-xs text-base-content/60 hover:bg-error/10 hover:text-error"

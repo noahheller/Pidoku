@@ -31,7 +31,9 @@ public class LeaderboardController {
 
     /**
      * The fastest solves of one daily, e.g.
-     * {@code GET /api/puzzles/daily/2026-11-17/leaderboard?difficulty=hard&friends=true}. Sign-in is
+     * {@code GET /api/puzzles/daily/2026-11-17/leaderboard?difficulty=hard&friends=true&clean=true}.
+     * By default it ranks the fastest times whatever the mistakes; {@code clean=true} ranks only
+     * solves with no mistakes. Sign-in is
      * optional, except with {@code friends=true}: with a token the viewer's own entry is marked and
      * included even beyond the top. 404 if the slot has no daily or its date hasn't begun anywhere.
      *
@@ -41,12 +43,13 @@ public class LeaderboardController {
     public Leaderboard leaderboard(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                    @RequestParam Difficulty difficulty,
                                    @RequestParam(defaultValue = "false") boolean friends,
+                                   @RequestParam(defaultValue = "false") boolean clean,
                                    @AuthenticationPrincipal Jwt token) {
         if (friends && token == null) {
             throw new ErrorResponseException(HttpStatus.UNAUTHORIZED,
                     ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Sign in to see your friends' times."), null);
         }
         Optional<Player> viewer = playerService.find(token);
-        return leaderboardService.forDaily(new DailySlot(date, difficulty), viewer, friends);
+        return leaderboardService.forDaily(new DailySlot(date, difficulty), viewer, friends, clean);
     }
 }

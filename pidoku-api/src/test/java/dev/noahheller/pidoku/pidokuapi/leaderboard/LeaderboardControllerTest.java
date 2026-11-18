@@ -47,12 +47,16 @@ class LeaderboardControllerTest extends IntegrationTest {
      * {@code seconds}.
      */
     private void solve(String uid, Puzzle puzzle, int seconds, int minutesAgo, boolean late) {
+        solve(uid, puzzle, seconds, minutesAgo, late, 1);
+    }
+
+    private void solve(String uid, Puzzle puzzle, int seconds, int minutesAgo, boolean late, int mistakes) {
         addPlayer(uid, null);
         jdbc.update("""
                 INSERT INTO attempts (player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, late)
-                SELECT id, ?, now() - make_interval(mins => ?, secs => ?), now() - make_interval(mins => ?), ?, 1, ?
+                SELECT id, ?, now() - make_interval(mins => ?, secs => ?), now() - make_interval(mins => ?), ?, ?, ?
                 FROM players WHERE firebase_uid = ?
-                """, puzzle.getId(), minutesAgo, seconds, minutesAgo, seconds * 1000L, late, uid);
+                """, puzzle.getId(), minutesAgo, seconds, minutesAgo, seconds * 1000L, mistakes, late, uid);
     }
 
     private void solve(String uid, int seconds) {
@@ -79,21 +83,101 @@ class LeaderboardControllerTest extends IntegrationTest {
     void ranksPlayersByTheServersTime() {
         addPlayer("alice", "Alice");
         addPlayer("bob", "Bob");
+        // Each insert's now() is a moment later, so Bob, recorded first, finished first.
         solve("bob", 300);
         solve("alice", 200);
         solve("nameless", 400);
 
         assertThat(leaderboard("difficulty=hard")).hasStatusOk().bodyJson().isStrictlyEqualTo("""
                 {
-                  "date": "%s", "difficulty": "hard", "friendsOnly": false, "total": 3,
+                  "date": "%s", "difficulty": "hard", "friendsOnly": false, "cleanOnly": false, "total": 3,
                   "entries": [
-                    {"rank": 1, "displayName": "Alice", "elapsedMs": 200000, "mistakes": 1, "late": false, "you": false},
-                    {"rank": 2, "displayName": "Bob", "elapsedMs": 300000, "mistakes": 1, "late": false, "you": false},
-                    {"rank": 3, "displayName": null, "elapsedMs": 400000, "mistakes": 1, "late": false, "you": false}
+                    {"rank": 1, "displayName": "Alice", "elapsedMs": 200000, "mistakes": 1, "late": false, "you": false,
+                     "firstToFinish": false, "fastestClean": false},
+                    {"rank": 2, "displayName": "Bob", "elapsedMs": 300000, "mistakes": 1, "late": false, "you": false,
+                     "firstToFinish": true, "fastestClean": false},
+                    {"rank": 3, "displayName": null, "elapsedMs": 400000, "mistakes": 1, "late": false, "you": false,
+                     "firstToFinish": false, "fastestClean": false}
                   ],
-                  "you": null
+                  "you": null,
+                  "firstToFinish": {"rank": 2, "displayName": "Bob", "elapsedMs": 300000, "mistakes": 1, "late": false,
+                                    "you": false, "firstToFinish": true, "fastestClean": false},
+                  "fastestClean": null
                 }
                 """.formatted(today));
+    }
+
+    @Test
+    void highlightsWhoFinishedFirstLeavingOutLateSolves() {
+        solve("alice", hard, 200, 10, false);
+        solve("bob", hard, 300, 30, false);
+        // Claims to have finished even earlier, but sent it late.
+        solve("carol", hard, 250, 60, true);
+
+        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.firstToFinish.elapsedMs").isEqualTo(300000);
+            assertThat(json).extractingPath("$.entries[*].firstToFinish").isEqualTo(List.of(false, false, true));
+        });
+    }
+
+    @Test
+    void highlightsTheFastestSolveWithNoMistakes() {
+        solve("alice", hard, 200, 10, false, 3);
+        solve("bob", hard, 300, 10, false, 0);
+        solve("carol", hard, 400, 10, false, 0);
+
+        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.fastestClean.elapsedMs").isEqualTo(300000);
+            assertThat(json).extractingPath("$.entries[*].fastestClean").isEqualTo(List.of(false, true, false));
+        });
+    }
+
+    @Test
+    void highlightsCanBeBeyondTheTop() {
+        for (int i = 0; i < LeaderboardService.TOP; i++) {
+            solve("player" + i, hard, 100 + i, 10, false, 1);
+        }
+        solve("slowButClean", hard, 900, 10, false, 0);
+
+        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.entries.length()").isEqualTo(LeaderboardService.TOP);
+            assertThat(json).extractingPath("$.fastestClean.rank").isEqualTo(LeaderboardService.TOP + 1);
+        });
+    }
+
+    @Test
+    void theCleanBoardRanksOnlySolvesWithNoMistakes() {
+        solve("alice", hard, 100, 10, false, 5);
+        solve("bob", hard, 300, 10, false, 0);
+        solve("carol", hard, 200, 10, false, 0);
+
+        assertThat(leaderboard("difficulty=hard&clean=true")).hasStatusOk().bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.cleanOnly").isEqualTo(true);
+            assertThat(json).extractingPath("$.total").isEqualTo(2);
+            assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(200000, 300000));
+            assertThat(json).extractingPath("$.entries[*].rank").isEqualTo(List.of(1, 2));
+        });
+        // The overall board still has the fastest time first, mistakes or not.
+        assertThat(leaderboard("difficulty=hard")).bodyJson().extractingPath("$.entries[0].elapsedMs").isEqualTo(100000);
+    }
+
+    @Test
+    void aCleanReplayAfterASolveWithMistakesDoesntMakeTheCleanBoard() {
+        solve("alice", hard, 500, 60, false, 2);
+        solve("alice", hard, 100, 5, false, 0);
+
+        assertThat(leaderboard("difficulty=hard&clean=true")).bodyJson().extractingPath("$.total").isEqualTo(0);
+    }
+
+    @Test
+    void theCleanBoardCanBeFriendsOnly() {
+        solve("alice", hard, 200, 10, false, 0);
+        solve("bob", hard, 300, 10, false, 0);
+        solve("carol", hard, 100, 10, false, 0);
+        befriend("alice", "bob");
+
+        assertThat(leaderboardAs("alice", "difficulty=hard&clean=true&friends=true")).bodyJson()
+                .extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(200000, 300000));
     }
 
     @Test

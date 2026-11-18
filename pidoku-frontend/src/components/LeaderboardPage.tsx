@@ -1,7 +1,7 @@
 import { ArrowLeft, Trophy } from 'lucide-react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router';
 import { DAILY_DIFFICULTIES, type Difficulty } from '../api/client';
-import { dailyNumber } from '../game/daily';
+import { dailyLabel } from '../game/daily';
 import { formatDate } from '../game/format';
 import { LeaderboardView } from './Leaderboard';
 
@@ -27,7 +27,7 @@ export function LeaderboardPage() {
             <Trophy className="size-6 text-warning" aria-hidden="true" /> Leaderboards
           </h1>
           <p className="text-sm text-base-content/60">
-            Pidoku #{dailyNumber(date)} · {formatDate(date)}
+            {dailyLabel(date)}{formatDate(date)}
           </p>
         </div>
       </header>
