@@ -10,6 +10,7 @@ const STREAK_KEY = 'pidoku:streak';
 const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
 const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
+const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
 
 export interface Settings {
   showMistakes: boolean;
@@ -144,6 +145,17 @@ export function loadLeaderboardScope(): LeaderboardScope {
 
 export function saveLeaderboardScope(scope: LeaderboardScope): void {
   write(LEADERBOARD_SCOPE_KEY, scope);
+}
+
+/** How the leaderboard was last ranked: fastest overall, or fastest with no mistakes. */
+export type LeaderboardRanking = 'fastest' | 'clean';
+
+export function loadLeaderboardRanking(): LeaderboardRanking {
+  return read<LeaderboardRanking>(LEADERBOARD_RANKING_KEY) === 'clean' ? 'clean' : 'fastest';
+}
+
+export function saveLeaderboardRanking(ranking: LeaderboardRanking): void {
+  write(LEADERBOARD_RANKING_KEY, ranking);
 }
 
 /**

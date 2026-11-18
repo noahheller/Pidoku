@@ -22,6 +22,9 @@ import java.util.Optional;
  * A player who started the puzzle before its date began anywhere (it was a pool puzzle before
  * migration V5) isn't ranked, since they could have seen it in advance. Solving an old daily later,
  * through a share link, does rank: the board is about the puzzle, not the day (unlike streaks).
+ *
+ * <p>Two rankings: fastest overall, where mistakes don't matter, and clean, which ranks only
+ * solves with no mistakes.
  */
 @Service
 public class LeaderboardService {
@@ -40,10 +43,12 @@ public class LeaderboardService {
     /**
      * @param viewer      the signed-in player, whose own entry is marked; empty when signed out
      * @param friendsOnly rank only the viewer and their friends (needs a viewer)
+     * @param cleanOnly   rank only solves with no mistakes. Still each player's first solve: a
+     *                    clean replay after a solve with mistakes doesn't count.
      * @throws PuzzleNotFoundException if the slot has no daily, or its date hasn't begun anywhere
      */
     @Transactional(readOnly = true)
-    public Leaderboard forDaily(DailySlot slot, Optional<Player> viewer, boolean friendsOnly) {
+    public Leaderboard forDaily(DailySlot slot, Optional<Player> viewer, boolean friendsOnly, boolean cleanOnly) {
         DailyPuzzle daily = dailyPuzzleService.inSlot(slot)
                 .orElseThrow(() -> new PuzzleNotFoundException(
                         "There's no " + slot.difficulty().id() + " daily puzzle for " + slot.date() + "."));
@@ -58,19 +63,27 @@ public class LeaderboardService {
                         ),
                         ranked AS (
                             SELECT f.player_id, p.display_name, f.elapsed_ms, f.mistakes, f.late,
+                                   -- Late solves' completion times are the client's claim, so they
+                                   -- can't be first to finish.
+                                   COALESCE(NOT f.late AND f.completed_at
+                                            = MIN(f.completed_at) FILTER (WHERE NOT f.late) OVER (), false) AS first_to_finish,
+                                   COALESCE(f.mistakes = 0 AND f.elapsed_ms
+                                            = MIN(f.elapsed_ms) FILTER (WHERE f.mistakes = 0) OVER (), false) AS fastest_clean,
                                    RANK() OVER (ORDER BY f.elapsed_ms) AS rank,
                                    ROW_NUMBER() OVER (ORDER BY f.elapsed_ms, f.completed_at, f.player_id) AS position,
                                    COUNT(*) OVER () AS total
                             FROM firsts f
                             JOIN players p ON p.id = f.player_id
                             WHERE f.started_at >= :opensAt
-                        """ + (friendsOnly ? """
+                        """ + (cleanOnly ? """
+                              AND f.mistakes = 0
+                        """ : "") + (friendsOnly ? """
                               AND (f.player_id = :viewerId
                                    OR f.player_id IN (SELECT friend_id FROM friendships WHERE player_id = :viewerId))
                         """ : "") + """
                         )
                         SELECT * FROM ranked
-                        WHERE position <= :top OR player_id = :viewerId
+                        WHERE position <= :top OR player_id = :viewerId OR first_to_finish OR fastest_clean
                         ORDER BY position
                         """)
                 .param("puzzleId", daily.getPuzzle().getId())
@@ -89,16 +102,21 @@ public class LeaderboardService {
                 .findFirst()
                 .map(row -> row.toEntry(viewerId))
                 .orElse(null);
+        Leaderboard.Entry firstToFinish = rows.stream().filter(Row::firstToFinish).findFirst()
+                .map(row -> row.toEntry(viewerId)).orElse(null);
+        Leaderboard.Entry fastestClean = rows.stream().filter(Row::fastestClean).findFirst()
+                .map(row -> row.toEntry(viewerId)).orElse(null);
         int total = rows.isEmpty() ? 0 : (int) rows.getFirst().total();
-        return new Leaderboard(slot.date(), slot.difficulty(), friendsOnly, total, entries, you);
+        return new Leaderboard(slot.date(), slot.difficulty(), friendsOnly, cleanOnly, total, entries, you, firstToFinish, fastestClean);
     }
 
     /** One row of the ranking query; JdbcClient maps the snake_case columns onto it. */
     record Row(long playerId, String displayName, long elapsedMs, int mistakes, boolean late,
-               long rank, long position, long total) {
+               boolean firstToFinish, boolean fastestClean, long rank, long position, long total) {
 
         Leaderboard.Entry toEntry(long viewerId) {
-            return new Leaderboard.Entry((int) rank, displayName, elapsedMs, mistakes, late, playerId == viewerId);
+            return new Leaderboard.Entry((int) rank, displayName, elapsedMs, mistakes, late, playerId == viewerId,
+                    firstToFinish, fastestClean);
         }
     }
 }

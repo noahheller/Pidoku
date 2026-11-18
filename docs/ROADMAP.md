@@ -175,8 +175,9 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `POST /api/attempts/{id}/complete` | Final grid and mistakes. The server checks the grid against the solution and records the time since the start. Takes `activeMs` and `lateByMs` (milestone 4), and unlocks the next campaign level in milestone 8. | 3, 4 (done), 8 |
 | `PATCH /api/players/me` | Sets the display name | 4 (done) |
 | `GET /api/players/me/streak?today=2026-11-17` | Current and best streak, as of the player's local date | 4 (done) |
-| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard&friends=true` | Fastest times for one of the day's dailies, optionally friends only. Sign-in optional (needed for `friends`) | 5 (done) |
-| `GET /api/friends`, `POST /api/friends`, `DELETE /api/friends/{id}` | List, add by friend code, remove | 5 (done) |
+| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard&friends=true&clean=true` | Fastest times for one of the day's dailies; `friends` for friends only, `clean` for solves with no mistakes only. Sign-in optional (needed for `friends`) | 5 (done) |
+| `GET /api/friends?today=…`, `POST /api/friends`, `DELETE /api/friends/{id}` | List (with each friend's current streak when `today` is given), add by friend code, remove | 5 (done) |
+| `GET /api/friends/{id}?today=…` | One friend's profile: streaks, dailies solved, clean rate, best time per difficulty, last 7 days of dailies. 404 unless you're friends | 5 (done) |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
 | `POST /api/puzzles/generate` | A puzzle for the player's own difficulty settings | 7 |
 | `GET /api/campaign` | Levels with lock, progress and star state for the player | 8 |
@@ -382,6 +383,21 @@ Decisions made while building it:
   date began anywhere (a pool puzzle before V5) isn't ranked. Unlike streaks, solving an old daily
   later through a share link does rank: the board is about the puzzle, not the day. Computed per
   request, not cached (it changes with every solve).
+- **Two rankings:** Fastest (time only; mistakes are shown but don't count) and Clean (only solves
+  with no mistakes). Both use each player's first solve, so a clean replay after a messy first solve
+  doesn't make the clean board. The switch is remembered like Everyone/Friends.
+- **Fun facts, cheap on the database.** Worked out in the browser from the leaderboard response
+  (`game/leaderboardStats.ts`): "Faster than N% of solvers", your place among friends, the gap to
+  the players either side, and "photo finish" for times under a second apart. Two extra columns in
+  the same ranking query: first to finish (late solves excluded, their times being the client's
+  claim) and the fastest clean solve, both returned even when beyond the top 50. Friends' current
+  streaks come from one query for all friends when `/me` opens, as of the viewer's date (it can be a
+  day out for a friend far away). Head-to-head records are left for later.
+- **Friend profiles** (`/friends/{id}`, opened from the friend list): streak and best streak,
+  dailies solved, clean rate, best time per difficulty and their last week of dailies, all from
+  their first solve of each daily (as ranked). Two queries on that one friend's rows. Only friends
+  can see them; anyone else gets a 404, so ids can't be probed for stats. Dates before launch day
+  show without a "Pidoku #" number.
 - **Where:** under the result of a daily (once the solve is saved, so it includes the player), and
   at `/leaderboard/{date}?difficulty=hard`, linked from Today on the home screen. Tabs for
   Everyone and Friends; the last one picked is remembered. Players without a name show as

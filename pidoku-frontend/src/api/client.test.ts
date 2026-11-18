@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { idToken } from './auth';
-import { addFriend, ApiError, completeAttempt, fetchDaily, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, fetchFriendProfile, completeAttempt, fetchDaily, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn() }));
@@ -183,19 +183,19 @@ describe('attempts', () => {
 });
 
 describe('fetchLeaderboard', () => {
-  const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', friendsOnly: false, total: 0, entries: [], you: null };
+  const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, firstToFinish: null, fastestClean: null };
 
   it("asks for a daily's leaderboard, signed in if possible", async () => {
     signIn('token-1');
     const fetchMock = respond(200, board);
-    await expect(fetchLeaderboard('2026-11-17', 'hard', false)).resolves.toEqual(board);
+    await expect(fetchLeaderboard('2026-11-17', 'hard', { friendsOnly: false, cleanOnly: false })).resolves.toEqual(board);
     expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/daily/2026-11-17/leaderboard?difficulty=hard');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer token-1' });
   });
 
   it("shows everyone's times signed out", async () => {
     const fetchMock = respond(200, board);
-    await fetchLeaderboard('2026-11-17', 'hard', false);
+    await fetchLeaderboard('2026-11-17', 'hard', { friendsOnly: false, cleanOnly: false });
     expect(fetchMock.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
   });
 
@@ -205,18 +205,24 @@ describe('fetchLeaderboard', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValueOnce(new Response('', { status: 401 }))
       .mockResolvedValueOnce(new Response(JSON.stringify(board), { status: 200 }));
-    await expect(fetchLeaderboard('2026-11-17', 'hard', false)).resolves.toEqual(board);
+    await expect(fetchLeaderboard('2026-11-17', 'hard', { friendsOnly: false, cleanOnly: false })).resolves.toEqual(board);
     expect(fetchMock.mock.calls[1][1]?.headers).not.toHaveProperty('Authorization');
+  });
+
+  it('asks for clean solves only', async () => {
+    const fetchMock = respond(200, { ...board, cleanOnly: true });
+    await fetchLeaderboard('2026-11-17', 'hard', { friendsOnly: false, cleanOnly: true });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/daily/2026-11-17/leaderboard?difficulty=hard&clean=true');
   });
 
   it('asks for friends only, which needs sign-in', async () => {
     signIn('token-1');
     const fetchMock = respond(200, { ...board, friendsOnly: true });
-    await fetchLeaderboard('2026-11-17', 'easy', true);
+    await fetchLeaderboard('2026-11-17', 'easy', { friendsOnly: true, cleanOnly: false });
     expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/daily/2026-11-17/leaderboard?difficulty=easy&friends=true');
 
     signIn(null);
-    await expect(fetchLeaderboard('2026-11-17', 'easy', true)).rejects.toBeInstanceOf(ApiError);
+    await expect(fetchLeaderboard('2026-11-17', 'easy', { friendsOnly: true, cleanOnly: false })).rejects.toBeInstanceOf(ApiError);
   });
 });
 
@@ -232,6 +238,13 @@ describe('friends', () => {
     signIn('token-1');
     respond(404, { status: 404, detail: "No player has the friend code 'ZZZZZZZZ'." });
     await expect(addFriend('ZZZZZZZZ')).rejects.toMatchObject({ status: 404, message: "No player has the friend code 'ZZZZZZZZ'." });
+  });
+
+  it("fetches a friend's profile as of the player's date", async () => {
+    signIn('token-1');
+    const fetchMock = respond(200, { id: 3, displayName: 'Bob' });
+    await fetchFriendProfile(3, undefined, new Date(2026, 10, 17, 23, 30));
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/friends/3?today=2026-11-17');
   });
 
   it('removes a friend, expecting no content back', async () => {

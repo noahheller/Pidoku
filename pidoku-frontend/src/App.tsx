@@ -4,6 +4,7 @@ import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } fr
 import { fetchByShareCode } from './api/client';
 import { sendPendingCompletions } from './api/completions';
 import { Game } from './components/Game';
+import { FriendPage } from './components/FriendPage';
 import { LeaderboardPage } from './components/LeaderboardPage';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
@@ -18,6 +19,7 @@ import { bundledPuzzles } from './puzzles';
  * - `/local/{id}`: a puzzle that only exists in this browser (bundled, or loaded from a file).
  * - `/leaderboard/{date}?difficulty=hard`: a date's daily leaderboards.
  * - `/me`: the player's name, friends and Google sign-in.
+ * - `/friends/{playerId}`: one friend's streaks, best times and recent dailies.
  * - `/f/{friendCode}`: a friend's invite link.
  *
  * firebase.json serves index.html for every path, so these all load the app.
@@ -72,6 +74,7 @@ function App() {
       <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...custom]} />} />
       <Route path="/leaderboard/:date" element={<LeaderboardPage />} />
       <Route path="/me" element={<Profile />} />
+      <Route path="/friends/:id" element={<FriendPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyNumber, LAUNCH_DATE, shareLine, shareUrl } from './daily';
+import { dailyLabel, dailyNumber, LAUNCH_DATE, shareLine, shareUrl } from './daily';
 
 describe('dailyNumber', () => {
   it('is 1 on launch day and counts days from there', () => {
@@ -33,5 +33,13 @@ describe('shareLine', () => {
 describe('shareUrl', () => {
   it('links to the puzzle on this site', () => {
     expect(shareUrl('89TU533C', 'https://pidoku.web.app')).toBe('https://pidoku.web.app/p/89TU533C');
+  });
+});
+
+describe('dailyLabel', () => {
+  it('numbers dates from launch day on, and leaves earlier ones unnumbered', () => {
+    expect(dailyLabel('2026-11-18')).toBe('Pidoku #2 · ');
+    expect(dailyLabel('2026-11-17')).toBe('Pidoku #1 · ');
+    expect(dailyLabel('2026-11-16')).toBe('');
   });
 });
