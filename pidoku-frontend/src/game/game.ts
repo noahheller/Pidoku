@@ -134,7 +134,12 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'restart':
-      return { ...newGame(state.puzzle), selected: state.selected };
+    {
+      // A daily is ranked, so restarting one only clears the board: its time and mistakes carry on
+      // (the server keeps its clock running too).
+      const fresh = { ...newGame(state.puzzle), selected: state.selected };
+      return state.puzzle.dailyDate ? { ...fresh, elapsedMs: state.elapsedMs, mistakes: state.mistakes } : fresh;
+    }
   }
 }
 

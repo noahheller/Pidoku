@@ -1,10 +1,17 @@
-import { Check, CircleX, CloudOff, Copy, Flame, Timer, Trophy } from 'lucide-react';
+import { Check, CircleX, CloudOff, Copy, Flame, ShieldCheck, Timer, Trophy } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { ApiError, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
+import { Link } from 'react-router';
+import { currentAccount } from '../api/auth';
+import { ApiError, DAILY_DIFFICULTIES, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
 import { dailyNumber, shareLine, shareUrl } from '../game/daily';
 import { formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
-import { dismissNamePrompt, isNamePromptDismissed, saveStreak } from '../game/storage';
+import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, saveStreak } from '../game/storage';
+import { LeaderboardView } from './Leaderboard';
+import { GoogleButton } from './Profile';
+
+/** A streak this long is worth keeping: past it, players without an account are asked to sign in with Google. */
+const STREAK_WORTH_KEEPING = 3;
 
 /** What the server knows about this solve. */
 export type Recorded =
@@ -27,11 +34,14 @@ interface ResultProps {
 
 /**
  * Shown above the board once the puzzle is solved: the time (the server's, when it has one),
- * mistakes, for a daily the streak, and a line to paste to friends. The first time a solve is
- * recorded, it also asks for the name friends will see.
+ * mistakes, for a daily the streak and leaderboard, and a line to paste to friends. The first time
+ * a solve is recorded, it also asks for the name friends will see; once there's a streak worth
+ * keeping, it suggests signing in with Google.
  */
 export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: ResultProps) {
   const isRecorded = recorded.status === 'recorded';
+  const streak = useStreak(isRecorded && puzzle.dailyDate !== undefined);
+  const dailyDifficulty = DAILY_DIFFICULTIES.find((d) => d === puzzle.difficulty?.toLowerCase());
   const time = isRecorded ? recorded.elapsedMs : elapsedMs;
   const share = shareLine({
     difficulty: puzzle.difficulty,
@@ -58,7 +68,7 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
           <Stat icon={<Timer className="size-4" aria-hidden="true" />} label="Time" value={formatTime(time)} note={timeNote(recorded)} />
           {puzzle.solution && <Stat icon={<CircleX className="size-4" aria-hidden="true" />} label="Mistakes" value={String(mistakes)} />}
-          {puzzle.dailyDate && <StreakStat recorded={recorded} />}
+          {puzzle.dailyDate && streak && <StreakStat streak={streak} />}
         </dl>
 
         {recorded.status === 'unsent' && (
@@ -69,6 +79,7 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
         )}
 
         {isRecorded && <NamePrompt />}
+        {streak && streak.current >= STREAK_WORTH_KEEPING && <GooglePrompt streak={streak.current} />}
 
         <div className="grid gap-2 sm:flex sm:items-end">
           <pre className="min-w-0 flex-1 overflow-x-auto rounded-field bg-base-200 px-3 py-2 font-sans text-sm whitespace-pre-wrap" aria-label="Share line">
@@ -81,6 +92,16 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
             </button>
           </div>
         </div>
+
+        {/* Once the solve is saved (or couldn't be), so the player's own time is on it. */}
+        {puzzle.dailyDate && dailyDifficulty && recorded.status !== 'saving' && (
+          <div className="border-t border-base-300 pt-4">
+            <LeaderboardView date={puzzle.dailyDate} difficulty={dailyDifficulty} title="Leaderboard" />
+            <Link to={`/leaderboard/${puzzle.dailyDate}?difficulty=${dailyDifficulty}`} className="link link-primary mt-2 inline-block text-sm">
+              Today's other leaderboards
+            </Link>
+          </div>
+        )}
       </div>
     </section>
   );
@@ -110,9 +131,8 @@ function Stat({ icon, label, value, note }: { icon: ReactNode; label: string; va
 }
 
 /** The player's streak, fetched once the solve is recorded (it's computed from recorded solves). */
-function StreakStat({ recorded }: { recorded: Recorded }) {
+function useStreak(ready: boolean): Streak | null {
   const [streak, setStreak] = useState<Streak | null>(null);
-  const ready = recorded.status === 'recorded';
 
   useEffect(() => {
     if (!ready) return;
@@ -129,7 +149,10 @@ function StreakStat({ recorded }: { recorded: Recorded }) {
     return () => controller.abort();
   }, [ready]);
 
-  if (!streak) return null;
+  return streak;
+}
+
+function StreakStat({ streak }: { streak: Streak }) {
   return (
     <div className="grid gap-0.5">
       <dt className="flex items-center gap-1 text-xs font-semibold tracking-wide text-base-content/60 uppercase">
@@ -139,6 +162,65 @@ function StreakStat({ recorded }: { recorded: Recorded }) {
         {streak.current} day{streak.current === 1 ? '' : 's'}
       </dd>
       <dd className="text-xs text-base-content/60">Best {streak.best}</dd>
+    </div>
+  );
+}
+
+type GoogleState = { status: 'hidden' } | { status: 'asking' } | { status: 'done'; switched: boolean };
+
+/**
+ * Suggests signing in with Google to a player without an account, once their streak is worth
+ * keeping: until then it lives in this browser's storage only. "Not now" is remembered.
+ */
+function GooglePrompt({ streak }: { streak: number }) {
+  const [state, setState] = useState<GoogleState>({ status: 'hidden' });
+
+  useEffect(() => {
+    if (isGooglePromptDismissed()) return;
+    let cancelled = false;
+    void currentAccount().then((account) => {
+      if (!cancelled && account?.isAnonymous) setState({ status: 'asking' });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (state.status === 'hidden') return null;
+  if (state.status === 'done') {
+    return (
+      <p className="flex items-center gap-1.5 text-sm text-success" role="status">
+        <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
+        {state.switched
+          ? 'Signed in. That Google account already had a player, so this browser uses it now.'
+          : 'Signed in. Your streak is saved to your Google account.'}
+      </p>
+    );
+  }
+  return (
+    <div className="grid gap-2 rounded-box bg-base-200 p-3">
+      <p className="text-sm">
+        <strong>Keep your {streak}-day streak.</strong> It's only saved in this browser for now. Sign in with Google so clearing your browser data doesn't lose it, and to play on other devices.
+      </p>
+      <div className="flex flex-wrap items-start gap-2">
+        <GoogleButton
+          className="btn btn-sm"
+          onDone={(result) => {
+            if (result === 'switched') clearPlayerCaches();
+            setState({ status: 'done', switched: result === 'switched' });
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-sm btn-ghost"
+          onClick={() => {
+            dismissGooglePrompt();
+            setState({ status: 'hidden' });
+          }}
+        >
+          Not now
+        </button>
+      </div>
     </div>
   );
 }
@@ -189,7 +271,14 @@ function NamePrompt() {
   if (state.status === 'saved') {
     return (
       <p className="flex items-center gap-1.5 text-sm text-success" role="status">
-        <Check className="size-4" aria-hidden="true" /> Friends will see you as {state.name}.
+        <Check className="size-4 shrink-0" aria-hidden="true" />
+        <span>
+          Friends will see you as {state.name}. Change it any time under{' '}
+          <Link to="/me" className="link">
+            You &amp; friends
+          </Link>
+          .
+        </span>
       </p>
     );
   }

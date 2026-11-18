@@ -1,9 +1,10 @@
-import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, Flame, RotateCw, Shuffle, Upload, X } from 'lucide-react';
+import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, Flame, RotateCw, Shuffle, Trophy, Upload, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { DIFFICULTIES, fetchStreak, localDate, type Difficulty } from '../api/client';
 import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
-import { countClues, formatTime } from '../game/format';
+import { countClues, formatDate, formatTime } from '../game/format';
 import { parsePuzzleJson, PuzzleFormatError, type PuzzleDef } from '../game/puzzleFile';
 import { PI_DIGITS } from '../game/rules';
 import { clearProgress, clearResult, loadProgress, loadStreak, saveStreak, type CachedStreak } from '../game/storage';
@@ -30,11 +31,16 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
   return (
     <main className="mx-auto grid max-w-3xl gap-8 px-4 pt-8 pb-16">
       <header className="grid gap-4">
-        <h1 className="text-4xl font-bold">
-          Pidoku <span className="text-primary">π</span>
-        </h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-4xl font-bold">
+            Pidoku <span className="text-primary">π</span>
+          </h1>
+          <Link to="/me" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+            <Users className="size-4" aria-hidden="true" /> You &amp; friends
+          </Link>
+        </div>
         <DigitRow />
-        <p className="text-base-content/60">Sudoku with the digits of pi. Play today's puzzles, a random one, or load your own.</p>
+        <p className="text-base-content/60">Sudoku with the digits of pi. Play today's puzzles and race your friends, try a random one, or load your own.</p>
       </header>
 
       <section aria-labelledby="today-title">
@@ -42,7 +48,14 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
           <h2 id="today-title" className="text-lg font-semibold">
             Today
           </h2>
-          {daily.state.status === 'loaded' && <span className="text-sm text-base-content/60">{formatDate(daily.state.daily.date)}</span>}
+          {daily.state.status === 'loaded' && (
+            <>
+              <span className="text-sm text-base-content/60">{formatDate(daily.state.daily.date)}</span>
+              <Link to={`/leaderboard/${daily.state.daily.date}`} className="link link-primary flex items-center gap-1 text-sm">
+                <Trophy className="size-4" aria-hidden="true" /> Leaderboards
+              </Link>
+            </>
+          )}
           <StreakBadge />
         </div>
         {daily.state.status === 'loading' && <PuzzleListSkeleton count={3} />}
@@ -217,15 +230,6 @@ function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef, options: PlayOpt
       )}
     </section>
   );
-}
-
-/**
- * "Monday, 16 November" for a YYYY-MM-DD date, in the player's locale. The date is already the
- * player's local date, so it's formatted as written: parsing and printing both in UTC keeps the player's
- * time zone from shifting it by a day.
- */
-function formatDate(date: string): string {
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 }
 
 /**

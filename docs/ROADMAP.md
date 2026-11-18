@@ -55,11 +55,11 @@ own difficulty and the puzzle has to be generated on demand.
 2. Deploy early: Cloud Run, the nightly generator job, Neon and Firebase with CI/CD.
    **CI/CD is tabled** (see section 2); deploys are by hand until it's back.
 3. Anonymous sign-in and players, so everything after this knows who the player is.
-   **Built;** still to deploy and try once on the live site.
+   **Done.**
 4. The daily loop: a start screen, a result screen with the server's time, streaks, a share
-   line, display names and share links. **Built;** still to deploy (with milestone 3) and try on
-   a phone.
-5. Leaderboards, Google sign-in and friends.
+   line, display names and share links. **Done.**
+5. Leaderboards, Google sign-in and friends. **Built;** still to enable the Google provider in
+   Firebase, deploy (migration V6 runs on Neon) and try Google sign-in on a real phone.
 
    **— v1: the game is worth sending to friends and putting on a resume —**
 
@@ -104,7 +104,8 @@ Decisions made while building it:
 |---|---|---|
 | `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at | V1 (milestone 1) |
 | `daily_puzzles` | (puzzle_date, difficulty) → puzzle_id | V2 (milestone 1) |
-| `players` | id, firebase_uid, display_name (null until chosen), created_at | V3 (milestone 3) |
+| `players` | id, firebase_uid, display_name (null until chosen), created_at; friend_code added in V6 | V3 (milestone 3), V6 (milestone 5) |
+| `friendships` | (player_id, friend_id), both directions, created_at | V6 (milestone 5) |
 | `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used; active_ms and late added in V4 | V3 (milestone 3), V4 (milestone 4) |
 | `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 8 |
 
@@ -169,12 +170,13 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/puzzles/random?difficulty=hard` | Takes a `pool` puzzle. Sign-in is optional; signed in, it skips puzzles the player has started, and once they've started them all sends a `repeat` | 1, 3, 4 (done) |
 | `GET /api/puzzles/daily/{date}` | A date's easy, medium and hard puzzles; the frontend sends the player's local date | 1 (done) |
 | `GET /api/puzzles/{shareCode}` | A shared puzzle, with `dailyDate` if it's a daily | 1, 4 (done) |
-| `GET /api/players/me` | The signed-in player, created on first use | 3 (done) |
+| `GET /api/players/me` | The signed-in player, created on first use; with their friend code (milestone 5) | 3, 5 (done) |
 | `POST /api/attempts` | Puzzle id in → the player's unfinished attempt at it, started now if there isn't one. Starts the server's clock. | 3 (done) |
 | `POST /api/attempts/{id}/complete` | Final grid and mistakes. The server checks the grid against the solution and records the time since the start. Takes `activeMs` and `lateByMs` (milestone 4), and unlocks the next campaign level in milestone 8. | 3, 4 (done), 8 |
 | `PATCH /api/players/me` | Sets the display name | 4 (done) |
 | `GET /api/players/me/streak?today=2026-11-17` | Current and best streak, as of the player's local date | 4 (done) |
-| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard` | Fastest times for one of the day's dailies, optionally friends only | 5 |
+| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard&friends=true` | Fastest times for one of the day's dailies, optionally friends only. Sign-in optional (needed for `friends`) | 5 (done) |
+| `GET /api/friends`, `POST /api/friends`, `DELETE /api/friends/{id}` | List, add by friend code, remove | 5 (done) |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
 | `POST /api/puzzles/generate` | A puzzle for the player's own difficulty settings | 7 |
 | `GET /api/campaign` | Levels with lock, progress and star state for the player | 8 |
@@ -233,11 +235,10 @@ Comes before everything else that needs to know who the player is: attempts, str
 leaderboards, skipping puzzles already seen, rate limiting custom generation and unlocking
 campaign levels.
 
-**Status: built.** The Firebase project has the Anonymous provider enabled and a web app
+**Status: done.** The Firebase project has the Anonymous provider enabled and a web app
 (`pidoku-web`), whose config is in `pidoku-frontend/src/api/firebaseConfig.ts`. Checked with a
 real anonymous account: Firebase issues a token and the API accepts it (and refuses a tampered
-one). Still to do: deploy the API and the frontend, and play one puzzle on the live site to see
-the attempt recorded.
+one). Deployed on 2026-11-17 with milestone 4.
 
 - Anonymous Firebase sign-in: every visitor gets a uid with no sign-up.
 - API side: Spring Security checks the Firebase ID token, and a `players` row keyed by
@@ -263,7 +264,7 @@ Decisions made while building it:
   it and playing again starts a new one.
 - The Restart button starts the attempt's clock again (`"restart": true`), so the server's time
   matches the timer on screen. That lets a player look at a puzzle, restart and solve it fast;
-  decide in milestone 5 whether dailies allow Restart.
+  milestone 5 decided: Restart on a daily clears the board but keeps its clock.
 - A solve the API couldn't be told about (offline, API down) is kept in localStorage and sent
   when the page next loads or the connection returns. Its recorded time runs until it arrives,
   so it's slower than the real one, never faster. Milestone 4 corrects this ("Late-sent
@@ -278,10 +279,12 @@ Decisions made while building it:
 What a player sees around a daily puzzle, before any leaderboard: enough to play every day and
 to tell friends about it.
 
-**Status: built.** Tested with the API's integration tests, the frontend's unit tests, and by
-playing a daily end to end in a phone-sized headless Chromium against a local API and real
-anonymous Firebase sign-in. Still to do: deploy (migration V4 runs on Neon), install it to a real
-phone's home screen, and play a daily there.
+**Status: done.** Deployed on 2026-11-17 (migrations V4 and V5 ran on Neon), and checked on the
+live site: the new endpoints and the manifest are served, and a daily played on a real phone
+looks right. Before that, tested with the API's integration tests, the frontend's unit tests,
+and by playing a daily end to end in a phone-sized headless Chromium against a local API. The
+nightly generator job is scheduled with Cloud Scheduler (`pidoku-generator-nightly`, 03:00
+America/New_York).
 
 Decisions made while building it:
 - **Launch date: 2026-11-17** (`LAUNCH_DATE` in `pidoku-frontend/src/game/daily.ts`), so that
@@ -359,6 +362,41 @@ Decisions made while building it:
   the home screen.
 
 ## 5. Leaderboards, Google sign-in and friends
+
+**Status: built.** Tested with the API's integration tests, the frontend's unit tests, and end to
+end in a phone-sized headless Chromium against a local API and local Postgres, with real anonymous
+Firebase sign-in: naming the player, adding friends by code and by invite link, solving a daily and
+seeing it on both leaderboards. Still to do:
+- Enable the **Google** sign-in provider in the Firebase console (Authentication → Sign-in method).
+  Until then the button says "Google sign-in isn't turned on for Pidoku yet." `pidoku.web.app` and
+  `localhost` are authorized domains by default; add any custom domain.
+- Deploy (migration V6 runs on Neon), then try Google sign-in on a real phone, including from the
+  installed home-screen app, where popups behave differently.
+
+Decisions made while building it:
+- **Dailies don't restart the clock.** Restart on a daily clears the board but keeps the time and
+  the mistakes, on screen and on the server (`AttemptService.start` ignores `restart` for dailies).
+  Otherwise a player could study the board, restart and post a fast time.
+- **Ranking:** each player's first finished attempt, by `elapsed_ms`; equal times share a rank.
+  Top 50, plus the viewer's own entry wherever it falls. A player who started the puzzle before its
+  date began anywhere (a pool puzzle before V5) isn't ranked. Unlike streaks, solving an old daily
+  later through a share link does rank: the board is about the puzzle, not the day. Computed per
+  request, not cached (it changes with every solve).
+- **Where:** under the result of a daily (once the solve is saved, so it includes the player), and
+  at `/leaderboard/{date}?difficulty=hard`, linked from Today on the home screen. Tabs for
+  Everyone and Friends; the last one picked is remembered. Players without a name show as
+  Anonymous; late solves get a cloud-off icon.
+- **Friends are mutual and instant.** Adding someone's code makes both players friends, no request
+  to accept: codes are only shared with people you know. Stored as two rows per friendship. Each
+  player gets a friend code (share-code alphabet) the first time they open `GET /api/players/me`;
+  it never changes. Invite links are `/f/{code}`.
+- **`/me` ("You & friends")**: the name (the place to change it that leaderboards needed), the
+  friend code with Copy link / Share, adding by code, the friend list, and the account.
+- **Google sign-in** is a popup (`linkWithPopup`), which keeps the uid. If that Google account is
+  already a player, this browser switches to it (`signInWithCredential`): unsent solves are sent
+  first, and the cached streak and dismissed prompts are cleared. Signing out gives the browser a
+  fresh anonymous player. Asked for under a daily's result once the streak is 3 days ("Not now"
+  is remembered), and always available on `/me`.
 
 - One leaderboard per daily (date and difficulty), ranked by the server-measured `elapsed_ms`.
   Solves sent late (`attempts.late`, milestone 4) are ranked too, with a marker.
@@ -476,8 +514,9 @@ are done before v1 is called done.
 - The API client has replaced the bundled puzzles as the main source; the bundled ones are the
   offline fallback, and loading engine JSON stays as a dev tool.
 - Home screen today: Today's dailies with the streak, Random puzzle, Your puzzles, Load a puzzle.
-  To come: leaderboard (5), Generate (7), Campaign (8).
-- Routes: `/`, `/p/{shareCode}` and `/local/{id}` (milestone 4). Campaign levels will add theirs.
+  Leaderboards and You & friends (5). To come: Generate (7), Campaign (8).
+- Routes: `/`, `/p/{shareCode}` and `/local/{id}` (milestone 4); `/leaderboard/{date}`, `/me` and
+  `/f/{friendCode}` (milestone 5). Campaign levels will add theirs.
 
 ## Engine follow-ups
 
@@ -492,9 +531,6 @@ are done before v1 is called done.
 
 - Calibration: none of the scoring weights have been checked against real players.
 - The new strategy names have only been checked on the puzzle cards, not in the game screen.
-- Milestones 3 and 4 haven't been deployed or tried on the live site yet.
-- The display name can only be set from the prompt under a result. Add somewhere to change it
-  before leaderboards show it (milestone 5).
 - ~~A daily can be a puzzle someone has already played.~~ Fixed: dailies are generated fresh
   (milestone 4). Today's and tomorrow's dailies on the day V5 runs may still be old pool puzzles.
 - Whether a solve that used hints ranks on the leaderboard (decide in milestone 6).

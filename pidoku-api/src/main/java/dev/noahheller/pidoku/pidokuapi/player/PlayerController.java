@@ -16,10 +16,13 @@ public class PlayerController {
         this.playerService = playerService;
     }
 
-    /** The player the request's Firebase ID token belongs to. */
+    /**
+     * The player the request's Firebase ID token belongs to, with the friend code friends add them
+     * by (assigned on the first call).
+     */
     @GetMapping("/api/players/me")
     public PlayerResponse me(@AuthenticationPrincipal Jwt token) {
-        return PlayerResponse.from(playerService.forToken(token));
+        return PlayerResponse.from(playerService.me(token));
     }
 
     /** @param displayName checked by {@link DisplayName}; null is refused like an empty name */

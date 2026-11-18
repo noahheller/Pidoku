@@ -17,6 +17,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -54,6 +55,28 @@ public class DailyPuzzleService {
         LocalDate earliest = LocalDate.ofInstant(now, ZoneOffset.ofHours(-12));
         LocalDate latest = LocalDate.ofInstant(now, ZoneOffset.ofHours(14));
         return !date.isBefore(earliest) && !date.isAfter(latest);
+    }
+
+    /**
+     * Whether {@code date} has begun somewhere: it's today or in the past for a player in the
+     * earliest time zone (UTC+14). Past dailies stay readable, through share links and
+     * leaderboards; only future ones are hidden.
+     */
+    public boolean hasBegunSomewhere(LocalDate date) {
+        return !date.isAfter(LocalDate.ofInstant(clock.instant(), ZoneOffset.ofHours(14)));
+    }
+
+    /** When {@code date} begins in the earliest time zone, so the first moment anyone could play its dailies. */
+    public static Instant opensAt(LocalDate date) {
+        return date.atStartOfDay(ZoneOffset.ofHours(14)).toInstant();
+    }
+
+    /**
+     * The daily in one slot, if the date has begun somewhere and the slot is filled.
+     */
+    @Transactional(readOnly = true)
+    public Optional<DailyPuzzle> inSlot(DailySlot slot) {
+        return hasBegunSomewhere(slot.date()) ? dailies.findById(slot) : Optional.empty();
     }
 
     /**

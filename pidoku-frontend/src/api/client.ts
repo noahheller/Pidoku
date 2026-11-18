@@ -46,7 +46,46 @@ export interface Player {
   id: number;
   /** Null until the player picks one. */
   displayName: string | null;
+  /** What friends enter (or open as /f/{code}) to add this player. */
+  friendCode: string;
   createdAt: string;
+}
+
+/** One of the player's friends (pidoku-api's Friend). */
+export interface Friend {
+  /** Their player id, for removing them. */
+  id: number;
+  displayName: string | null;
+}
+
+/** The difficulties each day has a daily of, easiest first (`pidoku.daily.difficulties` in the API). */
+export const DAILY_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly Difficulty[];
+
+/** One player's ranked solve of a daily (pidoku-api's Leaderboard.Entry). */
+export interface LeaderboardEntry {
+  /** 1 for the fastest; equal times share a rank. */
+  rank: number;
+  displayName: string | null;
+  /** The server-measured solve time. */
+  elapsedMs: number;
+  mistakes: number;
+  /** Sent late, so the time is partly what the player's device claimed. */
+  late: boolean;
+  /** The signed-in player's own solve. */
+  you: boolean;
+}
+
+/** The fastest solves of one daily (pidoku-api's Leaderboard). */
+export interface Leaderboard {
+  date: string;
+  difficulty: Difficulty;
+  friendsOnly: boolean;
+  /** Everyone ranked, including those beyond `entries`. */
+  total: number;
+  /** The fastest, best first (at most 50). */
+  entries: LeaderboardEntry[];
+  /** The player's own entry, also when it's beyond `entries`; null if they haven't solved it. */
+  you: LeaderboardEntry | null;
 }
 
 /** The player's run of consecutive dates with a solved daily (pidoku-api's Streak). */
@@ -172,6 +211,42 @@ export async function fetchStreak(signal?: AbortSignal, now: Date = new Date()):
   return request<Streak>(`/api/players/me/streak?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
 }
 
+/** The player's friends. */
+export async function fetchFriends(signal?: AbortSignal): Promise<Friend[]> {
+  return request<Friend[]>('/api/friends', { token: await requireToken(), signal }, BUSY);
+}
+
+/**
+ * Adds the player with this friend code as a friend, both ways.
+ *
+ * @throws ApiError with the server's reason (fit to show) for an unknown code or the player's own
+ */
+export async function addFriend(friendCode: string): Promise<Friend> {
+  return request<Friend>('/api/friends', { method: 'POST', body: { friendCode }, token: await requireToken() }, BUSY);
+}
+
+/** Removes a friend, for both players. */
+export async function removeFriend(friendId: number): Promise<void> {
+  await request<void>(`/api/friends/${friendId}`, { method: 'DELETE', token: await requireToken() }, BUSY);
+}
+
+/**
+ * The fastest solves of one daily. Sign-in is optional for everyone's times (signed in, the
+ * player's own entry is marked), and needed for friends only.
+ */
+export async function fetchLeaderboard(date: string, difficulty: Difficulty, friendsOnly: boolean, signal?: AbortSignal): Promise<Leaderboard> {
+  const url = `/api/puzzles/daily/${encodeURIComponent(date)}/leaderboard?difficulty=${encodeURIComponent(difficulty)}${friendsOnly ? '&friends=true' : ''}`;
+  if (friendsOnly) return request<Leaderboard>(url, { token: await requireToken(), signal }, BUSY);
+  const token = await idToken();
+  try {
+    return await request<Leaderboard>(url, { token, signal }, BUSY);
+  } catch (e) {
+    // Like fetchRandom: a refused token still gets everyone's times.
+    if (!(token && e instanceof ApiError && e.status === 401)) throw e;
+    return request<Leaderboard>(url, { signal }, BUSY);
+  }
+}
+
 async function requireToken(): Promise<string> {
   const token = await idToken();
   if (token === null) throw new ApiError("Couldn't sign you in, so this game isn't being recorded.", null);
@@ -202,7 +277,7 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name = `${puzzle.dailyDate ? 'Dai
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   /** Sent as JSON. */
   body?: unknown;
   /** A Firebase ID token to sign the request with; left out, the request is anonymous. */
@@ -227,6 +302,7 @@ async function request<T>(url: string, { method = 'GET', body, token, signal }: 
     throw new ApiError(UNREACHABLE, null);
   }
   if (response.ok) {
+    if (response.status === 204) return undefined as T;
     try {
       return (await response.json()) as T;
     } catch {
