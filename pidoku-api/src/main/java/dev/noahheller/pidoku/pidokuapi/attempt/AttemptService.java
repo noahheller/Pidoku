@@ -2,8 +2,10 @@ package dev.noahheller.pidoku.pidokuapi.attempt;
 
 import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Grids;
+import dev.noahheller.pidoku.pidokuapi.puzzle.Puzzle;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleNotFoundException;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleRepository;
+import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,18 +36,21 @@ public class AttemptService {
      * The player's unfinished attempt at a puzzle, started now if they don't have one. Calling it
      * again (a page reload, another device) returns the same attempt with its original start time.
      *
+     * <p>Daily puzzles are ranked, so their clock never restarts: otherwise a player could study
+     * the board, restart and solve it fast. Restarting a daily clears the board but keeps the time.
+     *
      * @param restart true when the player restarted the puzzle: an unfinished attempt's clock then
-     *                starts again from now, matching the timer on their screen
+     *                starts again from now, matching the timer on their screen (ignored for dailies)
      * @throws PuzzleNotFoundException if no puzzle has the id
      */
     @Transactional
     public Attempt start(Player player, long puzzleId, boolean restart) {
-        if (!puzzles.existsById(puzzleId)) {
-            throw new PuzzleNotFoundException("No puzzle has the id " + puzzleId + ".");
-        }
+        Puzzle puzzle = puzzles.findById(puzzleId)
+                .orElseThrow(() -> new PuzzleNotFoundException("No puzzle has the id " + puzzleId + "."));
+        boolean restartClock = restart && puzzle.getSource() != PuzzleSource.DAILY;
         return attempts.findOpen(player, puzzleId)
                 .map(open -> {
-                    if (restart) {
+                    if (restartClock) {
                         open.restart(clock.instant());
                     }
                     return open;

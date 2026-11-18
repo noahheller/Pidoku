@@ -44,3 +44,8 @@ export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, url }: S
 export function shareUrl(shareCode: string, origin: string = window.location.origin): string {
   return `${origin}/p/${shareCode}`;
 }
+
+/** A friend's invite link (`/f/{friendCode}`), on this site. */
+export function friendUrl(friendCode: string, origin: string = window.location.origin): string {
+  return `${origin}/f/${friendCode}`;
+}

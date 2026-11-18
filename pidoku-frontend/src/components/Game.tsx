@@ -3,7 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { startAttempt, type Attempt } from '../api/client';
 import { recordCompletion } from '../api/completions';
 import { dailyNumber } from '../game/daily';
-import { countClues, formatTime } from '../game/format';
+import { countClues, formatDate, formatTime } from '../game/format';
 import { gameReducer, newGame, type GameAction } from '../game/game';
 import type { PuzzleDef } from '../game/puzzleFile';
 import {isPlayable, PI_DIGITS, type Rules} from '../game/rules';
@@ -259,7 +259,7 @@ function StartScreen({ puzzle, onStart }: { puzzle: PuzzleDef; onStart: () => vo
     <section className="card mx-auto w-full max-w-md border border-base-300 bg-base-100 shadow-sm" aria-labelledby="start-title">
       <div className="card-body items-center gap-4 p-6 text-center sm:p-8">
         <p className="flex items-center gap-1.5 text-sm text-base-content/60">
-          <CalendarDays className="size-4" aria-hidden="true" /> Pidoku #{dailyNumber(date)} · {formatLongDate(date)}
+          <CalendarDays className="size-4" aria-hidden="true" /> Pidoku #{dailyNumber(date)} · {formatDate(date)}
         </p>
         <h2 id="start-title" className="text-3xl font-bold">
           {puzzle.difficulty}
@@ -274,9 +274,4 @@ function StartScreen({ puzzle, onStart }: { puzzle: PuzzleDef; onStart: () => vo
       </div>
     </section>
   );
-}
-
-/** "Tuesday, 17 November" for a YYYY-MM-DD date, formatted as written (see PuzzlePicker's formatDate). */
-function formatLongDate(date: string): string {
-  return new Date(`${date}T00:00:00Z`).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' });
 }
