@@ -18,7 +18,7 @@ export type Recorded =
   /** Not a puzzle from the API, or its attempt never started (offline, signed out). */
   | { status: 'none' }
   | { status: 'saving' }
-  /** The API has it: `elapsedMs` is the server's time. */
+  /** The API has it: `elapsedMs` is the ranked time it recorded. */
   | { status: 'recorded'; elapsedMs: number; late: boolean }
   /** Couldn't be sent yet; it's kept and sent when the connection comes back. */
   | { status: 'unsent' };
@@ -33,7 +33,7 @@ interface ResultProps {
 }
 
 /**
- * Shown above the board once the puzzle is solved: the time (the server's, when it has one),
+ * Shown above the board once the puzzle is solved: the time (as the server recorded it, when it has one),
  * mistakes, for a daily the streak and leaderboard, and a line to paste to friends. The first time
  * a solve is recorded, it also asks for the name friends will see; once there's a streak worth
  * keeping, it suggests signing in with Google.

@@ -17,8 +17,9 @@ import java.util.Optional;
 /**
  * Daily leaderboards, computed from attempts on every request (like streaks, nothing is stored).
  *
- * <p>Each player is ranked by their first finished attempt at the daily, timed by the server
- * ({@code elapsed_ms}); replays are recorded but don't rank. Late solves rank too, marked as late.
+ * <p>Each player is ranked by their first finished attempt at the daily, timed by the game's own
+ * clock ({@code active_ms}, paused while the tab is hidden), or by the server's wall-clock
+ * {@code elapsed_ms} for solves recorded without one; replays are recorded but don't rank. Late solves rank too, marked as late.
  * A player who started the puzzle before its date began anywhere (it was a pool puzzle before
  * migration V5) isn't ranked, since they could have seen it in advance. Solving an old daily later,
  * through a share link, does rank: the board is about the puzzle, not the day (unlike streaks).
@@ -56,7 +57,9 @@ public class LeaderboardService {
         List<Row> rows = jdbc.sql("""
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.player_id)
-                                   a.player_id, a.started_at, a.completed_at, a.elapsed_ms, a.mistakes, a.late
+                                   a.player_id, a.started_at, a.completed_at,
+                                   -- The ranked time; it goes out as elapsedMs.
+                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.mistakes, a.late
                             FROM attempts a
                             WHERE a.puzzle_id = :puzzleId AND a.completed_at IS NOT NULL
                             ORDER BY a.player_id, a.completed_at, a.id

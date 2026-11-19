@@ -27,7 +27,7 @@ public record Leaderboard(LocalDate date, Difficulty difficulty, boolean friends
      *
      * @param rank        1 for the fastest; equal times share a rank
      * @param displayName null if the player hasn't picked one
-     * @param elapsedMs   the server-measured solve time
+     * @param elapsedMs   the ranked solve time: the game's timer, or the server's for solves without one
      * @param late        the solve was sent late, so its time is partly the client's claim
      * @param you           this is the viewer's own solve
      * @param firstToFinish solved earliest of everyone on this board (ties all count)

@@ -69,7 +69,8 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
     setRecorded({ status: 'saving' });
     void recordCompletion(started, { grid, mistakes: wrong, activeMs }).then((done) => {
       if (done?.elapsedMs != null) {
-        const result = { elapsedMs: done.elapsedMs, late: done.late };
+        // The game's timer is the ranked time; the server's wall-clock time only when it has none.
+        const result = { elapsedMs: done.activeMs ?? done.elapsedMs, late: done.late };
         saveResult(puzzle.id, result);
         setRecorded({ status: 'recorded', ...result });
       } else {
