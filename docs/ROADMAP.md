@@ -379,7 +379,8 @@ Decisions made while building it:
 - **Dailies don't restart the clock.** Restart on a daily clears the board but keeps the time and
   the mistakes, on screen and on the server (`AttemptService.start` ignores `restart` for dailies).
   Otherwise a player could study the board, restart and post a fast time.
-- **Ranking:** each player's first finished attempt, by `elapsed_ms`; equal times share a rank.
+- **Ranking:** each player's first finished attempt, by `active_ms` (falling back to `elapsed_ms`
+  for solves recorded without one); equal times share a rank.
   Top 50, plus the viewer's own entry wherever it falls. A player who started the puzzle before its
   date began anywhere (a pool puzzle before V5) isn't ranked. Unlike streaks, solving an old daily
   later through a share link does rank: the board is about the puzzle, not the day. Computed per
@@ -415,7 +416,10 @@ Decisions made while building it:
   fresh anonymous player. Asked for under a daily's result once the streak is 3 days ("Not now"
   is remembered), and always available on `/me`.
 
-- One leaderboard per daily (date and difficulty), ranked by the server-measured `elapsed_ms`.
+- One leaderboard per daily (date and difficulty), ranked by `active_ms`, the game's own timer
+  (changed from the server's wall-clock `elapsed_ms` on 2026-11-19: time spent away from the tab
+  shouldn't count). Solves without `active_ms` rank by `elapsed_ms`. This makes the ranked time the
+  client's claim; cheating is set aside for now.
   Solves sent late (`attempts.late`, milestone 4) are ranked too, with a marker.
   Only each player's first finished attempt at a daily counts; later ones are recorded but not
   ranked. Shown on the result screen and from the day's puzzle list.

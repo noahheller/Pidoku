@@ -100,7 +100,8 @@ public class FriendService {
         List<Solve> solves = jdbc.sql("""
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.puzzle_id)
-                                   d.puzzle_date, d.difficulty, a.started_at, a.elapsed_ms, a.mistakes, a.late
+                                   d.puzzle_date, d.difficulty, a.started_at,
+                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.mistakes, a.late
                             FROM attempts a
                             JOIN daily_puzzles d ON d.puzzle_id = a.puzzle_id
                             WHERE a.player_id = :friendId AND a.completed_at IS NOT NULL

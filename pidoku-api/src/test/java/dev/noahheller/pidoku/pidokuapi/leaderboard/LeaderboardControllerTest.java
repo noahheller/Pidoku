@@ -108,6 +108,20 @@ class LeaderboardControllerTest extends IntegrationTest {
     }
 
     @Test
+    void ranksByTheGamesTimerWhenThereIsOne() {
+        // Alice was away for most of her hour; her game timer says 13 minutes.
+        solve("alice", hard, 3600, 10, false);
+        jdbc.update("UPDATE attempts SET active_ms = 780000 WHERE player_id = (SELECT id FROM players WHERE firebase_uid = 'alice')");
+        // Bob's solve has no game timer, so his wall-clock time ranks.
+        solve("bob", hard, 900, 10, false);
+
+        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(780000, 900000));
+            assertThat(json).extractingPath("$.entries[*].rank").isEqualTo(List.of(1, 2));
+        });
+    }
+
+    @Test
     void highlightsWhoFinishedFirstLeavingOutLateSolves() {
         solve("alice", hard, 200, 10, false);
         solve("bob", hard, 300, 30, false);
