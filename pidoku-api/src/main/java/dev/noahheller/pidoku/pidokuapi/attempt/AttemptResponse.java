@@ -6,7 +6,8 @@ import java.time.Instant;
  * An attempt as the frontend receives it. {@code completedAt}, {@code elapsedMs} and
  * {@code activeMs} are null while it's unfinished.
  *
- * @param elapsedMs the server-measured solve time, which leaderboards rank
+ * @param elapsedMs the server-measured wall-clock solve time
+ * @param activeMs  the game's own timer, which leaderboards rank (falling back to elapsedMs)
  * @param late      the completion was sent some time after the solve (see {@code Attempt#complete})
  */
 public record AttemptResponse(
