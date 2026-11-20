@@ -72,8 +72,8 @@ own difficulty and the puzzle has to be generated on demand.
 
 6. Hints (reusing the "explain a move" layer).
 
-   Then, before milestone 7: leaderboards for any shared puzzle (challenge links), and opt-in
-   streak reminders.
+   Then, before milestone 7: leaderboards for any shared puzzle (challenge links), a player stats
+   page, and opt-in streak reminders.
 
 7. Custom generation: players build their own difficulty.
 8. Campaign mode, end to end.
@@ -193,6 +193,7 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/puzzles/daily/{date}/summary` | For the home screen's cards: how many have solved each of the date's dailies and the fastest time; signed in, also how many friends have and the fastest among them. Counted like the leaderboards | after v1 (done) |
 | `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device | after v1 |
 | `GET /api/players/me/recent` | The player's last few puzzles, unfinished first, for Recents | after v1 |
+| `GET /api/players/me/stats?source=all\|daily\|random&today=…` | The player's stats page: solves, average and best times per difficulty, clean rate, streaks | after 6 |
 | `GET /api/puzzles/{shareCode}/leaderboard` | Fastest times for any puzzle, not just dailies (challenge links) | after 6 |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
 | `POST /api/puzzles/generate` | A puzzle for the player's own difficulty settings | 7 |
@@ -581,6 +582,25 @@ alone.
   (the ranking query exists) and more social, so it comes first.
 - No "date began" rule as for dailies: a pool puzzle has no date, and a player who saw it before
   sharing it is fine among friends.
+
+### Player stats page
+The friend profile (milestone 5) shows a few numbers about a friend; players have nothing as
+detailed about themselves.
+- A **Stats** page (`/me/stats`, linked from You & friends and the result screen).
+- **Per difficulty** (trivial to fiendish): puzzles solved, average time, median time, best time,
+  clean rate (solves with no mistakes) and average mistakes.
+- **Filter by source**: All, Dailies only, or Random only. The filter is remembered like the
+  leaderboard's switches.
+- Also: current and best streak, dailies solved, and a simple trend (average time per difficulty
+  over the last 30 days against all time), so players can see themselves improving.
+- Times are the ranked time (the game's timer). Count each puzzle's first finished attempt, like
+  the leaderboards, so replays of a solved puzzle don't pull the averages down; unfinished and
+  late-only edge cases follow the leaderboard rules.
+- One endpoint, `GET /api/players/me/stats?source=all|daily|random`, computed from `attempts`
+  joined with `puzzles` (`source`, `difficulty`) per request; cheap at friend scale. The friend
+  profile could later reuse it for a friend's page.
+- Once hints and auto notes exist, show assisted solves separately (or a filter for them), so
+  averages compare like with like.
 
 ### Streak reminders
 Streaks are the reason to come back, but nothing reminds a player that today's is unsolved.
