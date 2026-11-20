@@ -165,6 +165,16 @@ export function saveLeaderboardRanking(ranking: LeaderboardRanking): void {
   write(LEADERBOARD_RANKING_KEY, ranking);
 }
 
+/** Forgets everything Pidoku keeps in this browser: progress, results, puzzles, settings. */
+export function clearAllLocalData(): void {
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((k): k is string => k?.startsWith('pidoku:') ?? false);
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // Storage disabled: nothing was kept.
+  }
+}
+
 /**
  * Forgets what belongs to the player rather than to this browser, after switching to another
  * account: its streak, and whether it said no to picking a name.

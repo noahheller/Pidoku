@@ -1,13 +1,17 @@
-import { ArrowLeft, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
-import { currentAccount, signInWithGoogle, signOut, SignInError, type Account } from '../api/auth';
-import { addFriend, ApiError, fetchFriends, fetchPlayer, removeFriend, updateDisplayName, type Friend, type Player } from '../api/client';
+import { currentAccount, deleteAccount, signInWithGoogle, signOut, SignInError, type Account } from '../api/auth';
+import { addFriend, ApiError, deletePlayer, fetchFriends, fetchPlayer, removeFriend, updateDisplayName, type Friend, type Player } from '../api/client';
 import { sendPendingCompletions } from '../api/completions';
 import { friendUrl } from '../game/daily';
-import { clearPlayerCaches } from '../game/storage';
+import { clearAllLocalData, clearPlayerCaches } from '../game/storage';
 
-type Loaded = { status: 'loading' } | { status: 'loaded'; account: Account | null; player: Player; friends: Friend[] } | { status: 'failed'; message: string };
+type Loaded =
+  | { status: 'loading' }
+  | { status: 'loaded'; account: Account | null; player: Player; friends: Friend[] }
+  | { status: 'failed'; message: string }
+  | { status: 'deleted' };
 
 /**
  * `/me`: the player's name, friends and account. Signs the player in (anonymously) when opened,
@@ -48,6 +52,7 @@ export function Profile() {
         </p>
       )}
       {state.status === 'failed' && <Failed message={state.message} onRetry={reload} />}
+      {state.status === 'deleted' && <Deleted />}
       {state.status === 'loaded' && (
         <>
           <Card title="Your name">
@@ -71,8 +76,16 @@ export function Profile() {
               />
             </Card>
           )}
+          {state.account && (
+            <Card title="Delete account">
+              <DeleteAccount account={state.account} onDeleted={() => setState({ status: 'deleted' })} />
+            </Card>
+          )}
         </>
       )}
+      <Link to="/privacy" className="link link-hover w-fit text-sm text-base-content/60">
+        Privacy: what Pidoku keeps about you
+      </Link>
     </main>
   );
 }
@@ -367,7 +380,83 @@ function AccountSection({ account, onLinked, onPlayerChanged }: { account: Accou
           }
         }}
       />
+      <Link to="/privacy" className="link link-hover w-fit text-xs text-base-content/60">
+        What Pidoku keeps when you sign in
+      </Link>
     </div>
+  );
+}
+
+/** Deletes the player for good, after they confirm on the page (not a dialog, which is easy to click through). */
+function DeleteAccount({ account, onDeleted }: { account: Account; onDeleted: () => void }) {
+  const [step, setStep] = useState<'idle' | 'confirming' | 'deleting'>('idle');
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = () => {
+    setStep('deleting');
+    setError(null);
+    deleteAccount(deletePlayer)
+      .then((result) => {
+        if (result === 'cancelled') {
+          setStep('confirming');
+          return;
+        }
+        clearAllLocalData();
+        onDeleted();
+      })
+      .catch((e: unknown) => {
+        setError(e instanceof Error ? e.message : String(e));
+        setStep('confirming');
+      });
+  };
+
+  if (step === 'idle') {
+    return (
+      <div className="grid gap-3">
+        <p className="text-sm text-base-content/70">Delete your name, friends, streak and every solve, from the server and from this browser.</p>
+        <button type="button" className="btn btn-sm btn-outline btn-error w-fit" onClick={() => setStep('confirming')}>
+          <Trash2 className="size-4" aria-hidden="true" /> Delete my account
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div role="alert" className="grid gap-3 rounded-box border border-error/40 bg-error/5 p-3">
+      <p className="text-sm font-semibold">This can't be undone. Deleting your account removes:</p>
+      <ul className="list-disc ps-5 text-sm text-base-content/80">
+        <li>your name and friend code, and you from your friends' lists</li>
+        <li>every solve and your streak, so your times leave all leaderboards</li>
+        <li>your {account.isAnonymous ? 'account' : 'Google sign-in to Pidoku'}, and Pidoku's data in this browser (progress, results, your puzzles)</li>
+      </ul>
+      {!account.isAnonymous && <p className="text-sm text-base-content/70">Google will ask you to confirm it's you first.</p>}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="btn btn-sm btn-error" onClick={remove} disabled={step === 'deleting'}>
+          {step === 'deleting' ? <span className="loading loading-spinner loading-xs" aria-hidden="true" /> : <Trash2 className="size-4" aria-hidden="true" />} Delete forever
+        </button>
+        <button type="button" className="btn btn-sm btn-ghost" onClick={() => setStep('idle')} disabled={step === 'deleting'}>
+          Cancel
+        </button>
+      </div>
+      {error && <p className="text-sm text-error">{error}</p>}
+    </div>
+  );
+}
+
+function Deleted() {
+  return (
+    <section className="card border border-base-300 bg-base-100 shadow-sm">
+      <div className="card-body items-start gap-3 p-4 sm:p-5">
+        <h2 className="flex items-center gap-2 text-lg font-semibold">
+          <Check className="size-5 text-success" aria-hidden="true" /> Your account is deleted
+        </h2>
+        <p className="text-sm text-base-content/80">Your name, friends, solves and streak are gone, and this browser has forgotten Pidoku's data. You can still play: you'll start over as a new player.</p>
+        {/* A full reload, so nothing from the deleted player stays in memory. */}
+        <a href="/" className="btn btn-primary btn-sm">
+          Back to puzzles
+        </a>
+      </div>
+    </section>
   );
 }
 
