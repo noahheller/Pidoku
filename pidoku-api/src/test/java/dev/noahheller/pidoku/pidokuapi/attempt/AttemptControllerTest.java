@@ -211,10 +211,24 @@ class AttemptControllerTest extends IntegrationTest {
         @Test
         void recordsTheClientsActiveTime() {
             long id = started("alice");
+            jdbc.update("UPDATE attempts SET started_at = started_at - interval '90 seconds'");
 
             assertThat(complete("alice", id, "\"activeMs\": 61000")).hasStatusOk()
                     .bodyJson().extractingPath("$.activeMs").asNumber().isEqualTo(61000);
             assertThat(jdbc.queryForObject("SELECT active_ms FROM attempts", Long.class)).isEqualTo(61_000L);
+        }
+
+        @Test
+        void activeTimeIsCappedAtTheTimeSinceTheStart() {
+            long id = started("alice");
+            jdbc.update("UPDATE attempts SET started_at = started_at - interval '90 seconds'");
+
+            var json = assertThat(complete("alice", id, "\"activeMs\": 3600000")).hasStatusOk().bodyJson();
+
+            // No more than the 90 s the server saw pass, plus however long the test took.
+            json.extractingPath("$.activeMs").asNumber()
+                    .satisfies(ms -> assertThat(ms.longValue()).isBetween(90_000L, 150_000L));
+            assertThat(jdbc.queryForObject("SELECT active_ms = elapsed_ms FROM attempts", Boolean.class)).isTrue();
         }
 
         @Test

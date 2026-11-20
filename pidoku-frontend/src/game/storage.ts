@@ -3,7 +3,6 @@ import type { PuzzleDef } from './puzzleFile';
 
 const PROGRESS_PREFIX = 'pidoku:progress:';
 const CUSTOM_PUZZLES_KEY = 'pidoku:custom-puzzles';
-const SETTINGS_KEY = 'pidoku:settings';
 const PENDING_COMPLETIONS_KEY = 'pidoku:pending-completions';
 const RESULT_PREFIX = 'pidoku:result:';
 const STREAK_KEY = 'pidoku:streak';
@@ -11,12 +10,6 @@ const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
 const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
 const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
-
-export interface Settings {
-  showMistakes: boolean;
-}
-
-const DEFAULT_SETTINGS: Settings = { showMistakes: true };
 
 function read<T>(key: string): T | null {
   try {
@@ -170,12 +163,4 @@ export function clearPlayerCaches(): void {
       // Storage disabled: nothing was cached.
     }
   }
-}
-
-export function loadSettings(): Settings {
-  return { ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(SETTINGS_KEY) };
-}
-
-export function saveSettings(settings: Settings): void {
-  write(SETTINGS_KEY, settings);
 }
