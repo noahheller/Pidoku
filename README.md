@@ -162,8 +162,9 @@ The API needs no credentials for this. It accepts tokens issued for the Firebase
 
 ## Deploying by hand
 
-CI/CD is tabled (see the roadmap), so for now, from the repository root with `gcloud` and
-`firebase` signed in:
+CI/CD normally does this: GitHub Actions (`.github/workflows/ci.yml`) tests every pull request
+and deploys every merge to main. To deploy by hand anyway, run this from the repository root with
+`gcloud` and `firebase` signed in:
 
 ```bash
 ./gradlew build && (cd pidoku-frontend && npm run lint && npm test)

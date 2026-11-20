@@ -4,11 +4,10 @@ import { EMPTY, findConflicts, isPeer } from '../game/rules';
 
 interface BoardProps {
   state: GameState;
-  showErrors: boolean;
   onSelect: (index: number) => void;
 }
 
-export function Board({ state, showErrors, onSelect }: BoardProps) {
+export function Board({ state, onSelect }: BoardProps) {
   const { rules, values, notes, selected } = state;
   const conflicts = useMemo(() => findConflicts(rules, values), [rules, values]);
   const selectedValue = selected === null ? EMPTY : values[selected];
@@ -31,7 +30,7 @@ export function Board({ state, showErrors, onSelect }: BoardProps) {
       {values.map((value, i) => {
         const row = Math.floor(i / rules.size);
         const col = i % rules.size;
-        const error = showErrors && (conflicts.has(i) || isMistake(state, i));
+        const error = conflicts.has(i) || isMistake(state, i);
         return (
           <Cell
             key={i}

@@ -52,16 +52,20 @@ own difficulty and the puzzle has to be generated on demand.
 ## Milestones
 
 1. Schema, generator job and read endpoints, tested locally against Testcontainers. **Done.**
-2. Deploy early: Cloud Run, the nightly generator job, Neon and Firebase with CI/CD.
-   **CI/CD is tabled** (see section 2); deploys are by hand until it's back.
+2. Deploy early: Cloud Run, the nightly generator job, Neon and Firebase with CI/CD. **Done.**
+   CI/CD runs on GitHub Actions: every PR is tested, and a merge to main deploys (section 2).
 3. Anonymous sign-in and players, so everything after this knows who the player is.
    **Done.**
 4. The daily loop: a start screen, a result screen with the server's time, streaks, a share
    line, display names and share links. **Done.**
-5. Leaderboards, Google sign-in and friends. **Built;** still to enable the Google provider in
-   Firebase, deploy (migration V6 runs on Neon) and try Google sign-in on a real phone.
+5. Leaderboards, Google sign-in and friends. **Done.**
 
    **— v1: the game is worth sending to friends and putting on a resume —**
+
+   Next, before milestone 6 (see "Tutorial, auto notes and end-to-end tests"):
+   - A tutorial for first-time players.
+   - Auto notes on Expert and Fiendish puzzles.
+   - Playwright end-to-end tests.
 
 6. Hints.
 7. Custom generation: players build their own difficulty.
@@ -218,12 +222,9 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
   - Credentials in Secret Manager, passed to Cloud Run as environment variables.
 - **Frontend on Firebase Hosting**: a rewrite sends `/api/**` to the Cloud Run service.
   Same origin means no CORS setup and one domain.
-- **CI/CD with GitHub Actions** — **tabled.** GitHub Actions can't run on the account for now
-  (a billing issue). The workflow is written (`.github/workflows/ci.yml`) but hasn't been
-  proven by a run; pick it up when Actions is available again. Until then, run the tests
-  locally and deploy by hand (README, "Deploying by hand"). If the billing issue outlasts
-  milestone 5, run the same steps from Cloud Build triggers on the existing Google Cloud
-  project instead: v1 shouldn't ship without CI.
+- **CI/CD with GitHub Actions** — **working.** The earlier billing issue is resolved, and
+  `.github/workflows/ci.yml` runs on every pull request and every push to main (runs passing
+  as of PRs #4–#6). Deploying by hand (README, "Deploying by hand") remains the fallback.
   - Every PR: Gradle tests (with Testcontainers) and npm test, lint and build.
   - Merge to main: Jib build and `gcloud run deploy`, then `firebase deploy`.
   - Authenticate with Workload Identity Federation, so no service-account keys are stored.
@@ -343,8 +344,9 @@ Decisions made while building it:
   router, which campaign levels will need too. firebase.json already serves index.html for
   every path.
 - **Active time.** Add `attempts.active_ms`, the client's own timer (paused while the tab is
-  hidden), sent with the completing call. Leaderboards rank the server's `elapsed_ms`;
-  `active_ms` is for calibration, where time away is noise. It goes in now because it can't be
+  hidden), sent with the completing call. Leaderboards first ranked the server's `elapsed_ms`
+  and have ranked `active_ms` since 2026-11-19 (section 5); `active_ms` is also for calibration,
+  where time away is noise. It goes in now because it can't be
   backfilled: every solve recorded without it is lost to calibration.
 - **Late-sent solves.** A solve finished offline or while the API was down is sent later
   (milestone 3), and today its recorded time runs until it arrives. Fix it in the same migration
@@ -365,15 +367,12 @@ Decisions made while building it:
 
 ## 5. Leaderboards, Google sign-in and friends
 
-**Status: built.** Tested with the API's integration tests, the frontend's unit tests, and end to
+**Status: done.** Tested with the API's integration tests, the frontend's unit tests, and end to
 end in a phone-sized headless Chromium against a local API and local Postgres, with real anonymous
 Firebase sign-in: naming the player, adding friends by code and by invite link, solving a daily and
-seeing it on both leaderboards. Still to do:
-- Enable the **Google** sign-in provider in the Firebase console (Authentication → Sign-in method).
-  Until then the button says "Google sign-in isn't turned on for Pidoku yet." `pidoku.web.app` and
-  `localhost` are authorized domains by default; add any custom domain.
-- Deploy (migration V6 runs on Neon), then try Google sign-in on a real phone, including from the
-  installed home-screen app, where popups behave differently.
+seeing it on both leaderboards. The Google sign-in provider is enabled in Firebase and the
+milestone is deployed (migration V6 ran on Neon). If a custom domain is added, add it to
+Firebase's authorized domains too (`pidoku.web.app` and `localhost` are authorized by default).
 
 Decisions made while building it:
 - **Dailies don't restart the clock.** Restart on a daily clears the board but keeps the time and
@@ -423,6 +422,15 @@ Decisions made while building it:
   Solves sent late (`attempts.late`, milestone 4) are ranked too, with a marker.
   Only each player's first finished attempt at a daily counts; later ones are recorded but not
   ranked. Shown on the result screen and from the day's puzzle list.
+  - The game's clock is measured with `performance.now()`, not by counting interval ticks
+    (browsers delay and throttle intervals, so the old clock ran slow on phones). It runs only
+    while the board is on screen: switching tabs or going back to Puzzles pauses it, the time so
+    far is saved, and it carries on when the player returns. The start screen and a line under
+    the controls say so.
+  - The server caps `active_ms` at `elapsed_ms`: time on screen can't be more than the time
+    since the start, so a client can't claim an impossible time (2026-11-20).
+  - Leaving and coming back means a player can look at the board, leave (paused) and work it
+    out elsewhere. Accepted, like the other cheats.
 - Cheating: the client still has the solution, so a determined player can cheat. That's
   accepted for a game among friends; server-side timing removes the easiest cheat
   (posting any time you like).
@@ -436,6 +444,46 @@ Decisions made while building it:
   Needs a `friendships` table.
 
 **v1 ends here.** Before calling it v1, do the Showcase items below marked v1.
+
+## Tutorial, auto notes and end-to-end tests
+
+Three smaller pieces after v1 and before hints (milestone 6).
+
+### Tutorial
+The doubled 1s and 5s are the whole twist, and also the part new players get wrong. Today the
+rule is a line of text under the number pad, easy to miss on a phone.
+- Shown the first time someone opens a puzzle (remembered in this browser), and always
+  reachable from the home screen ("How to play").
+- A short guided puzzle (a small or Trivial board) with step-by-step prompts that point at
+  cells: a normal single, then a row that already holds one 5 and needs its second, then a
+  note being cleared automatically once a unit holds both copies.
+- Explains the controls along the way: notes mode, undo and erase, and that wrong digits show
+  in red and count as mistakes.
+- Not timed and not recorded as an attempt.
+
+### Auto notes
+A button that pencils every candidate into every empty cell, so Expert and Fiendish players
+don't spend minutes on bookkeeping before the real solving starts.
+- Only on **Expert and Fiendish** puzzles; easier ones are meant to be solved without it.
+- Candidates follow the Pidoku rule: a digit stays a candidate in a unit until the unit holds as
+  many copies as π allows (two for 1 and 5).
+- Fills from the board as it is (filled cells and the notes the player cleared are respected, or
+  everything is refilled: decide when building it), and is one step on the undo stack.
+- Available to everyone, so it doesn't change who can rank. Record its use
+  (`attempts.auto_notes_used` or an `events` row) because it changes solve times and the
+  calibration (milestone 9) has to account for it.
+
+### Playwright end-to-end tests
+The frontend's unit tests cover the game logic and the API client, and the API's tests cover the
+endpoints, but nothing checks the pieces together. Add Playwright tests against a local API
+(Testcontainers Postgres) and the Vite build:
+- Open a daily, press Start, solve it from the solution, and see the result screen with the
+  server's time, the streak and the share line.
+- The clock pauses when going back to Puzzles and carries on when the puzzle is reopened.
+- Leaderboard: the solve appears on Everyone and, after adding a friend by code, on Friends.
+- Run them on a phone-sized viewport as well as desktop, and in CI on every pull request.
+- Firebase sign-in in tests: use the Firebase Auth emulator, or a test-only token the local API
+  accepts, so the tests don't depend on the real project.
 
 ## 6. Hints
 
@@ -588,11 +636,8 @@ are done before v1 is called done.
   its numbers: the technique-based difficulty rating, the strategy soundness property test, the
   AOT cache (ready context 8 s → 4 s), the CDN-cached dailies, server-measured solve times.
   Remove what's out of date ("the frontend currently runs fully offline").
-- **CI (v1).** A passing badge. GitHub Actions when it's available again, Cloud Build if not
-  (section 2).
-- **One end-to-end test (v1).** Playwright: load the site against a local API, open a daily,
-  solve it from the solution, see the result screen. The frontend's tests cover the game logic
-  and the API client, but nothing checks the pieces together.
+- **CI (v1).** CI runs on GitHub Actions (section 2); add its passing badge to the README.
+- **End-to-end tests.** Playwright, planned in "Tutorial, auto notes and end-to-end tests".
 - **Calibration write-up (after milestone 9).** A short section or page: the model, the data,
   the fit, a chart of predicted against actual solve time.
 

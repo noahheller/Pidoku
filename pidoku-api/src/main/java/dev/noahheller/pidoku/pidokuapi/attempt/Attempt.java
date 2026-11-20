@@ -95,7 +95,7 @@ public class Attempt {
      *
      * @param now      when the completion arrived (server time)
      * @param mistakes wrong digits entered, as counted by the client
-     * @param activeMs the client's own timer, or null if it didn't send one
+     * @param activeMs the client's own timer, or null if it didn't send one; capped at the elapsed time
      * @param lateBy   how long before {@code now} the puzzle was really solved, as the client claims;
      *                 null or zero for a completion sent straight away. The solve is then recorded at
      *                 {@code now - lateBy}, but never before the attempt started.
@@ -112,6 +112,9 @@ public class Attempt {
         this.completedAt = solvedAt.isBefore(startedAt) ? startedAt : solvedAt;
         this.elapsedMs = Duration.between(startedAt, completedAt).toMillis();
         this.mistakes = mistakes;
-        this.activeMs = activeMs;
+        // Leaderboards rank the client's timer, so it can't claim more than the server saw pass:
+        // time on screen fits inside the time since the start. (It can come out a little under
+        // the real figure, by the network delay of the start request, never over.)
+        this.activeMs = activeMs == null ? null : Math.min(activeMs, elapsedMs);
     }
 }
