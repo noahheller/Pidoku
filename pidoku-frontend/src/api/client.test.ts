@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existingIdToken, idToken } from './auth';
-import { addFriend, ApiError, fetchFriendProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, deletePlayer, fetchFriendProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
@@ -296,5 +296,12 @@ describe('friends', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
     await expect(removeFriend(3)).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith('/api/friends/3', expect.objectContaining({ method: 'DELETE' }));
+  });
+
+  it("deletes the signed-in player's data", async () => {
+    signIn('token-1');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(deletePlayer()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith('/api/players/me', expect.objectContaining({ method: 'DELETE' }));
   });
 });

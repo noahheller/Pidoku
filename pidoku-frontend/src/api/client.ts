@@ -279,6 +279,14 @@ export async function updateDisplayName(displayName: string): Promise<Player> {
   return request<Player>('/api/players/me', { method: 'PATCH', body: { displayName }, token: await requireToken() }, BUSY);
 }
 
+/**
+ * Deletes the signed-in player and everything the server keeps about them (attempts, friendships,
+ * name). Use `deleteAccount` in auth.ts, which also deletes the sign-in.
+ */
+export async function deletePlayer(): Promise<void> {
+  await request<void>('/api/players/me', { method: 'DELETE', token: await requireToken() }, BUSY);
+}
+
 /** The player's current and best streak, as of their own local date. */
 export async function fetchStreak(signal?: AbortSignal, now: Date = new Date()): Promise<Streak> {
   return request<Streak>(`/api/players/me/streak?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);

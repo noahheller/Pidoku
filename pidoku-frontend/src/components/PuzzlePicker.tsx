@@ -100,6 +100,11 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
         </section>
       )}
 
+      <footer className="flex justify-center text-sm text-base-content/50">
+        <Link to="/privacy" className="link link-hover">
+          Privacy
+        </Link>
+      </footer>
     </main>
   );
 }

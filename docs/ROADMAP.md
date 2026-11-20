@@ -186,6 +186,7 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `POST /api/attempts` | Puzzle id in → the player's unfinished attempt at it, started now if there isn't one. Starts the server's clock. | 3 (done) |
 | `POST /api/attempts/{id}/complete` | Final grid and mistakes. The server checks the grid against the solution and records the time since the start. Takes `activeMs` and `lateByMs` (milestone 4), and unlocks the next campaign level in milestone 8. | 3, 4 (done), 8 |
 | `PATCH /api/players/me` | Sets the display name | 4 (done) |
+| `DELETE /api/players/me` | Deletes the player, their attempts and friendships (the app then deletes the Firebase account) | after v1 (done) |
 | `GET /api/players/me/streak?today=2026-11-17` | Current and best streak, as of the player's local date | 4 (done) |
 | `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard&friends=true&clean=true` | Fastest times for one of the day's dailies; `friends` for friends only, `clean` for solves with no mistakes only. Sign-in optional (needed for `friends`) | 5 (done) |
 | `GET /api/friends?today=…`, `POST /api/friends`, `DELETE /api/friends/{id}` | List (with each friend's current streak when `today` is given), add by friend code, remove | 5 (done) |
@@ -760,8 +761,8 @@ What to collect, most useful first:
 Rules:
 - Analytics rows carry `player_id` only, never emails or display names.
 - Don't log every keystroke; record an event only when it answers a question above.
-- Publish a short privacy page. Google sign-in is live (milestone 5), so this is overdue; see the
-  open item.
+- Keep the privacy page (`/privacy`, done) up to date: it says there are no analytics, so the
+  first analytics change must update it.
 - First steps: the budget alert and share-link tracking. They show whether monetising is
   needed at all and whether the game is spreading.
 - Then the `events` table and the `abandoned` event, before the tutorial, auto notes and hints
@@ -821,6 +822,7 @@ are done before v1 is called done.
   time penalty per mistake on the Fastest board (e.g. +10 s, shown as "4:12 +20s") and a limit
   of three mistakes per daily. Leaning towards the penalty: it keeps every solve and doesn't
   end anyone's streak; a limit could be offered later as an opt-in "hardcore" mode.
-- **Privacy page.** Google sign-in is live and there's no privacy page yet. A `/privacy` route,
-  linked from the home screen, `/me` and next to the Google sign-in button, and added to the
-  Google OAuth consent screen.
+- **Privacy page.** Done (2026-11-20): `/privacy`, linked from the home screen, `/me` and the
+  Google sign-in button, with "Delete my account" on `/me` (`DELETE /api/players/me` plus the
+  Firebase account). Contact: pidoku@googlegroups.com. Left to do by hand: add
+  `https://pidoku.web.app/privacy` to the Google OAuth consent screen.
