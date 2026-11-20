@@ -30,19 +30,25 @@ export function Board({ state, onSelect }: BoardProps) {
       {values.map((value, i) => {
         const row = Math.floor(i / rules.size);
         const col = i % rules.size;
-        const error = conflicts.has(i) || isMistake(state, i);
+        const given = isGiven(state, i);
+        // Red is for the player's own wrong digits: against the solution when there is one,
+        // otherwise any digit of theirs breaking the rules. A given (or a right digit) caught in a
+        // clash with a wrong one only gets a ring, so one mistake doesn't paint the box red.
+        const error = !given && (state.puzzle.solution ? isMistake(state, i) : conflicts.has(i));
+        const clash = conflicts.has(i) && !error;
         return (
           <Cell
             key={i}
             index={i}
             value={value}
             notes={notes[i]}
-            given={isGiven(state, i)}
+            given={given}
             selected={i === selected}
             peer={selected !== null && isPeer(rules, i, selected)}
             sameDigit={value !== EMPTY && value === selectedValue}
             highlightNote={selectedValue}
             error={error}
+            clash={clash}
             boxRight={(col + 1) % rules.boxDim === 0 && col !== rules.size - 1}
             boxBottom={(row + 1) % rules.boxDim === 0 && row !== rules.size - 1}
             lastCol={col === rules.size - 1}
@@ -66,6 +72,8 @@ interface CellProps {
   sameDigit: boolean;
   highlightNote: number;
   error: boolean;
+  /** Clashes with a wrong digit in its row, column or box, without being wrong itself. */
+  clash: boolean;
   boxRight: boolean;
   boxBottom: boolean;
   lastCol: boolean;
@@ -77,7 +85,7 @@ interface CellProps {
 const NOTE_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 const Cell = memo(function Cell(props: CellProps) {
-  const { index, value, notes, given, selected, peer, sameDigit, highlightNote, error, boxRight, boxBottom, lastCol, lastRow, label, onSelect } = props;
+  const { index, value, notes, given, selected, peer, sameDigit, highlightNote, error, clash, boxRight, boxBottom, lastCol, lastRow, label, onSelect } = props;
   // Each property is picked in one place so no two utilities fight over it.
   const background = selected
     ? 'bg-(color:--hl)/35'
@@ -100,6 +108,8 @@ const Cell = memo(function Cell(props: CellProps) {
     !selected && 'hover:shadow-[inset_0_0_0_100vmax_color-mix(in_oklab,var(--color-base-content)_9%,transparent)]',
     // Clues are printed; digits the player writes use the handwritten font.
     given ? 'font-bold' : 'casual font-medium',
+    // An outline, so it doesn't fight the hover wash (an inset shadow); focus still overrides it.
+    clash && 'outline-2 -outline-offset-3 outline-error/60',
     background,
     color,
     right,
@@ -108,7 +118,8 @@ const Cell = memo(function Cell(props: CellProps) {
     .filter(Boolean)
     .join(' ');
 
-  const description = value !== EMPTY ? `${value}${given ? ', given' : ''}${error ? ', incorrect' : ''}` : 'empty';
+  const description =
+    value !== EMPTY ? `${value}${given ? ', given' : ''}${error ? ', incorrect' : ''}${clash ? ', clashes with a wrong digit' : ''}` : 'empty';
 
   return (
     <button
@@ -123,7 +134,7 @@ const Cell = memo(function Cell(props: CellProps) {
         <span>{value}</span>
       ) : notes !== 0 ? (
         <span
-          className="absolute inset-[6%] grid grid-cols-3 grid-rows-3 casual text-[length:calc(100cqi/var(--size)*0.24)] leading-none text-base-content/60"
+          className="absolute inset-[3%] grid grid-cols-3 grid-rows-3 casual text-[length:calc(100cqi/var(--size)*0.3)] font-medium leading-none text-base-content/80 sm:text-[length:calc(100cqi/var(--size)*0.27)]"
           aria-hidden="true"
         >
           {NOTE_SLOTS.map((d) => (

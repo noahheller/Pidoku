@@ -324,4 +324,104 @@ class LeaderboardControllerTest extends IntegrationTest {
     void isNotCached() {
         assertThat(leaderboard("difficulty=hard")).headers().hasValue("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
     }
+
+    private MvcTestResult summary() {
+        return mvc.get().uri("/api/puzzles/daily/{date}/summary", today).exchange();
+    }
+
+    private MvcTestResult summaryAs(String uid) {
+        return mvc.get().uri("/api/puzzles/daily/{date}/summary", today).with(player(uid)).exchange();
+    }
+
+    @Test
+    void summaryCountsSolvesAndNamesTheFastestEasiestFirst() {
+        Puzzle easy = dailyPuzzleService.fillWithNew(new DailySlot(today, Difficulty.EASY),
+                TestPuzzles.generated(Difficulty.EASY, 2)).getPuzzle();
+        addPlayer("alice", "Alice");
+        addPlayer("bob", "Bob");
+        solve("bob", 300);
+        solve("alice", 200);
+        solve("alice", easy, 90, 10, false);
+
+        assertThat(summary()).hasStatusOk().bodyJson().isStrictlyEqualTo("""
+                {
+                  "date": "%s",
+                  "dailies": [
+                    {"difficulty": "easy", "solved": 1, "fastest": {"displayName": "Alice", "elapsedMs": 90000, "you": false},
+                     "friendsSolved": null, "friendsFastest": null},
+                    {"difficulty": "hard", "solved": 2, "fastest": {"displayName": "Alice", "elapsedMs": 200000, "you": false},
+                     "friendsSolved": null, "friendsFastest": null}
+                  ]
+                }
+                """.formatted(today));
+    }
+
+    @Test
+    void summaryOfADailyNoOneHasSolvedHasNoFastest() {
+        assertThat(summary()).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.dailies[0].solved").isEqualTo(0);
+            assertThat(json).extractingPath("$.dailies[0].fastest").isNull();
+        });
+    }
+
+    @Test
+    void summaryCountsLikeTheLeaderboard() {
+        // Only the first solve counts, and an unfinished attempt or one started before the date began doesn't.
+        solve("alice", 200);
+        solve("alice", 50);
+        addPlayer("bob", null);
+        jdbc.update("""
+                INSERT INTO attempts (player_id, puzzle_id, started_at)
+                SELECT id, ?, now() FROM players WHERE firebase_uid = 'bob'
+                """, hard.getId());
+        solve("carol", hard, 100, 60 * 24 * 3, false);
+
+        assertThat(summary()).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.dailies[0].solved").isEqualTo(1);
+            assertThat(json).extractingPath("$.dailies[0].fastest.elapsedMs").isEqualTo(200000);
+        });
+    }
+
+    @Test
+    void signedInTheSummaryAddsFriends() {
+        addPlayer("alice", "Alice");
+        addPlayer("bob", "Bob");
+        addPlayer("carol", "Carol");
+        solve("carol", 100); // the fastest, but not a friend
+        solve("alice", 300);
+        solve("bob", 200);
+        befriend("alice", "bob");
+
+        assertThat(summaryAs("alice")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.dailies[0].solved").isEqualTo(3);
+            assertThat(json).extractingPath("$.dailies[0].fastest.displayName").isEqualTo("Carol");
+            // Bob is Alice's one friend; the viewer counts for the fastest but not for friendsSolved.
+            assertThat(json).extractingPath("$.dailies[0].friendsSolved").isEqualTo(1);
+            assertThat(json).extractingPath("$.dailies[0].friendsFastest.displayName").isEqualTo("Bob");
+            assertThat(json).extractingPath("$.dailies[0].friendsFastest.you").isEqualTo(false);
+        });
+        assertThat(summaryAs("bob")).bodyJson()
+                .extractingPath("$.dailies[0].friendsFastest.you").isEqualTo(true);
+    }
+
+    @Test
+    void signedInWithNoFriendsSolvedTheFriendsNumbersAreEmpty() {
+        solve("carol", 100);
+        addPlayer("dave", "Dave");
+
+        assertThat(summaryAs("dave")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.dailies[0].friendsSolved").isEqualTo(0);
+            assertThat(json).extractingPath("$.dailies[0].friendsFastest").isNull();
+        });
+    }
+
+    @Test
+    void theSummaryOfADateThatHasntBegunAnywhereIsNotFound() {
+        assertThat(mvc.get().uri("/api/puzzles/daily/{date}/summary", today.plusDays(3))).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void theSummaryIsNotCached() {
+        assertThat(summary()).headers().hasValue("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
+    }
 }

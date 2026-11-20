@@ -67,14 +67,22 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
     const { values: grid, mistakes: wrong, elapsedMs: activeMs } = latest.current;
     setRecorded({ status: 'saving' });
     void recordCompletion(started, { grid, mistakes: wrong, activeMs: Math.round(activeMs) }).then((done) => {
-      if (done?.elapsedMs != null) {
-        // The game's timer is the ranked time; the server's wall-clock time only when it has none.
-        const result = { elapsedMs: done.activeMs ?? done.elapsedMs, late: done.late };
-        saveResult(puzzle.id, result);
-        setRecorded({ status: 'recorded', ...result });
-      } else {
-        // Kept and sent later (or refused); either way there's no server time to show yet.
-        setRecorded({ status: 'unsent' });
+      switch (done.status) {
+        case 'recorded': {
+          // The game's timer is the ranked time; the server's wall-clock time only when it has none.
+          const { attempt: saved } = done;
+          const result = { elapsedMs: saved.activeMs ?? saved.elapsedMs ?? Math.round(activeMs), late: saved.late };
+          saveResult(puzzle.id, result);
+          setRecorded({ status: 'recorded', ...result });
+          break;
+        }
+        case 'queued':
+          // Kept and sent later: no server time to show yet.
+          setRecorded({ status: 'unsent' });
+          break;
+        default:
+          // Never started, or refused: nothing will reach the server, so don't promise it will.
+          setRecorded({ status: 'unrecorded', reason: done.status });
       }
     });
   }, [puzzle, ready, completed]);

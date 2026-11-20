@@ -1,17 +1,67 @@
 # Pidoku
 
+[![CI](https://github.com/noahheller/Pidoku/actions/workflows/ci.yml/badge.svg)](https://github.com/noahheller/Pidoku/actions/workflows/ci.yml)
+
+**Play it at [pidoku.web.app](https://pidoku.web.app).**
+
 Sudoku where every row, column and box holds the first nine digits of π (3 1 4 1 5 9 2 6 5)
 instead of 1–9. So **1 and 5 appear twice**, and **7 and 8 never appear**.
 
-Puzzles come from a custom engine that rates difficulty by the human solving techniques
-they require (naked/hidden subsets, intersection removal, X-Wing, W-Wing), not by clue count.
+Three new daily puzzles every day (easy, medium and hard), with streaks, a share line, friends and
+leaderboards, plus random puzzles at six difficulties. Puzzles come from a custom engine that
+rates difficulty by the human solving techniques they require (naked/hidden subsets,
+intersection removal, X-Wing, W-Wing), not by clue count.
+
+<p align="center">
+  <img src="docs/images/screenshot.png" alt="Pidoku on a phone: today's three dailies with who has solved them, and a game in progress with notes" width="640">
+</p>
+
+## How it works
+
+```mermaid
+flowchart LR
+    browser["Browser<br/>React app"] -->|"pages, /api/**"| hosting["Firebase Hosting<br/>+ CDN"]
+    browser -->|"anonymous or Google sign-in"| auth["Firebase Auth"]
+    hosting -->|"/api/** rewrite"| api["Cloud Run<br/>Spring Boot API"]
+    api --> db[("Neon Postgres")]
+    scheduler["Cloud Scheduler<br/>03:00 nightly"] --> job["Cloud Run Job<br/>generator profile"]
+    job -->|"dailies 31 days ahead,<br/>random pool"| db
+    api -.->|"checks ID tokens against<br/>Google's public keys"| auth
+```
+
+- **Puzzles are generated ahead of time.** A nightly job (the same image as the API, run with the
+  `generator` profile) fills the daily slots a month ahead and tops up the random pool, so no
+  request waits on generation (Expert and Fiendish take 4–11 s each).
+- **Dailies and share links come from the CDN.** A complete day's dailies, and any shared puzzle,
+  never change, so Firebase Hosting's CDN serves them (`s-maxage`) and most requests never reach
+  Cloud Run or Neon.
+- **Solves are checked on the server.** The API records each attempt's start, accepts a
+  completion only with the solved grid, and caps the game's own timer (which pauses while the
+  player is away) at the time it saw pass.
+- **Same origin, no keys.** The frontend calls relative `/api` URLs (no CORS), the API verifies
+  Firebase ID tokens as a plain OAuth2 resource server (no service-account credentials), and CI
+  deploys with Workload Identity Federation (no stored keys).
+
+## Engineering worth a look
+
+- **Difficulty by technique.** The engine solves each puzzle the way a person would, always taking
+  the easiest available step, and scores it from the hardest step, the sum of the hardest steps,
+  and Pelánek's dependency metric (how many cells are open at a time). Doubled digits get their own
+  handling: a unit needing two 5s with exactly two places left for them is a placement.
+- **A soundness property test.** `StrategySoundnessTest` runs every solving strategy against
+  thousands of random boards with known solutions and fails if any strategy places a wrong digit
+  or removes a correct candidate.
+- **Fast cold starts on scale-to-zero.** The image carries a JDK 25 AOT cache, recorded in a
+  training run at build time: the Spring context is ready in about 4 s instead of 8 s on one CPU.
+- **Integration tests against real Postgres.** Every migration and endpoint is tested with
+  Testcontainers; CI runs them on every pull request and deploys every merge to main.
 
 ## Modules
 
 | Module | Stack | What it does |
 |---|---|---|
 | `pidoku-engine` | Java 25 | Generator, backtracking solver, strategy-based human solver, difficulty profiles |
-| `pidoku-api` | Spring Boot 4, Postgres (Neon), Flyway | REST API for campaign, puzzle generation, progress |
+| `pidoku-api` | Spring Boot 4, Postgres (Neon), Flyway | REST API: daily and random puzzles, attempts, streaks, leaderboards, friends; and the generator job |
 | `pidoku-frontend` | React 19, TypeScript, Vite, Tailwind CSS 4, daisyUI 5 | The game |
 
 See [docs/ROADMAP.md](docs/ROADMAP.md) for design decisions and what's planned next.
@@ -37,10 +87,10 @@ cd pidoku-frontend && npm install && npm run dev
 cd pidoku-frontend && npm test  # frontend game-logic tests (Vitest)
 ```
 
-The frontend currently runs fully offline. It plays puzzles bundled from
-`pidoku-frontend/src/puzzles/*.json`, which are the `*-stats.json` files the engine's `Main` writes to
-`output/`. Copy a new one in as `NN-difficulty.json` and it appears in the list. You can also load any
-engine JSON file from the start screen. Progress is saved in localStorage.
+The frontend gets its puzzles from the API (the Vite dev server proxies `/api` to `:8080`). When
+the API can't be reached, it offers the puzzles bundled in `pidoku-frontend/src/puzzles/*.json`
+instead: the `*-stats.json` files the engine's `Main` writes to `output/`. Copy a new one in as
+`NN-difficulty.json` to try it. Game progress is saved in localStorage.
 
 The API reads its database settings from environment variables, or from a gitignored
 `pidoku-api/.env` file in `.properties` format:
@@ -185,12 +235,16 @@ endpoints the old API doesn't have.
 |---|---|
 | `GET /api/puzzles/random?difficulty=hard` | A random puzzle from the pool. Signed in, one the player hasn't started yet; once they've started them all, the one they started longest ago with `"repeat": true` |
 | `GET /api/puzzles/daily/{date}` | The daily puzzles (easy, medium and hard, easiest first) for a date such as `2026-11-17`. The frontend asks for the player's local date. Only dates that are today somewhere in the world are served; a complete day is cached by Firebase's CDN |
-| `GET /api/puzzles/{shareCode}` | The puzzle behind a share code (case-insensitive). The frontend opens it at `/p/{shareCode}` |
+| `GET /api/puzzles/{shareCode}` | The puzzle behind a share code (case-insensitive). The frontend opens it at `/p/{shareCode}`. Cached by the CDN |
+| `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard` | The fastest solves of one daily: each player's first solve, by the game's timer. `&clean=true` ranks only solves with no mistakes; `&friends=true` (🔒) only the player and their friends. Sign-in optional otherwise; with it, the player's own entry is marked |
+| `GET /api/puzzles/daily/{date}/summary` | For the home screen's cards: how many have solved each of the date's dailies and the fastest time. Signed in, also how many of the player's friends have and the fastest among them |
 | `GET /api/players/me` 🔒 | The signed-in player, created on first use |
 | `PATCH /api/players/me` 🔒 | `{"displayName": "Ada"}` → the player, renamed. Trimmed, whitespace collapsed, 1–40 characters, no control characters; 400 otherwise |
+| `GET /api/friends?today=2026-11-17` 🔒, `POST /api/friends`, `DELETE /api/friends/{id}` | The player's friends (with their current streaks), add one by friend code (both become friends), remove one |
+| `GET /api/friends/{id}?today=2026-11-17` 🔒 | One friend's streaks, dailies solved, clean rate, best times and last week of dailies. 404 unless you're friends |
 | `GET /api/players/me/streak?today=2026-11-17` 🔒 | `{"current": 3, "best": 5, "solvedToday": true}`: consecutive dates with a solved daily, as of the player's local date. 400 if that date isn't today anywhere |
 | `POST /api/attempts` 🔒 | `{"puzzleId": 12}` → the player's unfinished attempt at the puzzle, started now if there isn't one. With `"restart": true` its clock starts again from now |
-| `POST /api/attempts/{id}/complete` 🔒 | `{"grid": [...], "mistakes": 2, "activeMs": 251000}` → the attempt, completed, with the server-measured `elapsedMs`. Leaderboards rank `activeMs` (the game's timer, paused while the tab is hidden), or `elapsedMs` when a solve has none. A completion sent late adds `"lateByMs"`, which is taken off the time and marks it `late`. 422 if the grid isn't the solution |
+| `POST /api/attempts/{id}/complete` 🔒 | `{"grid": [...], "mistakes": 2, "activeMs": 251000}` → the attempt, completed, with the server-measured `elapsedMs`. Leaderboards rank `activeMs` (the game's timer, paused while the player is away; capped at `elapsedMs`), or `elapsedMs` when a solve has none. A completion sent late adds `"lateByMs"`, which is taken off the time and marks it `late`. 422 if the grid isn't the solution |
 | `GET /actuator/health` | Health check |
 | `GET /actuator/health/liveness` | Liveness only, no database check (the frontend's warm-up ping) |
 

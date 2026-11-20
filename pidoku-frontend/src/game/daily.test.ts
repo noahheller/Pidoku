@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dailyLabel, dailyNumber, LAUNCH_DATE, shareLine, shareUrl } from './daily';
+import { addDays, clampDate, dailyLabel, dailyNumber, LAUNCH_DATE, nextUnsolved, shareLine, shareUrl } from './daily';
 
 describe('dailyNumber', () => {
   it('is 1 on launch day and counts days from there', () => {
@@ -41,5 +41,47 @@ describe('dailyLabel', () => {
     expect(dailyLabel('2026-11-18')).toBe('Pidoku #2 · ');
     expect(dailyLabel('2026-11-17')).toBe('Pidoku #1 · ');
     expect(dailyLabel('2026-11-16')).toBe('');
+  });
+});
+
+describe('nextUnsolved', () => {
+  const dailies = [{ id: 'easy' }, { id: 'medium' }, { id: 'hard' }];
+  const solved = (...ids: string[]) => (id: string) => ids.includes(id);
+
+  it('suggests the next harder daily', () => {
+    expect(nextUnsolved(dailies, 'easy', solved('easy'))?.id).toBe('medium');
+  });
+
+  it('skips dailies already solved', () => {
+    expect(nextUnsolved(dailies, 'easy', solved('easy', 'medium'))?.id).toBe('hard');
+  });
+
+  it('wraps round to an easier one after the hardest', () => {
+    expect(nextUnsolved(dailies, 'hard', solved('hard', 'easy'))?.id).toBe('medium');
+  });
+
+  it('has nothing once every daily is solved', () => {
+    expect(nextUnsolved(dailies, 'medium', solved('easy', 'medium', 'hard'))).toBeNull();
+  });
+
+  it("never suggests the one just played, even before it's saved as solved", () => {
+    expect(nextUnsolved(dailies, 'easy', solved('medium', 'hard'))).toBeNull();
+  });
+});
+
+describe('addDays', () => {
+  it('moves across months, years and daylight saving changes', () => {
+    expect(addDays('2026-11-30', 1)).toBe('2026-12-01');
+    expect(addDays('2027-01-01', -1)).toBe('2026-12-31');
+    expect(addDays('2027-03-14', 1)).toBe('2027-03-15');
+    expect(addDays('2028-02-28', 1)).toBe('2028-02-29');
+  });
+});
+
+describe('clampDate', () => {
+  it('keeps a date within the range', () => {
+    expect(clampDate('2026-11-01', LAUNCH_DATE, '2026-11-20')).toBe(LAUNCH_DATE);
+    expect(clampDate('2026-12-25', LAUNCH_DATE, '2026-11-20')).toBe('2026-11-20');
+    expect(clampDate('2026-11-18', LAUNCH_DATE, '2026-11-20')).toBe('2026-11-18');
   });
 });
