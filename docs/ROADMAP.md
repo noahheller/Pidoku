@@ -511,6 +511,72 @@ real people took.
   puzzle with the new weights. Campaign levels keep their order and their puzzles even if
   their labels change; pool puzzles may move between difficulties.
 
+## Monetisation and analytics
+
+**Status: planned.** The goal is to break even, not to make a profit. The stack is cheap by
+design (Cloud Run scales to zero; Neon, Firebase Hosting and Auth have free tiers), so the main
+rule is: don't add costs, or ads, before they're needed.
+
+### Costs to watch
+| Cost | Expected | Grows when |
+|---|---|---|
+| Domain | ~$10–20 a year | Fixed |
+| Cloud Run (API and nightly generator) | Likely inside the free tier | Hundreds of daily players, or custom generation |
+| Neon Postgres | Free tier | `attempts` and the pool outgrow it |
+| Firebase Hosting and Auth | Free tier | Rarely at friend-group scale |
+
+- Set a Google Cloud budget alert (e.g. $5 a month) so a surprise bill shows up early.
+- Custom generation (milestone 7) is the one feature with real compute cost: Expert and
+  Fiendish take 4–11 seconds each. Reusing a stored puzzle that matches the settings (by
+  `strategy_uses`) keeps it down; also add a per-player rate limit.
+
+### Revenue by milestone
+- **Now to v1: nothing.** Ads would earn pennies at this scale and make the daily loop worse
+  for the friends it's meant for.
+- **v1: a tip jar.** A "Support Pidoku" link (Ko-fi, Buy Me a Coffee or GitHub Sponsors) on the
+  result screen or an about page. No payment code; a few supporters cover the domain and a
+  small bill.
+- **Milestone 6 (hints): never sell an advantage.** Hints are free, and paying never changes the
+  leaderboard. Hinted solves are marked or unranked (see the open item below).
+- **Milestone 7 (custom generation): supporter perk.** The feature that costs money is the one
+  supporters fund: e.g. everyone gets a few custom puzzles a day, supporters get more or get
+  Fiendish. Stripe or Ko-fi memberships, with a `supporter` flag on `players`.
+- **Milestone 8 (campaign), only if still needed:** the first chapter free and later packs a
+  small one-time purchase ($2–3), or one ad on the menu or result screen, never during play.
+  Ads (very roughly $1–5 per 1,000 page views) only pay with thousands of regular players and
+  bring a consent banner for EU and UK players and a privacy policy, so they're the last resort.
+
+### Analytics
+Two layers:
+1. **Gameplay data in our own Postgres.** `attempts` already records times, active time,
+   mistakes and hints. Add a small `events` table (player_id, type, puzzle_id, a JSONB detail,
+   created_at) for what `attempts` doesn't cover. This is also the input for calibration
+   (milestone 9).
+2. **A cookieless page-view counter** (Cloudflare Web Analytics, GoatCounter or self-hosted
+   Umami) for visits, referrers and devices. Cookieless means no consent banner; Google
+   Analytics is skipped because it needs one and answers fewer of our questions.
+
+Plus Sentry's free tier for frontend errors, and Cloud Run's logs for API errors and latency.
+
+What to collect, most useful first:
+
+| Question | Data | Source |
+|---|---|---|
+| Do people come back? | Daily active players; return after 1, 7 and 30 days; streak lengths | `attempts` |
+| Is each difficulty right? | Finish rate, median active time and mistakes per difficulty, against the engine score | `attempts` and `puzzles` |
+| Where do people quit? | Started but unfinished; cells filled when they stopped | `attempts` and an `abandoned` event |
+| Does sharing bring players? | Share taps; new players arriving from a share link | `events` and a `?ref=share` parameter |
+| Does sign-in work? | Share of anonymous players who link Google; friends added | `players` and `friendships` |
+| Which features get used? | Notes mode, hints, undo | `events`, sampled if it gets large |
+| Where does traffic come from? | Visits, referrers, device and screen size | Page-view counter |
+
+Rules:
+- Analytics rows carry `player_id` only, never emails or display names.
+- Don't log every keystroke; record an event only when it answers a question above.
+- Publish a short privacy page before Google sign-in goes live.
+- First steps: the budget alert and share-link tracking. They show whether monetising is
+  needed at all and whether the game is spreading.
+
 ## Showcase
 
 What someone looking at the repository for two minutes sees. Not a milestone; items marked v1

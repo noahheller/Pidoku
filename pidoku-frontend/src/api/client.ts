@@ -6,6 +6,16 @@ import { idToken } from './auth';
  * (firebase.json), and in development Vite proxies /api to the API on :8080 (vite.config.ts).
  */
 
+/**
+ * Pings the liveness check so a scaled-to-zero Cloud Run instance starts booting while the app
+ * loads and signs in, rather than on the player's first uncached request. Liveness doesn't query
+ * the database, so the ping alone never wakes Neon: it wakes in under a second on the first real
+ * request, while the JVM's cold start takes seconds. Fire and forget: failures don't matter.
+ */
+export function warmUpApi(): void {
+  fetch('/actuator/health/liveness', { cache: 'no-store' }).catch(() => {});
+}
+
 export const DIFFICULTIES = ['trivial', 'easy', 'medium', 'hard', 'expert', 'fiendish'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
