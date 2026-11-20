@@ -49,6 +49,27 @@ export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, url }: S
   return url ? `${line}\n${url}` : line;
 }
 
+/** The date `days` after a YYYY-MM-DD date (before it, for a negative number). */
+export function addDays(date: string, days: number): string {
+  // Worked out at UTC midnight, so daylight saving can't shift it a day.
+  return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Keeps a YYYY-MM-DD date between two others (string order is date order for this format). */
+export function clampDate(date: string, earliest: string, latest: string): string {
+  return date < earliest ? earliest : date > latest ? latest : date;
+}
+
+/**
+ * The daily to suggest after solving one: the next of the date's dailies (easiest first) that
+ * isn't solved yet, wrapping round to easier ones. Null once they're all solved.
+ */
+export function nextUnsolved<T extends { id: string }>(dailies: readonly T[], currentId: string, isSolved: (id: string) => boolean): T | null {
+  const i = dailies.findIndex((p) => p.id === currentId);
+  const after = i < 0 ? [...dailies] : [...dailies.slice(i + 1), ...dailies.slice(0, i)];
+  return after.find((p) => p.id !== currentId && !isSolved(p.id)) ?? null;
+}
+
 /** The share link for a puzzle from the API, on this site. */
 export function shareUrl(shareCode: string, origin: string = window.location.origin): string {
   return `${origin}/p/${shareCode}`;

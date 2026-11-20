@@ -3,7 +3,6 @@ import type { PuzzleDef } from './puzzleFile';
 
 const PROGRESS_PREFIX = 'pidoku:progress:';
 const CUSTOM_PUZZLES_KEY = 'pidoku:custom-puzzles';
-const SETTINGS_KEY = 'pidoku:settings';
 const PENDING_COMPLETIONS_KEY = 'pidoku:pending-completions';
 const RESULT_PREFIX = 'pidoku:result:';
 const STREAK_KEY = 'pidoku:streak';
@@ -11,12 +10,7 @@ const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
 const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
 const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
-
-export interface Settings {
-  showMistakes: boolean;
-}
-
-const DEFAULT_SETTINGS: Settings = { showMistakes: true };
+const HAS_ACCOUNT_KEY = 'pidoku:has-account';
 
 function read<T>(key: string): T | null {
   try {
@@ -110,6 +104,19 @@ export interface CachedStreak {
   asOf: string;
 }
 
+/**
+ * Whether this browser has signed in before, so it has an account worth sending a token for. Lets
+ * the home screen ask for friends' numbers without loading the Firebase SDK, or creating an
+ * account, for a first-time visitor. Players from before this flag existed have a cached streak.
+ */
+export function hasAccount(): boolean {
+  return read<boolean>(HAS_ACCOUNT_KEY) === true || loadStreak() !== null;
+}
+
+export function markHasAccount(): void {
+  write(HAS_ACCOUNT_KEY, true);
+}
+
 export function loadStreak(): CachedStreak | null {
   return read<CachedStreak>(STREAK_KEY);
 }
@@ -158,6 +165,16 @@ export function saveLeaderboardRanking(ranking: LeaderboardRanking): void {
   write(LEADERBOARD_RANKING_KEY, ranking);
 }
 
+/** Forgets everything Pidoku keeps in this browser: progress, results, puzzles, settings. */
+export function clearAllLocalData(): void {
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((k): k is string => k?.startsWith('pidoku:') ?? false);
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // Storage disabled: nothing was kept.
+  }
+}
+
 /**
  * Forgets what belongs to the player rather than to this browser, after switching to another
  * account: its streak, and whether it said no to picking a name.
@@ -170,12 +187,4 @@ export function clearPlayerCaches(): void {
       // Storage disabled: nothing was cached.
     }
   }
-}
-
-export function loadSettings(): Settings {
-  return { ...DEFAULT_SETTINGS, ...read<Partial<Settings>>(SETTINGS_KEY) };
-}
-
-export function saveSettings(settings: Settings): void {
-  write(SETTINGS_KEY, settings);
 }

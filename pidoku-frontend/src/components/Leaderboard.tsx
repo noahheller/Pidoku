@@ -25,7 +25,7 @@ interface LeaderboardViewProps {
 /**
  * One daily's leaderboard. Two switches, both remembered: whose times (everyone or friends), and
  * how they're ranked (fastest overall, mistakes or not, or clean: only solves with no mistakes).
- * Each player's first solve counts, timed by the server.
+ * Each player's first solve counts, timed by the game's clock (which pauses while they're away).
  */
 export function LeaderboardView({ date, difficulty, title }: LeaderboardViewProps) {
   const [scope, setScope] = useState<LeaderboardScope>(loadLeaderboardScope);
@@ -150,7 +150,7 @@ function Board({ board }: { board: Leaderboard }) {
       )}
       <Highlights board={board} />
       <p className="text-xs text-base-content/60">
-        {board.total} {board.total === 1 ? 'player has' : 'players have'} solved it{board.cleanOnly ? ' without a mistake' : ''}. Each player's first solve counts, timed by the server.
+        {board.total} {board.total === 1 ? 'player has' : 'players have'} solved it{board.cleanOnly ? ' without a mistake' : ''}. Each player's first solve counts. Times are time spent on the puzzle: the clock pauses while a player is away.
       </p>
       {board.friendsOnly && board.total === 1 && board.you && (
         <p className="text-sm text-base-content/60">

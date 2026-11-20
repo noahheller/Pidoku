@@ -1,13 +1,13 @@
-import { ArrowLeft, CalendarDays, CircleX, Info, Play, Timer, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleX, Info, Pause, Play, Timer, X } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { startAttempt, type Attempt } from '../api/client';
 import { recordCompletion } from '../api/completions';
 import { dailyNumber } from '../game/daily';
 import { countClues, formatDate, formatTime } from '../game/format';
-import { gameReducer, newGame, type GameAction } from '../game/game';
+import { gameReducer, newGame, toSaved, type GameAction } from '../game/game';
 import type { PuzzleDef } from '../game/puzzleFile';
 import {isPlayable, PI_DIGITS, type Rules} from '../game/rules';
-import { loadProgress, loadResult, loadSettings, saveProgress, saveResult, saveSettings } from '../game/storage';
+import { loadProgress, loadResult, saveProgress, saveResult } from '../game/storage';
 import { Board } from './Board';
 import { Controls } from './Controls';
 import { NumberPad } from './NumberPad';
@@ -24,7 +24,6 @@ interface GameProps {
 
 export function Game({ puzzle, replay = false, notice = null, onExit }: GameProps) {
   const [state, dispatch] = useReducer(gameReducer, puzzle, (p) => newGame(p, loadProgress(p.id)));
-  const [settings, setSettings] = useState(loadSettings);
   const { values, notes, mistakes, elapsedMs, completed, rules } = state;
   // A daily waits on its start screen until the player presses Start: its ranked time is the
   // server's wall-clock time, so the start has to be deliberate. Once started (there's saved
@@ -67,36 +66,86 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
     if (!started) return;
     const { values: grid, mistakes: wrong, elapsedMs: activeMs } = latest.current;
     setRecorded({ status: 'saving' });
-    void recordCompletion(started, { grid, mistakes: wrong, activeMs }).then((done) => {
-      if (done?.elapsedMs != null) {
-        // The game's timer is the ranked time; the server's wall-clock time only when it has none.
-        const result = { elapsedMs: done.activeMs ?? done.elapsedMs, late: done.late };
-        saveResult(puzzle.id, result);
-        setRecorded({ status: 'recorded', ...result });
-      } else {
-        // Kept and sent later (or refused); either way there's no server time to show yet.
-        setRecorded({ status: 'unsent' });
+    void recordCompletion(started, { grid, mistakes: wrong, activeMs: Math.round(activeMs) }).then((done) => {
+      switch (done.status) {
+        case 'recorded': {
+          // The game's timer is the ranked time; the server's wall-clock time only when it has none.
+          const { attempt: saved } = done;
+          const result = { elapsedMs: saved.activeMs ?? saved.elapsedMs ?? Math.round(activeMs), late: saved.late };
+          saveResult(puzzle.id, result);
+          setRecorded({ status: 'recorded', ...result });
+          break;
+        }
+        case 'queued':
+          // Kept and sent later: no server time to show yet.
+          setRecorded({ status: 'unsent' });
+          break;
+        default:
+          // Never started, or refused: nothing will reach the server, so don't promise it will.
+          setRecorded({ status: 'unrecorded', reason: done.status });
       }
     });
   }, [puzzle, ready, completed]);
 
-  // Restarting resets the timer on screen, so the server's clock for the attempt starts again too.
-  const { apiId } = puzzle;
-  const act = useCallback(
+
+  // The clock. Leaderboards rank this time, so it's measured with performance.now() rather than
+  // by counting interval ticks (browsers delay and throttle intervals, which made it run slow).
+  // It runs only while the board is on screen: hiding the tab or leaving the game (the back
+  // button, or any other navigation) pauses it, and it picks up from the saved time on return.
+  // clockFrom is when the time not yet added to elapsedMs began, or null while paused.
+  const clockFrom = useRef<number | null>(null);
+  const stateRef = useRef(state);
+  useEffect(() => {
+    stateRef.current = state;
+  });
+  /** Takes the time since clockFrom, restarting the count from now. */
+  const takeClock = useCallback(() => {
+    if (clockFrom.current === null) return 0;
+    const now = performance.now();
+    const ms = Math.max(0, now - clockFrom.current);
+    clockFrom.current = now;
+    return ms;
+  }, []);
+  const flushClock = useCallback(() => {
+    const ms = takeClock();
+    if (ms > 0) dispatch({ type: 'tick', ms });
+  }, [takeClock]);
+  const running = ready && !completed;
+  useEffect(() => {
+    if (!running) return;
+    const resume = () => {
+      clockFrom.current = document.visibilityState === 'visible' ? performance.now() : null;
+    };
+    const onVisibility = () => {
+      flushClock();
+      resume();
+    };
+    resume();
+    // Only refreshes the time shown; the time itself comes from performance.now().
+    const timer = setInterval(flushClock, 1000);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      const ms = takeClock();
+      clockFrom.current = null;
+      if (ms > 0 && !stateRef.current.completed) {
+        dispatch({ type: 'tick', ms });
+        // Leaving the game unmounts it before the save effect could run, so save the paused time here.
+        const current = stateRef.current;
+        saveProgress(puzzle.id, { ...toSaved(current), elapsedMs: current.elapsedMs + ms });
+      }
+    };
+  }, [running, flushClock, takeClock, puzzle.id]);
+
+  /** Every move first counts the time up to it, so a solve's time ends at the last digit. */
+  const play = useCallback(
     (action: GameAction) => {
-      if (action.type === 'restart' && apiId !== undefined) attempt.current = startAttempt(apiId, true).catch(() => null);
+      flushClock();
       dispatch(action);
     },
-    [apiId],
+    [flushClock],
   );
-
-  useEffect(() => {
-    if (completed || !ready) return;
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') dispatch({ type: 'tick', ms: 1000 });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [completed, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -105,25 +154,35 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
       const action = actionForKey(event, rules);
       if (action) {
         event.preventDefault();
-        dispatch(action);
+        play(action);
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [rules, ready]);
+  }, [rules, ready, play]);
 
   const onSelect = useCallback((index: number) => dispatch({ type: 'select', index }), []);
 
-  const toggleErrors = () => {
-    const next = { ...settings, showMistakes: !settings.showMistakes };
-    setSettings(next);
-    saveSettings(next);
-  };
+  // Restarting resets the timer on screen, so the server's clock for the attempt starts again too.
+  const { apiId } = puzzle;
+  const act = useCallback(
+    (action: GameAction) => {
+      if (action.type === 'restart' && apiId !== undefined) attempt.current = startAttempt(apiId, true).catch(() => null);
+      play(action);
+    },
+    [apiId, play],
+  );
 
   return (
     <main className="mx-auto grid max-w-[1040px] gap-3 px-2 pt-2 pb-6 sm:gap-4 sm:px-4 sm:pt-4 sm:pb-8">
       <header className="flex flex-wrap items-center gap-4">
-        <button type="button" className="btn btn-ghost btn-sm text-primary" onClick={onExit}>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm text-primary"
+          onClick={onExit}
+          title={running ? 'Back to puzzles. Your clock pauses until you come back.' : 'Back to puzzles'}
+          aria-label={running ? 'Back to puzzles, pausing your clock' : 'Back to puzzles'}
+        >
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
         </button>
         <h1 className="flex flex-1 items-center gap-2 text-xl font-bold sm:text-2xl">
@@ -149,10 +208,15 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
       {completed && <Result puzzle={puzzle} elapsedMs={elapsedMs} mistakes={mistakes} recorded={recorded} onExit={onExit} />}
 
       {ready && <div className="flex flex-wrap items-start justify-center gap-6">
-        <Board state={state} showErrors={settings.showMistakes} onSelect={onSelect} />
+        <Board state={state} onSelect={onSelect} />
         <div className="grid w-full gap-4 sm:w-[min(100%,360px)]">
-          <NumberPad state={state} dispatch={dispatch} />
-          <Controls state={state} dispatch={act} showErrors={settings.showMistakes} onToggleErrors={toggleErrors} />
+          <NumberPad state={state} dispatch={play} />
+          <Controls state={state} dispatch={act} />
+          {running && (
+            <p className="flex items-center gap-1.5 text-sm text-base-content/60">
+              <Pause className="size-4 shrink-0" aria-hidden="true" /> Going back to Puzzles or switching away pauses your clock.
+            </p>
+          )}
           <RulesHint rules={rules} />
         </div>
       </div>}
@@ -267,7 +331,8 @@ function StartScreen({ puzzle, onStart }: { puzzle: PuzzleDef; onStart: () => vo
         </h2>
         <p className="text-sm text-base-content/60">{countClues(puzzle.givens)} clues</p>
         <p className="text-base-content/80">
-          The clock starts when you press Start and keeps running until you solve it, even if you leave the page.
+          The clock starts when you press Start. It runs while the puzzle is on screen and pauses when you go back to
+          Puzzles or switch to another tab, then carries on when you return.
         </p>
         <button type="button" className="btn btn-primary btn-lg w-full" onClick={onStart} autoFocus>
           <Play className="size-5" aria-hidden="true" /> Start

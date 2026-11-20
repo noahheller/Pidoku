@@ -1,16 +1,20 @@
 package dev.noahheller.pidoku.pidokuapi.leaderboard;
 
+import dev.noahheller.pidoku.pidokuapi.daily.DailyProperties;
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzle;
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
 import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
+import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleNotFoundException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -35,10 +39,99 @@ public class LeaderboardService {
 
     private final JdbcClient jdbc;
     private final DailyPuzzleService dailyPuzzleService;
+    private final List<Difficulty> dailyDifficulties;
 
-    public LeaderboardService(JdbcClient jdbc, DailyPuzzleService dailyPuzzleService) {
+    public LeaderboardService(JdbcClient jdbc, DailyPuzzleService dailyPuzzleService, DailyProperties dailyProperties) {
         this.jdbc = jdbc;
         this.dailyPuzzleService = dailyPuzzleService;
+        this.dailyDifficulties = dailyProperties.difficulties();
+    }
+
+    /**
+     * How many have solved each of a date's dailies and the fastest times, overall and among the
+     * viewer's friends: one query for all of them. Counted like {@link #forDaily}: each player's
+     * first solve, by the game's timer, leaving out solves started before the date began anywhere.
+     *
+     * @param viewer the signed-in player, for the friends' numbers; empty when signed out
+     * @throws PuzzleNotFoundException if the date hasn't begun anywhere
+     */
+    @Transactional(readOnly = true)
+    public DailySummary summary(LocalDate date, Optional<Player> viewer) {
+        if (!dailyPuzzleService.hasBegunSomewhere(date)) {
+            throw new PuzzleNotFoundException("There are no daily puzzles for " + date + " yet.");
+        }
+        long viewerId = viewer.map(Player::getId).orElse(-1L);
+        List<SummaryRow> rows = jdbc.sql("""
+                        WITH dailies AS (
+                            SELECT difficulty, puzzle_id FROM daily_puzzles WHERE puzzle_date = :date
+                        ),
+                        firsts AS (
+                            SELECT DISTINCT ON (a.puzzle_id, a.player_id)
+                                   a.puzzle_id, a.player_id, a.started_at, a.completed_at,
+                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms
+                            FROM attempts a
+                            JOIN dailies d ON d.puzzle_id = a.puzzle_id
+                            WHERE a.completed_at IS NOT NULL
+                            ORDER BY a.puzzle_id, a.player_id, a.completed_at, a.id
+                        ),
+                        solves AS (
+                            SELECT f.puzzle_id, f.player_id, f.elapsed_ms, f.completed_at, p.display_name,
+                                   f.player_id = :viewerId AS you,
+                                   f.player_id IN (SELECT friend_id FROM friendships WHERE player_id = :viewerId) AS friend
+                            FROM firsts f
+                            JOIN players p ON p.id = f.player_id
+                            WHERE f.started_at >= :opensAt
+                        ),
+                        fastest AS (
+                            SELECT DISTINCT ON (puzzle_id) puzzle_id, display_name, elapsed_ms, you
+                            FROM solves
+                            ORDER BY puzzle_id, elapsed_ms, completed_at, player_id
+                        ),
+                        friends_fastest AS (
+                            SELECT DISTINCT ON (puzzle_id) puzzle_id, display_name, elapsed_ms, you
+                            FROM solves
+                            WHERE you OR friend
+                            ORDER BY puzzle_id, elapsed_ms, completed_at, player_id
+                        )
+                        SELECT d.difficulty,
+                               (SELECT COUNT(*) FROM solves s WHERE s.puzzle_id = d.puzzle_id) AS solved,
+                               (SELECT COUNT(*) FROM solves s WHERE s.puzzle_id = d.puzzle_id AND s.friend) AS friends_solved,
+                               f.display_name AS fastest_name, f.elapsed_ms AS fastest_ms, f.you AS fastest_you,
+                               ff.display_name AS friends_fastest_name, ff.elapsed_ms AS friends_fastest_ms,
+                               ff.you AS friends_fastest_you
+                        FROM dailies d
+                        LEFT JOIN fastest f ON f.puzzle_id = d.puzzle_id
+                        LEFT JOIN friends_fastest ff ON ff.puzzle_id = d.puzzle_id
+                        """)
+                .param("date", date)
+                .param("opensAt", OffsetDateTime.ofInstant(DailyPuzzleService.opensAt(date), ZoneOffset.UTC))
+                .param("viewerId", viewerId)
+                .query(SummaryRow.class)
+                .list();
+
+        boolean signedIn = viewer.isPresent();
+        List<DailySummary.Daily> dailies = rows.stream()
+                .map(row -> row.toDaily(signedIn))
+                // Only today's daily difficulties: a date can still hold one since dropped from config (V7).
+                .filter(daily -> dailyDifficulties.contains(daily.difficulty()))
+                .sorted(Comparator.comparing(DailySummary.Daily::difficulty))
+                .toList();
+        return new DailySummary(date, dailies);
+    }
+
+    /** One daily's row of the summary query. */
+    record SummaryRow(String difficulty, long solved, long friendsSolved,
+                      String fastestName, Long fastestMs, Boolean fastestYou,
+                      String friendsFastestName, Long friendsFastestMs, Boolean friendsFastestYou) {
+
+        DailySummary.Daily toDaily(boolean signedIn) {
+            DailySummary.Time fastest = fastestMs == null ? null
+                    : new DailySummary.Time(fastestName, fastestMs, Boolean.TRUE.equals(fastestYou));
+            DailySummary.Time friendsFastest = !signedIn || friendsFastestMs == null ? null
+                    : new DailySummary.Time(friendsFastestName, friendsFastestMs, Boolean.TRUE.equals(friendsFastestYou));
+            return new DailySummary.Daily(Difficulty.valueOf(difficulty), (int) solved, fastest,
+                    signedIn ? (int) friendsSolved : null, friendsFastest);
+        }
     }
 
     /**

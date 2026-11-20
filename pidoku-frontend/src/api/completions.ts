@@ -23,24 +23,33 @@ export interface Solve {
   activeMs: number;
 }
 
-/**
- * Completes the attempt `started` resolves to, with the solved grid. Does nothing if the attempt
- * never started (null): then the server has no start time to measure from.
- *
- * @returns the completed attempt, with the server's time; null if it couldn't be sent now (it's
- *          kept and sent later), was refused, or never started
- */
-export async function recordCompletion(started: Promise<Attempt | null>, solve: Solve, now: () => number = Date.now): Promise<Attempt | null> {
+/** What became of a solve: only a queued one will still reach the server. */
+export type CompletionResult =
+  /** The API has it: the completed attempt, with the server's time. */
+  | { status: 'recorded'; attempt: Attempt }
+  /** Couldn't be sent now (offline, the API down, sign-in failing): kept and sent later. */
+  | { status: 'queued' }
+  /** Refused for good (an unknown attempt, a grid that isn't the solution): never recorded. */
+  | { status: 'rejected' }
+  /**
+   * The attempt never started (offline or not signed in when the puzzle was opened), so the server
+   * has no start time to measure from and there's nothing to send, now or later.
+   */
+  | { status: 'not-started' };
+
+/** Completes the attempt `started` resolves to, with the solved grid. */
+export async function recordCompletion(started: Promise<Attempt | null>, solve: Solve, now: () => number = Date.now): Promise<CompletionResult> {
   const solvedAt = now();
   const attempt = await started;
-  if (!attempt) return null;
+  if (!attempt) return { status: 'not-started' };
   const completion: PendingCompletion = { attemptId: attempt.id, ...solve, solvedAt };
   const result = await send(completion);
   if (result === 'retry') {
     const others = loadPendingCompletions().filter((p) => p.attemptId !== completion.attemptId);
     savePendingCompletions([...others, completion].slice(-MAX_PENDING));
+    return { status: 'queued' };
   }
-  return typeof result === 'object' ? result : null;
+  return result === 'rejected' ? { status: 'rejected' } : { status: 'recorded', attempt: result };
 }
 
 let sending = false;

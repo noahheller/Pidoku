@@ -74,6 +74,38 @@ describe('gameReducer', () => {
     expect(s.notes[5] & (1 << 1)).toBe(0);
   });
 
+  it('prunes peer notes only when the placed digit is correct', () => {
+    // Blank board with a known solution; use a row-0 cell whose answer appears once per unit.
+    const blank: PuzzleDef = { ...easy, id: 'blank-solved', givens: new Array(81).fill(0) };
+    const k = [0, 1, 2, 3, 4, 5, 6, 7, 8].find((c) => ![1, 5].includes(blank.solution![c]))!;
+    const peer = k === 0 ? 8 : 0;
+    const right = blank.solution![k];
+    const wrong = [2, 3, 4, 6, 9].find((d) => d !== right)!;
+    const noted = play(newGame(blank), { type: 'select', index: peer }, { type: 'input', digit: right, asNote: true }, { type: 'input', digit: wrong, asNote: true });
+
+    const afterWrong = play(noted, { type: 'select', index: k }, { type: 'input', digit: wrong });
+    expect(afterWrong.notes[peer] & (1 << wrong)).not.toBe(0);
+
+    const afterRight = play(noted, { type: 'select', index: k }, { type: 'input', digit: right });
+    expect(afterRight.notes[peer] & (1 << right)).toBe(0);
+  });
+
+  it('keeps a cell\'s notes under a wrong digit and brings them back when it is removed', () => {
+    const noted = play(newGame(easy), { type: 'select', index: firstEmpty }, { type: 'input', digit: wrongDigit, asNote: true }, { type: 'input', digit: answer, asNote: true });
+    const kept = noted.notes[firstEmpty];
+
+    const wrong = play(noted, { type: 'input', digit: wrongDigit });
+    expect(wrong.notes[firstEmpty]).toBe(kept);
+
+    const erased = play(wrong, { type: 'erase' });
+    expect(erased.values[firstEmpty]).toBe(0);
+    expect(erased.notes[firstEmpty]).toBe(kept);
+    expect(play(erased, { type: 'erase' }).notes[firstEmpty]).toBe(0);
+
+    expect(play(wrong, { type: 'input', digit: wrongDigit }).notes[firstEmpty]).toBe(kept);
+    expect(play(wrong, { type: 'input', digit: answer }).notes[firstEmpty]).toBe(0);
+  });
+
   it('undoes and redoes', () => {
     const start = play(newGame(easy), { type: 'select', index: firstEmpty });
     const placed = play(start, { type: 'input', digit: answer });

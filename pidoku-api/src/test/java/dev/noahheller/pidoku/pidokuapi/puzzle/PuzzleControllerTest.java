@@ -219,5 +219,20 @@ class PuzzleControllerTest extends IntegrationTest {
                     .bodyJson()
                     .extractingPath("$.detail").asString().contains("ZZZZZZZZ");
         }
+
+        @Test
+        void theCdnKeepsAPuzzleButBrowsersDont() {
+            Puzzle stored = store(Difficulty.MEDIUM, PuzzleSource.POOL);
+
+            assertThat(mvc.get().uri("/api/puzzles/{code}", stored.getShareCode()))
+                    .headers().hasValue("Cache-Control", "max-age=0, public, s-maxage=604800");
+        }
+
+        @Test
+        void anUnknownCodeIsntCached() {
+            // A puzzle stored later could be given this code.
+            assertThat(mvc.get().uri("/api/puzzles/ZZZZZZZZ"))
+                    .headers().hasValue("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
+        }
     }
 }

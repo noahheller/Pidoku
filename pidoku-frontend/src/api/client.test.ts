@@ -1,11 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { idToken } from './auth';
-import { addFriend, ApiError, fetchFriendProfile, completeAttempt, fetchDaily, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { existingIdToken, idToken } from './auth';
+import { addFriend, ApiError, deletePlayer, fetchFriendProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
-vi.mock('./auth', () => ({ idToken: vi.fn() }));
+vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
 const signIn = (token: string | null) => vi.mocked(idToken).mockResolvedValue(token);
-beforeEach(() => signIn(null));
+/** An account this browser already has (existingIdToken never signs anyone in). */
+const hasAccount = (token: string | null) => vi.mocked(existingIdToken).mockResolvedValue(token);
+beforeEach(() => {
+  signIn(null);
+  hasAccount(null);
+});
 
 const apiPuzzle = (overrides: Partial<ApiPuzzle> = {}): ApiPuzzle => ({
   id: 5,
@@ -182,6 +187,45 @@ describe('attempts', () => {
   });
 });
 
+describe('fetchDailyOn', () => {
+  it("asks for that date's dailies", async () => {
+    const fetchMock = respond(200, { date: '2026-11-15', puzzles: [apiPuzzle()] });
+    const daily = await fetchDailyOn('2026-11-15');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/daily/2026-11-15');
+    expect(daily.puzzles[0].dailyDate).toBe('2026-11-15');
+  });
+});
+
+describe('fetchDailySummary', () => {
+  const dailies = [{ difficulty: 'easy', solved: 3, fastest: { displayName: 'Ada', elapsedMs: 90000, you: false }, friendsSolved: null, friendsFastest: null }];
+
+  it("asks for the date's numbers without signing anyone in", async () => {
+    signIn('would-create-an-account');
+    const fetchMock = respond(200, { date: '2026-11-17', dailies });
+    await expect(fetchDailySummary('2026-11-17')).resolves.toEqual(dailies);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/daily/2026-11-17/summary');
+    expect(fetchMock.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
+    expect(idToken).not.toHaveBeenCalled();
+  });
+
+  it('sends the token of an account this browser already has, for friends', async () => {
+    hasAccount('token-1');
+    const fetchMock = respond(200, { date: '2026-11-17', dailies });
+    await fetchDailySummary('2026-11-17');
+    expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer token-1' });
+  });
+
+  it("gets everyone's numbers without the token if the API refuses it", async () => {
+    hasAccount('expired');
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('', { status: 401 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ date: '2026-11-17', dailies }), { status: 200 }));
+    await expect(fetchDailySummary('2026-11-17')).resolves.toEqual(dailies);
+    expect(fetchMock.mock.calls[1][1]?.headers).not.toHaveProperty('Authorization');
+  });
+});
+
 describe('fetchLeaderboard', () => {
   const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, firstToFinish: null, fastestClean: null };
 
@@ -252,5 +296,12 @@ describe('friends', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
     await expect(removeFriend(3)).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith('/api/friends/3', expect.objectContaining({ method: 'DELETE' }));
+  });
+
+  it("deletes the signed-in player's data", async () => {
+    signIn('token-1');
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(deletePlayer()).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith('/api/players/me', expect.objectContaining({ method: 'DELETE' }));
   });
 });
