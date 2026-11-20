@@ -22,6 +22,12 @@ class SecurityConfigTest extends IntegrationTest {
     }
 
     @Test
+    void livenessCheckIsPublic() {
+        // The frontend's warm-up ping (warmUpApi), which must not need a token.
+        assertThat(mvc.get().uri("/actuator/health/liveness")).hasStatusOk();
+    }
+
+    @Test
     void puzzleReadsArePublic() {
         // 503 because the pool is empty, but it got past security.
         assertThat(mvc.get().uri("/api/puzzles/random?difficulty=easy")).hasStatus(HttpStatus.SERVICE_UNAVAILABLE);

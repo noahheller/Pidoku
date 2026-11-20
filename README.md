@@ -191,6 +191,7 @@ endpoints the old API doesn't have.
 | `POST /api/attempts` 🔒 | `{"puzzleId": 12}` → the player's unfinished attempt at the puzzle, started now if there isn't one. With `"restart": true` its clock starts again from now |
 | `POST /api/attempts/{id}/complete` 🔒 | `{"grid": [...], "mistakes": 2, "activeMs": 251000}` → the attempt, completed, with the server-measured `elapsedMs`. Leaderboards rank `activeMs` (the game's timer, paused while the tab is hidden), or `elapsedMs` when a solve has none. A completion sent late adds `"lateByMs"`, which is taken off the time and marks it `late`. 422 if the grid isn't the solution |
 | `GET /actuator/health` | Health check |
+| `GET /actuator/health/liveness` | Liveness only, no database check (the frontend's warm-up ping) |
 
 🔒 needs `Authorization: Bearer <Firebase ID token>`; without one it's a 401. See [Sign-in](#sign-in).
 
