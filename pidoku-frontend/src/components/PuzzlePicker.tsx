@@ -1,13 +1,15 @@
-import { CircleAlert, CircleCheck, ClipboardPaste, FileBraces, Flame, RotateCw, Shuffle, Trophy, Upload, Users, X } from 'lucide-react';
+import { CircleAlert, Flame, Puzzle, RotateCw, Shuffle, Trophy, Users, X, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { DIFFICULTIES, fetchStreak, localDate, type Difficulty } from '../api/client';
+import { DIFFICULTIES, fetchDailySummary, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
 import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
-import { countClues, formatDate, formatTime } from '../game/format';
-import { parsePuzzleJson, PuzzleFormatError, type PuzzleDef } from '../game/puzzleFile';
+import { cardStats } from '../game/dailyStats';
+import { formatDate, formatTime } from '../game/format';
+import type { PuzzleDef } from '../game/puzzleFile';
 import { PI_DIGITS } from '../game/rules';
 import { clearProgress, clearResult, loadProgress, loadStreak, saveStreak, type CachedStreak } from '../game/storage';
+import { strategyName } from '../game/strategies';
 
 /** How to open a puzzle (see App's routes). */
 export interface PlayOptions {
@@ -27,6 +29,7 @@ interface PuzzlePickerProps {
 
 export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCustom }: PuzzlePickerProps) {
   const daily = useDaily();
+  const summary = useDailySummary(daily.state.status === 'loaded' ? daily.state.daily.date : null);
 
   return (
     <main className="mx-auto grid max-w-3xl gap-8 px-4 pt-8 pb-16">
@@ -40,7 +43,7 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
           </Link>
         </div>
         <DigitRow />
-        <p className="text-base-content/60">Sudoku with the digits of pi. Play today's puzzles and race your friends, try a random one, or load your own.</p>
+        <p className="text-base-content/60">Sudoku with the digits of pi. Play today's puzzles and race your friends, or try a random one.</p>
       </header>
 
       <section aria-labelledby="today-title">
@@ -59,7 +62,7 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
           <StreakBadge />
         </div>
         {daily.state.status === 'loading' && <PuzzleListSkeleton count={3} />}
-        {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.daily.puzzles} onPlay={onPlay} />}
+        {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.daily.puzzles} onPlay={onPlay} summary={summary} />}
         {daily.state.status === 'failed' && (
           <div role="alert" className="alert alert-soft alert-warning">
             <CircleAlert className="size-5" aria-hidden="true" />
@@ -97,12 +100,6 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
         </section>
       )}
 
-      <LoadPuzzle
-        onLoaded={(puzzles) => {
-          onAddCustom(puzzles);
-          if (puzzles.length === 1) onPlay(puzzles[0]);
-        }}
-      />
     </main>
   );
 }
@@ -138,7 +135,35 @@ function DigitRow() {
   );
 }
 
-function PuzzleList({ puzzles, onPlay, onRemove }: { puzzles: PuzzleDef[]; onPlay: (p: PuzzleDef) => void; onRemove?: (id: string) => void }) {
+/** What's known about today's dailies' solves: loading, by difficulty, or nothing (it failed). */
+type Summary = { status: 'loading' } | { status: 'loaded'; byDifficulty: Map<string, DailyStats> } | { status: 'failed' };
+
+/** How many have solved each of the date's dailies and the fastest times, for the cards. */
+function useDailySummary(date: string | null): Summary {
+  const [summary, setSummary] = useState<Summary & { date?: string }>({ status: 'loading' });
+  useEffect(() => {
+    if (!date) return;
+    const controller = new AbortController();
+    fetchDailySummary(date, controller.signal)
+      .then((dailies) => setSummary({ status: 'loaded', date, byDifficulty: new Map(dailies.map((d) => [d.difficulty, d])) }))
+      .catch(() => {
+        // The cards work without their numbers; leave them off.
+        if (!controller.signal.aborted) setSummary({ status: 'failed', date });
+      });
+    return () => controller.abort();
+  }, [date]);
+  return summary.date === date ? summary : { status: 'loading' };
+}
+
+interface PuzzleListProps {
+  puzzles: PuzzleDef[];
+  onPlay: (p: PuzzleDef) => void;
+  onRemove?: (id: string) => void;
+  /** For dailies: who has solved each one. */
+  summary?: Summary;
+}
+
+function PuzzleList({ puzzles, onPlay, onRemove, summary }: PuzzleListProps) {
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
       {puzzles.map((puzzle) => (
@@ -149,10 +174,8 @@ function PuzzleList({ puzzles, onPlay, onRemove }: { puzzles: PuzzleDef[]; onPla
             onClick={() => onPlay(puzzle)}
           >
             <span className="text-lg font-semibold">{puzzle.name}</span>
-            <span className="text-sm text-base-content/60">
-              {countClues(puzzle.givens)} clues
-              {puzzle.score !== null && `. Difficulty score ${puzzle.score}`}
-            </span>
+            <Technique strategy={puzzle.hardestStrategy} />
+            {summary && <SolvedBy summary={summary} difficulty={puzzle.difficulty} />}
             <ProgressBadge id={puzzle.id} />
           </button>
           {onRemove && (
@@ -163,6 +186,43 @@ function PuzzleList({ puzzles, onPlay, onRemove }: { puzzles: PuzzleDef[]; onPla
         </li>
       ))}
     </ul>
+  );
+}
+
+/** The hardest technique the engine needed, e.g. "Hardest step: Hidden pair". */
+function Technique({ strategy }: { strategy: string | null }) {
+  const name = strategyName(strategy);
+  if (!name) return null;
+  return (
+    <span className="flex items-center gap-1.5 text-sm text-base-content/70">
+      <Puzzle className="size-3.5 shrink-0" aria-hidden="true" />
+      <span>
+        Hardest step: <span className="font-medium text-base-content">{name}</span>
+      </span>
+    </span>
+  );
+}
+
+/** "3 friends solved · Fastest Alex 3:12", or everyone's numbers when no friend has solved it. */
+function SolvedBy({ summary, difficulty }: { summary: Summary; difficulty: string | null }) {
+  if (summary.status === 'loading') return <span className="skeleton h-4 w-44" aria-hidden="true" />;
+  const stats = summary.status === 'loaded' && difficulty ? summary.byDifficulty.get(difficulty.toLowerCase()) : undefined;
+  if (!stats) return null;
+  const { solved, fastest } = cardStats(stats);
+  return (
+    <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-base-content/70">
+      <span className="flex items-center gap-1.5">
+        <Users className="size-3.5 shrink-0" aria-hidden="true" /> {solved}
+      </span>
+      {fastest && (
+        <span className="flex items-center gap-1">
+          <Zap className="size-3.5 shrink-0 fill-warning text-warning" aria-hidden="true" />
+          <span className="sr-only">Fastest:</span>
+          <span className="max-w-32 truncate">{fastest.name}</span>
+          <span className="font-semibold tabular-nums text-base-content">{fastest.time}</span>
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -274,170 +334,4 @@ function ProgressBadge({ id }: { id: string }) {
   if (!progress) return <span className="text-xs font-semibold text-base-content/60">New</span>;
   if (progress.completed) return <span className="text-xs font-semibold text-success">Solved · {formatTime(progress.elapsedMs)}</span>;
   return <span className="text-xs font-semibold text-primary">In progress · {formatTime(progress.elapsedMs)}</span>;
-}
-
-function LoadPuzzle({ onLoaded }: { onLoaded: (puzzles: PuzzleDef[]) => void }) {
-  const [text, setText] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [dragging, setDragging] = useState(false);
-
-  const parse = (source: string, name: string): PuzzleDef => {
-    let json: unknown;
-    try {
-      json = JSON.parse(source);
-    } catch {
-      throw new PuzzleFormatError(`${name} isn't valid JSON.`);
-    }
-    return parsePuzzleJson(json, { name });
-  };
-
-  const handle = (load: () => PuzzleDef[] | Promise<PuzzleDef[]>) => {
-    setNotice(null);
-    Promise.resolve()
-      .then(load)
-      .then((puzzles) => {
-        setError(null);
-        setText('');
-        // A single puzzle opens straight away; several are added to "Your puzzles".
-        if (puzzles.length > 1) setNotice(`Added ${puzzles.length} puzzles to Your puzzles.`);
-        onLoaded(puzzles);
-      })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  };
-
-  const onFiles = (fileList: FileList | null) => {
-    // Copy now: a FileList is live and empties when the input is reset after onChange.
-    const files = Array.from(fileList ?? []);
-    if (files.length === 0) return;
-    handle(() =>
-      Promise.all(
-        files.map(async (file) => {
-          const base = file.name.replace(/\.json$/i, '').replace(/^Pidoku-\d+-/, '').replace(/-stats$/, '');
-          const name = base.charAt(0).toUpperCase() + base.slice(1);
-          try {
-            return parse(await file.text(), name);
-          } catch (e) {
-            throw new PuzzleFormatError(`${file.name}: ${e instanceof Error ? e.message : String(e)}`);
-          }
-        }),
-      ),
-    );
-  };
-
-  const loadPasted = () => {
-    if (text.trim()) handle(() => [parse(text, 'Pasted puzzle')]);
-  };
-
-  return (
-    <section className="card border border-base-300 bg-base-100 shadow-sm" aria-labelledby="load-puzzle-title">
-      <div className="card-body gap-5 p-5 sm:p-6">
-        <header className="flex items-start gap-3">
-          <div className="grid size-10 shrink-0 place-items-center rounded-field bg-primary/10 text-primary">
-            <FileBraces className="size-5" aria-hidden="true" />
-          </div>
-          <div>
-            <h2 id="load-puzzle-title" className="text-lg leading-tight font-semibold">
-              Load a puzzle
-            </h2>
-            <p className="mt-0.5 text-sm text-base-content/60">Play a board straight from the engine, or one a friend sent you.</p>
-          </div>
-        </header>
-        <label
-          className={[
-            'flex cursor-pointer flex-col items-center gap-2 rounded-box border-2 border-dashed px-4 py-8 text-center transition-colors',
-            'focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-primary',
-            dragging ? 'border-primary bg-primary/10' : 'border-base-content/20 hover:border-primary hover:bg-primary/5',
-          ].join(' ')}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            setDragging(true);
-          }}
-          onDragOver={(e) => e.preventDefault()}
-          onDragLeave={(e) => {
-            // Ignore leave events fired when moving between the label's own children.
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDragging(false);
-            onFiles(e.dataTransfer.files);
-          }}
-        >
-          <span className={`grid size-12 place-items-center rounded-full transition-colors ${dragging ? 'bg-primary text-primary-content' : 'bg-base-200 text-primary'}`}>
-            <Upload className="size-6" aria-hidden="true" />
-          </span>
-          <span className="font-medium">
-            {dragging ? 'Drop to load' : (
-              <>
-                Drop JSON files here or <span className="text-primary underline underline-offset-2">browse</span>
-              </>
-            )}
-          </span>
-          <span className="text-xs text-base-content/60">
-            Engine <code>*-stats.json</code> files work as-is. You can add several at once.
-          </span>
-          <input
-            type="file"
-            className="sr-only"
-            accept=".json,application/json"
-            multiple
-            onChange={(e) => {
-              onFiles(e.target.files);
-              // Reset so choosing the same file again still fires onChange.
-              e.target.value = '';
-            }}
-          />
-        </label>
-
-        <div className="divider my-0 text-xs text-base-content/50">or paste JSON</div>
-
-        <div className="grid gap-3">
-          <textarea
-            className="textarea w-full font-mono text-sm leading-relaxed"
-            aria-label="Puzzle JSON"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                loadPasted();
-              }
-            }}
-            placeholder={'{\n  "puzzle":   [[0, 0, 4, …], …],\n  "solution": [[3, 1, 4, …], …]\n}'}
-            rows={5}
-            spellCheck={false}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-base-content/60">
-              Needs a <code>"puzzle"</code> grid (0 = empty). Add a <code>"solution"</code> to track mistakes.
-            </p>
-            <div className="ml-auto flex gap-2">
-              {text && (
-                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setText('')}>
-                  Clear
-                </button>
-              )}
-              <button type="button" className="btn btn-primary btn-sm" disabled={!text.trim()} onClick={loadPasted} title="Load pasted JSON (Ctrl+Enter)">
-                <ClipboardPaste className="size-4" aria-hidden="true" /> Load puzzle
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {error && (
-          <div className="alert alert-error alert-soft" role="alert">
-            <CircleAlert className="size-5 shrink-0" aria-hidden="true" />
-            <span>{error}</span>
-          </div>
-        )}
-        {notice && (
-          <div className="alert alert-success alert-soft" role="status">
-            <CircleCheck className="size-5 shrink-0" aria-hidden="true" />
-            <span>{notice}</span>
-          </div>
-        )}
-      </div>
-    </section>
-  );
 }

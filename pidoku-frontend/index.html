@@ -1,7 +1,8 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" name="google-site-verification" content="NtJqZMO8pCrLE7jGJyxSH9kuWsrI9K6IHOTCx3psfD4" />
+    <meta charset="UTF-8" />
+    <meta name="google-site-verification" content="NtJqZMO8pCrLE7jGJyxSH9kuWsrI9K6IHOTCx3psfD4" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -13,6 +14,21 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Pidoku</title>
     <meta name="description" content="Sudoku with the digits of pi" />
+    <!--
+      Link previews (iMessage, WhatsApp, Discord, Slack, ...). Every path serves this file, so share
+      links (/p/...) and invite links (/f/...) all get this card. There's deliberately no og:url:
+      Facebook would send every preview to that one URL instead of the shared puzzle.
+      og:image has to be an absolute URL.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Pidoku" />
+    <meta property="og:title" content="Pidoku: Sudoku with the digits of π" />
+    <meta property="og:description" content="Every row, column and box holds 3 1 4 1 5 9 2 6 5. Three new puzzles every day. Race your friends." />
+    <meta property="og:image" content="https://pidoku.web.app/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Pidoku π: a row of the board reading 3 1 4 1 5 9 2 6 5, with the doubled 1s and 5s highlighted" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,5 @@
 import type { Auth, AuthError, User } from 'firebase/auth';
+import { hasAccount, markHasAccount } from '../game/storage';
 import { firebaseConfig } from './firebaseConfig';
 
 /**
@@ -28,13 +29,33 @@ function getAuthInstance(config: NonNullable<typeof firebaseConfig>): Promise<Au
 }
 
 async function currentUser(auth: Auth): Promise<User> {
-  if (auth.currentUser) return auth.currentUser;
+  if (auth.currentUser) {
+    markHasAccount();
+    return auth.currentUser;
+  }
   // One shared sign-in, so calls made together don't each create an account.
   anonymousSignIn ??= import('firebase/auth').then(({ signInAnonymously }) => signInAnonymously(auth)).then((c) => c.user);
   try {
-    return await anonymousSignIn;
+    const user = await anonymousSignIn;
+    markHasAccount();
+    return user;
   } finally {
     anonymousSignIn = null;
+  }
+}
+
+/**
+ * The ID token of the account this browser already has, or null if it has none. Never signs
+ * anyone in, and doesn't even load the Firebase SDK for a browser that has never signed in, so a
+ * first-time visitor's home screen stays light.
+ */
+export async function existingIdToken(): Promise<string | null> {
+  if (!firebaseConfig || !hasAccount()) return null;
+  try {
+    const user = (await getAuthInstance(firebaseConfig)).currentUser;
+    return user ? await user.getIdToken() : null;
+  } catch {
+    return null;
   }
 }
 

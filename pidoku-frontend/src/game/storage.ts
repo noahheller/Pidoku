@@ -10,6 +10,7 @@ const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
 const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
 const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
+const HAS_ACCOUNT_KEY = 'pidoku:has-account';
 
 function read<T>(key: string): T | null {
   try {
@@ -101,6 +102,19 @@ export interface CachedStreak {
   solvedToday: boolean;
   /** The player's local date when it was fetched (YYYY-MM-DD). */
   asOf: string;
+}
+
+/**
+ * Whether this browser has signed in before, so it has an account worth sending a token for. Lets
+ * the home screen ask for friends' numbers without loading the Firebase SDK, or creating an
+ * account, for a first-time visitor. Players from before this flag existed have a cached streak.
+ */
+export function hasAccount(): boolean {
+  return read<boolean>(HAS_ACCOUNT_KEY) === true || loadStreak() !== null;
+}
+
+export function markHasAccount(): void {
+  write(HAS_ACCOUNT_KEY, true);
 }
 
 export function loadStreak(): CachedStreak | null {

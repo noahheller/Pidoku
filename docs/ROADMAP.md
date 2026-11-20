@@ -62,12 +62,19 @@ own difficulty and the puzzle has to be generated on demand.
 
    **— v1: the game is worth sending to friends and putting on a resume —**
 
-   Next, before milestone 6 (see "Tutorial, auto notes and end-to-end tests"):
-   - A tutorial for first-time players.
+   Next, before milestone 6, in this order (see "After v1"):
+   - Analytics events first, so each change below can be measured against what came before.
+   - An "explain a move" layer, then a tutorial for first-time players built on it.
    - Auto notes on Expert and Fiendish puzzles.
-   - Playwright end-to-end tests.
+   - Playwright end-to-end tests, written alongside the above.
+   - Progress sync between devices.
+   - Recents in place of "Your puzzles".
 
-6. Hints.
+6. Hints (reusing the "explain a move" layer).
+
+   Then, before milestone 7: leaderboards for any shared puzzle (challenge links), and opt-in
+   streak reminders.
+
 7. Custom generation: players build their own difficulty.
 8. Campaign mode, end to end.
 9. Calibrate difficulty once real data exists. (Collecting the data starts in milestone 4.)
@@ -183,6 +190,10 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/puzzles/daily/{date}/leaderboard?difficulty=hard&friends=true&clean=true` | Fastest times for one of the day's dailies; `friends` for friends only, `clean` for solves with no mistakes only. Sign-in optional (needed for `friends`) | 5 (done) |
 | `GET /api/friends?today=…`, `POST /api/friends`, `DELETE /api/friends/{id}` | List (with each friend's current streak when `today` is given), add by friend code, remove | 5 (done) |
 | `GET /api/friends/{id}?today=…` | One friend's profile: streaks, dailies solved, clean rate, best time per difficulty, last 7 days of dailies. 404 unless you're friends | 5 (done) |
+| `GET /api/puzzles/daily/{date}/summary` | For the home screen's cards: how many have solved each of the date's dailies and the fastest time; signed in, also how many friends have and the fastest among them. Counted like the leaderboards | after v1 (done) |
+| `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device | after v1 |
+| `GET /api/players/me/recent` | The player's last few puzzles, unfinished first, for Recents | after v1 |
+| `GET /api/puzzles/{shareCode}/leaderboard` | Fastest times for any puzzle, not just dailies (challenge links) | after 6 |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
 | `POST /api/puzzles/generate` | A puzzle for the player's own difficulty settings | 7 |
 | `GET /api/campaign` | Levels with lock, progress and star state for the player | 8 |
@@ -445,9 +456,55 @@ Decisions made while building it:
 
 **v1 ends here.** Before calling it v1, do the Showcase items below marked v1.
 
-## Tutorial, auto notes and end-to-end tests
+## After v1
 
-Three smaller pieces after v1 and before hints (milestone 6).
+Smaller pieces after v1. The ones before hints (milestone 6) are listed in the order to build
+them; challenge links and streak reminders come after hints and before custom generation.
+
+### Done after v1 (2026-11-20)
+- **Daily cards show who has solved them**, not the clue count and engine score, which meant
+  nothing to players: the hardest technique the engine needed ("Hardest step: Hidden pair"), how
+  many have solved it and the fastest time. With friends who've solved it, the card is about them
+  ("3 friends solved", fastest among the player and their friends); otherwise it's everyone's
+  numbers. One request for all three cards, `GET /api/puzzles/daily/{date}/summary`, counted
+  like the leaderboards. It only sends a token for a browser that has signed in before
+  (`existingIdToken`), so a first-time visitor still isn't signed in, or sent the Firebase SDK,
+  on the home screen.
+- **"Load a puzzle" is gone from the home screen.** It was a developer tool taking up half a
+  phone screen. Engine files still work as bundled puzzles (`pidoku-frontend/src/puzzles`).
+- **Next daily.** After solving a daily, the main button goes to the next of that date's dailies
+  not yet solved ("Next: Daily Medium"); "More puzzles" once they're all solved.
+- **Share button** on the result screen, opening the phone's share sheet (where there is one),
+  next to Copy.
+- **Link previews**: Open Graph tags and a 1200×630 card (`public/og-image.png`), so share and
+  invite links show the game in iMessage, WhatsApp and Discord. No `og:url`, which would send
+  every preview to the home page. The merged charset / site-verification meta tag was split.
+- **Bigger, darker notes**, biggest on phones.
+- **Wrong digits only are red.** A given (or a right digit) clashing with a wrong one gets a thin
+  outline instead, so one mistake no longer paints a whole box red.
+- **Leaderboards for any date**: previous/next day buttons and the browser's date picker, from
+  launch day to the player's today.
+- Wording: the leaderboard and result screen no longer say the server times solves; the ranked
+  time is the game's clock.
+
+### Analytics first
+Do the first analytics steps (see "Monetisation and analytics") before the rest of this list:
+the `events` table, `?ref=share` on share links and the `abandoned` event. Each piece below
+changes how people play or how fast they solve, and its effect can only be measured if the data
+starts before it ships (for example, finish rate on Hard before and after the tutorial). Record
+tutorial completion, auto notes and (milestone 6) hints as they arrive, so calibration
+(milestone 9) can tell assisted solves from unassisted ones.
+
+### Explain a move
+The tutorial and hints need the same thing: a solving step turned into something a player can
+follow. Build it once, before either.
+- The engine already finds each step (`Move`: the strategy, the cells it places or clears). Add
+  what a player needs: the cells to highlight (the pattern and its target) and one plain sentence,
+  e.g. "Row 4 needs two more 5s, and only these two cells can take a 5."
+- The doubled digits need their own wording; they're what the tutorial is mostly about.
+- Player-facing technique names already exist in `pidoku-frontend/src/game/strategies.ts`; keep
+  one source of truth (the engine's names sent with the step, or that file).
+- Used by the tutorial, hints (milestone 6) and later custom generation ("must need an X-Wing").
 
 ### Tutorial
 The doubled 1s and 5s are the whole twist, and also the part new players get wrong. Today the
@@ -455,8 +512,8 @@ rule is a line of text under the number pad, easy to miss on a phone.
 - Shown the first time someone opens a puzzle (remembered in this browser), and always
   reachable from the home screen ("How to play").
 - A short guided puzzle (a small or Trivial board) with step-by-step prompts that point at
-  cells: a normal single, then a row that already holds one 5 and needs its second, then a
-  note being cleared automatically once a unit holds both copies.
+  cells, worded by "Explain a move": a normal single, then a row that already holds one 5 and
+  needs its second, then a note being cleared automatically once a unit holds both copies.
 - Explains the controls along the way: notes mode, undo and erase, and that wrong digits show
   in red and count as mistakes.
 - Not timed and not recorded as an attempt.
@@ -478,18 +535,76 @@ The frontend's unit tests cover the game logic and the API client, and the API's
 endpoints, but nothing checks the pieces together. Add Playwright tests against a local API
 (Testcontainers Postgres) and the Vite build:
 - Open a daily, press Start, solve it from the solution, and see the result screen with the
-  server's time, the streak and the share line.
+  server's time, the streak and the share line; "Next" opens the next daily.
 - The clock pauses when going back to Puzzles and carries on when the puzzle is reopened.
-- Leaderboard: the solve appears on Everyone and, after adding a friend by code, on Friends.
+- Leaderboard: the solve appears on Everyone and, after adding a friend by code, on Friends; the
+  date picker moves between days.
+- The home screen's cards show the solve ("1 friend solved") for a friend.
 - Run them on a phone-sized viewport as well as desktop, and in CI on every pull request.
 - Firebase sign-in in tests: use the Firebase Auth emulator, or a test-only token the local API
-  accepts, so the tests don't depend on the real project.
+  accepts, so the tests don't depend on the real project. (Checked by hand on 2026-11-20 with
+  headless Chromium, Firebase blocked, against a local API on a throwaway Postgres; the
+  Playwright tests make that repeatable.)
+
+### Progress sync between devices
+A game's board lives in one browser's localStorage. The attempt (and its clock) follows the
+player to another device, but the board doesn't: a daily started on a phone opens on a laptop
+with an empty board and the game's timer at 0:00, so its ranked time only counts the second
+device. The Google sign-in prompt promises play on other devices, so this is owed.
+- Save the unfinished attempt's board, notes, mistakes and game timer to the server
+  (`PUT /api/attempts/{id}/progress`): every few moves (debounced, about every 10 seconds of
+  play) and when the page is hidden (`fetch` with `keepalive`, so it survives closing the tab).
+  New columns on `attempts` (the board and notes as JSONB, `progress_updated_at`).
+- Opening a puzzle with an unfinished attempt takes whichever copy is newer, the server's or
+  this browser's. Last write wins; two devices playing the same puzzle at once isn't worth more.
+- The ranked time is then the timer carried across devices, still capped at the server's
+  wall-clock time.
+- Campaign (milestone 8) needs the same thing ("progress synced to the server"), so it's built
+  once here.
+
+### Recents
+"Your puzzles" keeps every random puzzle ever played, in this browser only, and never shrinks.
+With "Load a puzzle" gone, it's really a history.
+- Rename it **Recent**: the last 10 or so puzzles, unfinished first ("Continue"), then the latest
+  solves with their times. Older ones drop off (their saved progress is cleared with them).
+- Signed in, it comes from the server's attempts (`GET /api/players/me/recent`), so with progress
+  sync it's the same list on every device; signed out, from localStorage as now.
+- Dailies can appear too, which also gives a way back to a daily started earlier in the day.
+
+### Leaderboards for any shared puzzle (challenge links)
+Only dailies have leaderboards, and dailies stop at Hard, so Expert and Fiendish are played
+alone.
+- `GET /api/puzzles/{shareCode}/leaderboard`: the same ranking (each player's first solve, by the
+  game's timer) for any puzzle. Shown on the result screen of every API puzzle, not just dailies.
+- Opening a share link to a non-daily shows the time to beat ("Alex solved this in 12:31").
+- Turns any random Fiendish into a challenge between friends. Cheaper than custom generation
+  (the ranking query exists) and more social, so it comes first.
+- No "date began" rule as for dailies: a pool puzzle has no date, and a player who saw it before
+  sharing it is fine among friends.
+
+### Streak reminders
+Streaks are the reason to come back, but nothing reminds a player that today's is unsolved.
+- Opt-in, asked once there's a streak worth keeping: "Remind me in the evening if I haven't
+  solved today's puzzles."
+- Web push needs a service worker. The decision against one (milestone 4) was about caching the
+  app shell, which fights `firebase deploy`'s cache clearing; a worker that only handles push and
+  has no fetch handler caches nothing, so that doesn't apply.
+- Sent with Firebase Cloud Messaging (free). An hourly Cloud Scheduler run picks the players whose
+  local evening it is and who haven't solved one of today's dailies; needs a
+  `push_subscriptions` table (player, token, time zone).
+- iPhone only allows web push for apps installed to the home screen (iOS 16.4 and later), so the
+  prompt explains installing first there.
+- The privacy page has to mention it.
 
 ## 6. Hints
 
 - The Hints button calls `POST /api/puzzles/{id}/hint` with the current grid. The server runs
   the human solver and returns the easiest next move: the strategy name ("Hidden single
-  (box)") and the cell to highlight, or "this cell is wrong" if the grid has a mistake.
+  (box)") and the cell to highlight, or "this cell is wrong" if the grid has a mistake. The
+  wording and highlighting come from "Explain a move" (After v1), built for the tutorial first.
+- Consider hints in steps: first "look at row 4", then the technique, then the exact cell. Each
+  step gives away less of the puzzle, and the steps show the engine off better than jumping
+  straight to the answer.
 - The server increments `attempts.hints_used`. To decide: whether a solve with hints ranks on
   the leaderboard, is marked there, or is left off.
 - This shows the engine off better than anything else in the UI, since it explains moves the
@@ -558,6 +673,10 @@ real people took.
 - Re-score stored puzzles: a one-off job recomputes `score` and `difficulty` for every
   puzzle with the new weights. Campaign levels keep their order and their puzzles even if
   their labels change; pool puzzles may move between difficulties.
+- Dailies are generated 31 days ahead, so an engine or scoring change (the Trivial tune, new
+  weights) reaches them a month later. That buffer is worth having while the job is new; once
+  tuning starts, drop `pidoku.generator.daily-days-ahead` to about 7, or regenerate the future
+  slots nobody has been served yet, as V5 did.
 
 ## Monetisation and analytics
 
@@ -621,32 +740,34 @@ What to collect, most useful first:
 Rules:
 - Analytics rows carry `player_id` only, never emails or display names.
 - Don't log every keystroke; record an event only when it answers a question above.
-- Publish a short privacy page before Google sign-in goes live.
+- Publish a short privacy page. Google sign-in is live (milestone 5), so this is overdue; see the
+  open item.
 - First steps: the budget alert and share-link tracking. They show whether monetising is
   needed at all and whether the game is spreading.
+- Then the `events` table and the `abandoned` event, before the tutorial, auto notes and hints
+  ship (see "After v1": "Analytics first").
 
 ## Showcase
 
 What someone looking at the repository for two minutes sees. Not a milestone; items marked v1
 are done before v1 is called done.
 
-- **README (v1).** Lead with the live link, a screenshot or short GIF of a game, and one
-  architecture diagram (browser → Firebase Hosting and its CDN → Cloud Run → Neon, with the
-  nightly generator job and Firebase sign-in). Then the engineering worth reading about, with
-  its numbers: the technique-based difficulty rating, the strategy soundness property test, the
-  AOT cache (ready context 8 s → 4 s), the CDN-cached dailies, server-measured solve times.
-  Remove what's out of date ("the frontend currently runs fully offline").
-- **CI (v1).** CI runs on GitHub Actions (section 2); add its passing badge to the README.
-- **End-to-end tests.** Playwright, planned in "Tutorial, auto notes and end-to-end tests".
+- ~~**README (v1).**~~ Done 2026-11-20: the live link, CI badge, a screenshot
+  (`docs/images/screenshot.png`), an architecture diagram (Mermaid) and the engineering worth
+  reading about, with its numbers. Retake the screenshot when the home screen changes.
+- ~~**CI (v1).**~~ Done: CI runs on GitHub Actions (section 2), with its badge in the README.
+- **End-to-end tests.** Playwright, planned in "After v1".
 - **Calibration write-up (after milestone 9).** A short section or page: the model, the data,
   the fit, a chart of predicted against actual solve time.
 
 ## Frontend overview
 
-- The API client has replaced the bundled puzzles as the main source; the bundled ones are the
-  offline fallback, and loading engine JSON stays as a dev tool.
-- Home screen today: Today's dailies with the streak, Random puzzle, Your puzzles, Load a puzzle.
-  Leaderboards and You & friends (5). To come: Generate (7), Campaign (8).
+- The API client has replaced the bundled puzzles as the main source; the bundled ones
+  (`src/puzzles`, engine JSON files) are the offline fallback. Loading engine JSON from the home
+  screen was removed on 2026-11-20; dropping a file into `src/puzzles` is the way to try one.
+- Home screen today: Today's dailies (each card with its hardest technique, who has solved it and
+  the fastest time) with the streak, Random puzzle, Your puzzles (to become Recent). Leaderboards
+  (any date) and You & friends (5). To come: How to play (tutorial), Generate (7), Campaign (8).
 - Routes: `/`, `/p/{shareCode}` and `/local/{id}` (milestone 4); `/leaderboard/{date}`, `/me` and
   `/f/{friendCode}` (milestone 5). Campaign levels will add theirs.
 
@@ -658,6 +779,15 @@ are done before v1 is called done.
   `generate(profile, seed)` keeps its random state local to the call.
 - Tune the Trivial target, which is too easy at 65 clues.
 - Shared-candidate speedup (needed for custom generation).
+- **Techniques only Pidoku has.** The doubled digits allow deductions classic Sudoku doesn't.
+  The engine already has one: a unit with exactly two places left for its two 5s (the doubled
+  hidden single, costed ×1.5). X-Wing and W-Wing only handle digits that appear once. A counting
+  fish works for doubled digits: if two rows still need four 5s between them and those 5s can
+  only go in two columns, each of those columns gets both its 5s in those rows, so 5 comes out
+  of every other cell in those columns. In general: when the copies a set of rows still needs
+  equals what a set of columns can still hold. Name them (a "twin X-Wing"), give them costs and
+  run them through `StrategySoundnessTest`. They feed the tutorial, hints, custom generation
+  ("must need a twin X-Wing") and the README: new solving techniques for a new variant.
 
 ## Open items
 
@@ -666,3 +796,11 @@ are done before v1 is called done.
 - ~~A daily can be a puzzle someone has already played.~~ Fixed: dailies are generated fresh
   (milestone 4). Today's and tomorrow's dailies on the day V5 runs may still be old pool puzzles.
 - Whether a solve that used hints ranks on the leaderboard (decide in milestone 6).
+- **Mistakes on dailies.** Wrong digits always show in red and the Fastest board ignores
+  mistakes, so tapping digits until one isn't red beats working a cell out. Decide between a
+  time penalty per mistake on the Fastest board (e.g. +10 s, shown as "4:12 +20s") and a limit
+  of three mistakes per daily. Leaning towards the penalty: it keeps every solve and doesn't
+  end anyone's streak; a limit could be offered later as an opt-in "hardcore" mode.
+- **Privacy page.** Google sign-in is live and there's no privacy page yet. A `/privacy` route,
+  linked from the home screen, `/me` and next to the Google sign-in button, and added to the
+  Google OAuth consent screen.
