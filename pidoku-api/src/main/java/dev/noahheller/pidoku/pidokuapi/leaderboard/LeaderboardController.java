@@ -52,4 +52,18 @@ public class LeaderboardController {
         Optional<Player> viewer = playerService.find(token);
         return leaderboardService.forDaily(new DailySlot(date, difficulty), viewer, friends, clean);
     }
+
+    /**
+     * For the home screen's daily cards: how many have solved each of a date's dailies and the
+     * fastest time, e.g. {@code GET /api/puzzles/daily/2026-11-17/summary}. Sign-in is optional;
+     * with a token it adds how many of the viewer's friends have solved each one and the fastest
+     * among them and the viewer. 404 if the date hasn't begun anywhere.
+     *
+     * <p>Not cached, like the leaderboards: it changes with every solve.
+     */
+    @GetMapping("/api/puzzles/daily/{date}/summary")
+    public DailySummary summary(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                @AuthenticationPrincipal Jwt token) {
+        return leaderboardService.summary(date, playerService.find(token));
+    }
 }

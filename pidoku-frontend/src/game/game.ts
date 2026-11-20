@@ -107,8 +107,11 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'erase': {
       const i = state.selected;
       if (i === null || state.completed || isGiven(state, i)) return state;
-      if (state.values[i] === EMPTY && state.notes[i] === 0) return state;
-      return commit(state, replaceAt(state.values, i, EMPTY), replaceAt(state.notes, i, 0));
+      // A filled cell may still hold notes hidden under a wrong digit: the first erase removes
+      // just the digit so they reappear, and a second erase clears the notes.
+      if (state.values[i] !== EMPTY) return commit(state, replaceAt(state.values, i, EMPTY), state.notes);
+      if (state.notes[i] === 0) return state;
+      return commit(state, state.values, replaceAt(state.notes, i, 0));
     }
 
     case 'undo': {
@@ -152,21 +155,24 @@ function placeDigit(state: GameState, i: number, digit: number): GameState {
   // Entering the digit already in the cell clears it, like most Sudoku apps.
   const newValue = state.values[i] === digit ? EMPTY : digit;
   const values = replaceAt(state.values, i, newValue);
-  const notes = replaceAt(state.notes, i, 0);
+  const wrong = newValue !== EMPTY && state.puzzle.solution !== null && newValue !== state.puzzle.solution[i];
+  // A wrong digit keeps the cell's notes (hidden under it, back once it's removed) and leaves
+  // peer notes alone, so a mistake doesn't wipe out pencil work.
+  const notes = newValue === EMPTY || wrong ? [...state.notes] : replaceAt(state.notes, i, 0);
 
-  if (newValue !== EMPTY) {
+  if (newValue !== EMPTY && !wrong) {
     // Pidoku twist: a digit only rules itself out of a unit once the unit holds
     // as many copies as pi allows (two for 1 and 5 on a 9x9 board).
     for (const unit of state.rules.unitsOf[i]) {
       if (!unitIsFullFor(state.rules, values, unit, newValue)) continue;
       for (const j of unit) {
-        if (values[j] === EMPTY) notes[j] &= ~(1 << newValue);
+        // Filled cells too: a wrong digit may be hiding notes that would reappear stale.
+        notes[j] &= ~(1 << newValue);
       }
     }
   }
 
   const next = commit(state, values, notes);
-  const wrong = newValue !== EMPTY && state.puzzle.solution !== null && newValue !== state.puzzle.solution[i];
   return wrong ? { ...next, mistakes: next.mistakes + 1 } : next;
 }
 

@@ -1,12 +1,12 @@
-import { Check, CircleX, CloudOff, Copy, Flame, ShieldCheck, Timer, Trophy } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, CircleX, CloudOff, Copy, Flame, Share2, ShieldCheck, Timer, Trophy } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { currentAccount } from '../api/auth';
-import { ApiError, DAILY_DIFFICULTIES, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
-import { dailyNumber, shareLine, shareUrl } from '../game/daily';
+import { ApiError, DAILY_DIFFICULTIES, fetchDailyOn, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
+import { dailyNumber, nextUnsolved, shareLine, shareUrl } from '../game/daily';
 import { formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
-import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, saveStreak } from '../game/storage';
+import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, loadProgress, saveStreak } from '../game/storage';
 import { LeaderboardView } from './Leaderboard';
 import { GoogleButton } from './Profile';
 
@@ -15,13 +15,18 @@ const STREAK_WORTH_KEEPING = 3;
 
 /** What the server knows about this solve. */
 export type Recorded =
-  /** Not a puzzle from the API, or its attempt never started (offline, signed out). */
+  /** Not a puzzle from the API, or solved on an earlier visit without a saved result. */
   | { status: 'none' }
   | { status: 'saving' }
-  /** The API has it: `elapsedMs` is the ranked time it recorded. */
+  /** The API has it: `elapsedMs` is the ranked time it saved (the game's timer). */
   | { status: 'recorded'; elapsedMs: number; late: boolean }
   /** Couldn't be sent yet; it's kept and sent when the connection comes back. */
-  | { status: 'unsent' };
+  | { status: 'unsent' }
+  /**
+   * Will never be recorded: the attempt never started (no connection or no sign-in when the puzzle
+   * was opened, so the server has no start time), or the API refused the solve.
+   */
+  | { status: 'unrecorded'; reason: 'not-started' | 'rejected' };
 
 interface ResultProps {
   puzzle: PuzzleDef;
@@ -33,23 +38,24 @@ interface ResultProps {
 }
 
 /**
- * Shown above the board once the puzzle is solved: the time (as the server recorded it, when it has one),
- * mistakes, for a daily the streak and leaderboard, and a line to paste to friends. The first time
- * a solve is recorded, it also asks for the name friends will see; once there's a streak worth
- * keeping, it suggests signing in with Google.
+ * Shown above the board once the puzzle is solved: the time (as saved on the server, when it has it),
+ * mistakes, for a daily the streak, the leaderboard and a button to the next daily, and a line to
+ * share with friends. The first time a solve is recorded, it also asks for the name friends will
+ * see; once there's a streak worth keeping, it suggests signing in with Google.
  */
 export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: ResultProps) {
   const isRecorded = recorded.status === 'recorded';
   const streak = useStreak(isRecorded && puzzle.dailyDate !== undefined);
   const dailyDifficulty = DAILY_DIFFICULTIES.find((d) => d === puzzle.difficulty?.toLowerCase());
   const time = isRecorded ? recorded.elapsedMs : elapsedMs;
-  const share = shareLine({
+  const url = puzzle.shareCode ? shareUrl(puzzle.shareCode) : null;
+  const shareDetails = {
     difficulty: puzzle.difficulty,
     dailyDate: puzzle.dailyDate ?? null,
     elapsedMs: time,
     mistakes: puzzle.solution ? mistakes : null,
-    url: puzzle.shareCode ? shareUrl(puzzle.shareCode) : null,
-  });
+  };
+  const share = shareLine({ ...shareDetails, url });
 
   return (
     <section className="card border-2 border-success bg-base-100 shadow-sm" aria-labelledby="result-title">
@@ -77,6 +83,16 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
             Couldn't reach the server, so this solve isn't recorded yet. It'll be sent when you're back online, with its time as you solved it.
           </p>
         )}
+        {recorded.status === 'unrecorded' && (
+          <p className="flex items-center gap-2 text-sm text-warning">
+            {recorded.reason === 'not-started' ? (
+              <CloudOff className="size-4 shrink-0" aria-hidden="true" />
+            ) : (
+              <CircleAlert className="size-4 shrink-0" aria-hidden="true" />
+            )}
+            {unrecordedMessage(recorded.reason, puzzle.dailyDate !== undefined)}
+          </p>
+        )}
 
         {isRecorded && <NamePrompt />}
         {streak && streak.current >= STREAK_WORTH_KEEPING && <GooglePrompt streak={streak.current} />}
@@ -85,11 +101,16 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
           <pre className="min-w-0 flex-1 overflow-x-auto rounded-field bg-base-200 px-3 py-2 font-sans text-sm whitespace-pre-wrap" aria-label="Share line">
             {share}
           </pre>
-          <div className="flex justify-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <ShareButton text={shareLine({ ...shareDetails, url: null })} url={url} />
             <CopyButton text={share} />
-            <button type="button" className="btn btn-sm btn-primary" onClick={onExit}>
-              More puzzles
-            </button>
+            {puzzle.dailyDate ? (
+              <NextDailyButton puzzle={puzzle} onExit={onExit} />
+            ) : (
+              <button type="button" className="btn btn-sm btn-primary" onClick={onExit}>
+                More puzzles
+              </button>
+            )}
           </div>
         </div>
 
@@ -107,12 +128,20 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
   );
 }
 
+/** Why a solve won't be recorded, and what that means for the player: nothing to retry. */
+function unrecordedMessage(reason: 'not-started' | 'rejected', daily: boolean): string {
+  const consequence = daily ? "isn't on the leaderboard and doesn't count toward your streak" : "wasn't saved to your account";
+  return reason === 'not-started'
+    ? `This solve ${consequence}: the game couldn't reach the server or sign you in when you started the puzzle, so there was no start time to time it from.`
+    : `The server didn't accept this solve, so it ${consequence}.`;
+}
+
 function timeNote(recorded: Recorded): string | undefined {
   switch (recorded.status) {
     case 'saving':
       return 'Saving…';
     case 'recorded':
-      return recorded.late ? 'Recorded by the server, sent late' : 'Recorded by the server';
+      return recorded.late ? 'Saved, sent late' : 'Saved';
     default:
       return undefined;
   }
@@ -222,6 +251,67 @@ function GooglePrompt({ streak }: { streak: number }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Straight on to the next of the date's dailies not yet solved here ("Next: Daily Medium"), so one
+ * solve leads to the next. "More puzzles" once they're all solved, or when they can't be fetched
+ * (an old daily from a share link: the API only serves dates that are today somewhere).
+ */
+function NextDailyButton({ puzzle, onExit }: { puzzle: PuzzleDef; onExit: () => void }) {
+  const navigate = useNavigate();
+  const [next, setNext] = useState<{ status: 'loading' } | { status: 'done'; puzzle: PuzzleDef | null }>({ status: 'loading' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchDailyOn(puzzle.dailyDate!, controller.signal)
+      .then(({ puzzles }) => setNext({ status: 'done', puzzle: nextUnsolved(puzzles, puzzle.id, (id) => loadProgress(id)?.completed === true) }))
+      .catch(() => {
+        if (!controller.signal.aborted) setNext({ status: 'done', puzzle: null });
+      });
+    return () => controller.abort();
+  }, [puzzle.dailyDate, puzzle.id]);
+
+  if (next.status === 'loading') {
+    return (
+      <button type="button" className="btn btn-sm btn-primary" disabled>
+        <span className="loading loading-spinner loading-xs" aria-hidden="true" /> Next daily
+      </button>
+    );
+  }
+  const following = next.puzzle;
+  if (!following?.shareCode) {
+    return (
+      <button type="button" className="btn btn-sm btn-primary" onClick={onExit}>
+        More puzzles
+      </button>
+    );
+  }
+  return (
+    <button
+      type="button"
+      className="btn btn-sm btn-primary"
+      // The puzzle rides along in the history entry, as when it's opened from the home screen.
+      onClick={() => void navigate(`/p/${following.shareCode}`, { state: { puzzle: following } })}
+    >
+      Next: {following.name} <ArrowRight className="size-4 shrink-0" aria-hidden="true" />
+    </button>
+  );
+}
+
+/** The phone's share sheet, where there is one: how a result gets into the group chat. */
+function ShareButton({ text, url }: { text: string; url: string | null }) {
+  if (typeof navigator.share !== 'function') return null;
+  const share = () => {
+    navigator.share(url ? { text, url } : { text }).catch(() => {
+      // Closed the share sheet, or sharing isn't allowed: Copy is right next to it.
+    });
+  };
+  return (
+    <button type="button" className="btn btn-sm" onClick={share}>
+      <Share2 className="size-4 shrink-0" aria-hidden="true" /> Share
+    </button>
   );
 }
 

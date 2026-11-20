@@ -1,10 +1,20 @@
 import type { PuzzleDef } from '../game/puzzleFile';
-import { idToken } from './auth';
+import { existingIdToken, idToken } from './auth';
 
 /**
  * The Pidoku API. URLs are relative: in production Firebase Hosting rewrites /api/** to Cloud Run
  * (firebase.json), and in development Vite proxies /api to the API on :8080 (vite.config.ts).
  */
+
+/**
+ * Pings the liveness check so a scaled-to-zero Cloud Run instance starts booting while the app
+ * loads and signs in, rather than on the player's first uncached request. Liveness doesn't query
+ * the database, so the ping alone never wakes Neon: it wakes in under a second on the first real
+ * request, while the JVM's cold start takes seconds. Fire and forget: failures don't matter.
+ */
+export function warmUpApi(): void {
+  fetch('/actuator/health/liveness', { cache: 'no-store' }).catch(() => {});
+}
 
 export const DIFFICULTIES = ['trivial', 'easy', 'medium', 'hard', 'expert', 'fiendish'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
@@ -150,10 +160,54 @@ export class ApiError extends Error {
  * Everyone gets the same puzzles for the same calendar date.
  */
 export async function fetchDaily(signal?: AbortSignal, now: Date = new Date()): Promise<DailyPuzzles> {
+  return fetchDailyOn(localDate(now), signal);
+}
+
+/**
+ * One date's daily puzzles (YYYY-MM-DD). The API only serves dates that are today somewhere in the
+ * world, so this is for today's, or a daily opened around midnight.
+ */
+export async function fetchDailyOn(date: string, signal?: AbortSignal): Promise<DailyPuzzles> {
   // No ID token here: the response is the same for everyone and comes from the CDN's cache.
-  const body = await request<{ date: string; puzzles: ApiPuzzle[] }>(`/api/puzzles/daily/${localDate(now)}`, { signal }, "Today's puzzles aren't ready yet. Try again in a little while.");
+  const body = await request<{ date: string; puzzles: ApiPuzzle[] }>(`/api/puzzles/daily/${encodeURIComponent(date)}`, { signal }, "Today's puzzles aren't ready yet. Try again in a little while.");
   // dailyDate comes with each puzzle, but the response's date is the same thing.
   return { date: body.date, puzzles: body.puzzles.map((p) => toPuzzleDef({ ...p, dailyDate: p.dailyDate ?? body.date })) };
+}
+
+/** A solve time on a daily card (pidoku-api's DailySummary.Time). */
+export interface SummaryTime {
+  displayName: string | null;
+  elapsedMs: number;
+  you: boolean;
+}
+
+/** One daily's numbers for its card on the home screen (pidoku-api's DailySummary.Daily). */
+export interface DailyStats {
+  difficulty: Difficulty;
+  /** How many players have solved it. */
+  solved: number;
+  /** The fastest solve; null if no one has solved it. */
+  fastest: SummaryTime | null;
+  /** How many of the player's friends have solved it; null when signed out. */
+  friendsSolved: number | null;
+  /** The fastest solve by the player or a friend; null when signed out or none of them has. */
+  friendsFastest: SummaryTime | null;
+}
+
+/**
+ * How many have solved each of a date's dailies and the fastest times. Friends' numbers come too
+ * for a browser that has signed in before; a first-time visitor isn't signed in for this.
+ */
+export async function fetchDailySummary(date: string, signal?: AbortSignal): Promise<DailyStats[]> {
+  const url = `/api/puzzles/daily/${encodeURIComponent(date)}/summary`;
+  const token = await existingIdToken();
+  try {
+    return (await request<{ date: string; dailies: DailyStats[] }>(url, { token, signal }, BUSY)).dailies;
+  } catch (e) {
+    // Like fetchLeaderboard: a refused token still gets everyone's numbers.
+    if (!(token && e instanceof ApiError && e.status === 401)) throw e;
+    return (await request<{ date: string; dailies: DailyStats[] }>(url, { signal }, BUSY)).dailies;
+  }
 }
 
 /** The puzzle behind a share link (/p/{shareCode}). */
@@ -223,6 +277,14 @@ export async function fetchPlayer(signal?: AbortSignal): Promise<Player> {
  */
 export async function updateDisplayName(displayName: string): Promise<Player> {
   return request<Player>('/api/players/me', { method: 'PATCH', body: { displayName }, token: await requireToken() }, BUSY);
+}
+
+/**
+ * Deletes the signed-in player and everything the server keeps about them (attempts, friendships,
+ * name). Use `deleteAccount` in auth.ts, which also deletes the sign-in.
+ */
+export async function deletePlayer(): Promise<void> {
+  await request<void>('/api/players/me', { method: 'DELETE', token: await requireToken() }, BUSY);
 }
 
 /** The player's current and best streak, as of their own local date. */

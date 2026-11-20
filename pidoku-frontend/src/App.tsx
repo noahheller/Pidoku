@@ -6,6 +6,7 @@ import { sendPendingCompletions } from './api/completions';
 import { Game } from './components/Game';
 import { FriendPage } from './components/FriendPage';
 import { LeaderboardPage } from './components/LeaderboardPage';
+import { PrivacyPage } from './components/PrivacyPage';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
 import type { PuzzleDef } from './game/puzzleFile';
@@ -21,6 +22,7 @@ import { bundledPuzzles } from './puzzles';
  * - `/me`: the player's name, friends and Google sign-in.
  * - `/friends/{playerId}`: one friend's streaks, best times and recent dailies.
  * - `/f/{friendCode}`: a friend's invite link.
+ * - `/privacy`: what Pidoku keeps about players, and how to delete it.
  *
  * firebase.json serves index.html for every path, so these all load the app.
  */
@@ -76,6 +78,7 @@ function App() {
       <Route path="/me" element={<Profile />} />
       <Route path="/friends/:id" element={<FriendPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

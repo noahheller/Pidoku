@@ -8,6 +8,10 @@
         "source": "/api/**",
         "run": { "serviceId": "pidoku-api-service", "region": "us-east4" }
       },
+      {
+        "source": "/actuator/health/liveness",
+        "run": { "serviceId": "pidoku-api-service", "region": "us-east4" }
+      },
       { "source": "**", "destination": "/index.html" }
     ],
     "headers": [

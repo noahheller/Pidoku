@@ -27,14 +27,14 @@ describe('recordCompletion', () => {
   it('completes the attempt with the active time, not late, and returns the recorded attempt', async () => {
     const recorded = { ...attempt(12), elapsedMs: 61_000 };
     complete.mockResolvedValue(recorded);
-    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 2))).resolves.toEqual(recorded);
+    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 2))).resolves.toEqual({ status: 'recorded', attempt: recorded });
     expect(complete).toHaveBeenCalledWith(12, { grid: [3, 1, 4], mistakes: 2, activeMs: 60_000, lateByMs: undefined });
     expect(loadPendingCompletions()).toEqual([]);
   });
 
   it('keeps the solve, with when it was solved, when the API cannot be reached', async () => {
     complete.mockRejectedValue(unreachable());
-    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 2), at(1_000))).resolves.toBeNull();
+    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 2), at(1_000))).resolves.toEqual({ status: 'queued' });
     expect(loadPendingCompletions()).toEqual([{ attemptId: 12, grid: [3, 1, 4], mistakes: 2, activeMs: 60_000, solvedAt: 1_000 }]);
   });
 
@@ -51,18 +51,18 @@ describe('recordCompletion', () => {
 
   it.each([500, 503, 401])('keeps the solve for later on a %i', async (status) => {
     complete.mockRejectedValue(new ApiError('nope', status));
-    await recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 0));
+    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 0))).resolves.toEqual({ status: 'queued' });
     expect(loadPendingCompletions()).toHaveLength(1);
   });
 
   it.each([404, 422])('gives up on a %i, which will never succeed', async (status) => {
     complete.mockRejectedValue(new ApiError('nope', status));
-    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 0))).resolves.toBeNull();
+    await expect(recordCompletion(Promise.resolve(attempt(12)), solve([3, 1, 4], 0))).resolves.toEqual({ status: 'rejected' });
     expect(loadPendingCompletions()).toEqual([]);
   });
 
-  it('does nothing when the attempt never started', async () => {
-    await expect(recordCompletion(Promise.resolve(null), solve([3, 1, 4], 0))).resolves.toBeNull();
+  it('sends nothing, now or later, when the attempt never started', async () => {
+    await expect(recordCompletion(Promise.resolve(null), solve([3, 1, 4], 0))).resolves.toEqual({ status: 'not-started' });
     expect(complete).not.toHaveBeenCalled();
     expect(loadPendingCompletions()).toEqual([]);
   });
