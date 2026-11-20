@@ -12,8 +12,8 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Pidoku" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Pidoku</title>
-    <meta name="description" content="Sudoku with the digits of pi" />
+    <title>Pidoku: Sudoku with the digits of π</title>
+    <meta name="description" content="Pidoku is a free daily puzzle game: Sudoku where every row, column and box holds the first nine digits of pi, 3 1 4 1 5 9 2 6 5. Three new puzzles every day. Race your friends." />
     <!--
       Link previews (iMessage, WhatsApp, Discord, Slack, ...). Every path serves this file, so share
       links (/p/...) and invite links (/f/...) all get this card. There's deliberately no og:url:
@@ -31,7 +31,12 @@
     <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Shown until React mounts (createRoot replaces it). Gives search engines real text to index. -->
+      <h1>Pidoku</h1>
+      <p>Sudoku with the digits of π. Every row, column and box holds 3 1 4 1 5 9 2 6 5. Three new puzzles every day. Race your friends.</p>
+      <noscript>Pidoku needs JavaScript to play.</noscript>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
