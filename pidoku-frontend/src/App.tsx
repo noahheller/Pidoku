@@ -3,15 +3,21 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { fetchByShareCode } from './api/client';
 import { sendPendingCompletions } from './api/completions';
+import { flushEvents, recordEvent } from './api/events';
 import { Game } from './components/Game';
 import { FriendPage } from './components/FriendPage';
 import { LeaderboardPage } from './components/LeaderboardPage';
 import { PrivacyPage } from './components/PrivacyPage';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
+import { Tutorial } from './components/Tutorial';
 import type { PuzzleDef } from './game/puzzleFile';
-import { clearProgress, loadCustomPuzzles, saveCustomPuzzles } from './game/storage';
+import { addRecent } from './game/recent';
+import { clearProgress, clearResult, hasAccount, loadRecentPuzzles, saveRecentPuzzles } from './game/storage';
 import { bundledPuzzles } from './puzzles';
+
+/** Whether this browser had never signed in when the page loaded, before anything here signs it in. */
+const firstVisit = !hasAccount();
 
 /**
  * Routes:
@@ -23,30 +29,42 @@ import { bundledPuzzles } from './puzzles';
  * - `/friends/{playerId}`: one friend's streaks, best times and recent dailies.
  * - `/f/{friendCode}`: a friend's invite link.
  * - `/privacy`: what Pidoku keeps about players, and how to delete it.
+ * - `/tutorial`: how to play, a short guided puzzle.
+ *
+ * Any of them opened with `?ref=share` (share links carry it) records a share-link visit.
  *
  * firebase.json serves index.html for every path, so these all load the app.
  */
 function App() {
-  const [custom, setCustom] = useState(loadCustomPuzzles);
+  const [recent, setRecent] = useState(loadRecentPuzzles);
   const navigate = useNavigate();
+  useShareArrival();
 
-  // Solves the API couldn't be told about at the time (see api/completions.ts): try again now,
-  // and whenever the connection comes back.
+  // Solves the API couldn't be told about at the time (see api/completions.ts), and analytics
+  // events waiting to be sent: try again now, and whenever the connection comes back.
   useEffect(() => {
-    const send = () => void sendPendingCompletions();
+    const send = () => {
+      void sendPendingCompletions();
+      void flushEvents();
+    };
     send();
     window.addEventListener('online', send);
     return () => window.removeEventListener('online', send);
   }, []);
 
-  const updateCustom = (next: PuzzleDef[]) => {
-    setCustom(next);
-    saveCustomPuzzles(next);
-  };
-
   // The puzzle rides along in the history entry, so opening it from the home screen doesn't fetch
-  // it again. A share link opened cold has no state and fetches it.
+  // it again. A share link opened cold has no state and fetches it. Every puzzle opened goes on
+  // this browser's Recent list; the oldest drop off it, with their saved progress (but a daily's
+  // is kept: it's what marks today's cards as solved).
   const play = (puzzle: PuzzleDef, { replay = false, notice = null }: PlayOptions = {}) => {
+    const { list, dropped } = addRecent(recent, puzzle);
+    setRecent(list);
+    saveRecentPuzzles(list);
+    for (const old of dropped) {
+      if (old.dailyDate) continue;
+      clearProgress(old.id);
+      clearResult(old.id);
+    }
     const path = puzzle.shareCode ? `/p/${puzzle.shareCode}` : `/local/${encodeURIComponent(puzzle.id)}`;
     void navigate(path, { state: { puzzle, replay, notice } satisfies HistoryState });
   };
@@ -56,32 +74,50 @@ function App() {
       <Route
         path="/"
         element={
-          <PuzzlePicker
-            bundled={bundledPuzzles}
-            custom={custom}
-            onPlay={play}
-            onAddCustom={(added) => {
-              const ids = new Set(added.map((p) => p.id));
-              updateCustom([...custom.filter((p) => !ids.has(p.id)), ...added]);
-            }}
-            onRemoveCustom={(id) => {
-              updateCustom(custom.filter((p) => p.id !== id));
-              // Its saved progress goes with it, or it would sit in storage for good.
-              clearProgress(id);
-            }}
-          />
+          <PuzzlePicker bundled={bundledPuzzles} recent={recent} onPlay={play} />
         }
       />
       <Route path="/p/:shareCode" element={<SharedPuzzle />} />
-      <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...custom]} />} />
+      <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...recent]} />} />
       <Route path="/leaderboard/:date" element={<LeaderboardPage />} />
       <Route path="/me" element={<Profile />} />
       <Route path="/friends/:id" element={<FriendPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/tutorial" element={<TutorialPage />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
+}
+
+/** How to play, from the home screen: back there when it's done. */
+function TutorialPage() {
+  const exit = useExit();
+  return <Tutorial onDone={exit} doneLabel="Play today's puzzles" />;
+}
+
+let arrivalRecorded = false;
+
+/**
+ * Counts a visit from a share link (`?ref=share`, see shareUrl): whether a share brought someone
+ * new is one of the questions analytics answers. The parameter is then dropped from the address,
+ * so a reload or a link copied from the address bar doesn't count again.
+ */
+function useShareArrival() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('ref') !== 'share') return;
+    if (!arrivalRecorded) {
+      arrivalRecorded = true;
+      const shareCode = /^\/p\/([^/]+)/.exec(location.pathname)?.[1]?.toUpperCase() ?? null;
+      recordEvent('share_arrival', { detail: { shareCode, newVisitor: firstVisit } });
+    }
+    params.delete('ref');
+    const search = params.toString();
+    void navigate({ pathname: location.pathname, search: search ? `?${search}` : '', hash: location.hash }, { replace: true, state: location.state as unknown });
+  }, [location, navigate]);
 }
 
 /** What opening a puzzle from the home screen puts in the history entry. */

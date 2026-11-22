@@ -9,6 +9,10 @@ import java.time.Instant;
  * @param elapsedMs the server-measured wall-clock solve time
  * @param activeMs  the game's own timer, which leaderboards rank (falling back to elapsedMs)
  * @param late      the completion was sent some time after the solve (see {@code Attempt#complete})
+ * @param progress  the board as last saved from any device, or null if none was; with
+ *                  {@code progressUpdatedAt}, when the server got it, a device can tell whether
+ *                  its own copy is newer
+ * @param autoNotesUsed the player used Auto notes during the attempt
  */
 public record AttemptResponse(
         long id,
@@ -19,7 +23,10 @@ public record AttemptResponse(
         int mistakes,
         int hintsUsed,
         Long activeMs,
-        boolean late
+        boolean late,
+        AttemptProgress progress,
+        Instant progressUpdatedAt,
+        boolean autoNotesUsed
 ) {
 
     public static AttemptResponse from(Attempt attempt) {
@@ -32,6 +39,9 @@ public record AttemptResponse(
                 attempt.getMistakes(),
                 attempt.getHintsUsed(),
                 attempt.getActiveMs(),
-                attempt.isLate());
+                attempt.isLate(),
+                attempt.getProgress(),
+                attempt.getProgressUpdatedAt(),
+                attempt.isAutoNotesUsed());
     }
 }

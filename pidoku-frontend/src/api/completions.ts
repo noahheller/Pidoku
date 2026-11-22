@@ -21,6 +21,8 @@ export interface Solve {
   mistakes: number;
   /** The game's own timer, which pauses while the tab is hidden. */
   activeMs: number;
+  /** The player used Auto notes. */
+  autoNotesUsed?: boolean;
 }
 
 /** What became of a solve: only a queued one will still reach the server. */
@@ -73,9 +75,9 @@ export async function sendPendingCompletions(now: () => number = Date.now): Prom
 }
 
 /** @param lateByMs left out for a completion sent as soon as the puzzle was solved */
-async function send({ attemptId, grid, mistakes, activeMs }: PendingCompletion, lateByMs?: number): Promise<Attempt | 'rejected' | 'retry'> {
+async function send({ attemptId, grid, mistakes, activeMs, autoNotesUsed }: PendingCompletion, lateByMs?: number): Promise<Attempt | 'rejected' | 'retry'> {
   try {
-    return await completeAttempt(attemptId, { grid, mistakes, activeMs, lateByMs });
+    return await completeAttempt(attemptId, { grid, mistakes, activeMs, lateByMs, ...(autoNotesUsed ? { autoNotesUsed } : {}) });
   } catch (e) {
     return isPermanent(e) ? 'rejected' : 'retry';
   }

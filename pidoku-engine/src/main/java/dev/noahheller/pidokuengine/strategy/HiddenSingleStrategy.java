@@ -36,7 +36,7 @@ public class HiddenSingleStrategy extends AbstractUnitStrategy {
 
             if (positions.size() == remaining) {
                 for (BoardPosition p : positions) {
-                    out.add(Move.placement(p, digit));
+                    out.add(Move.placement(p, digit).because(List.of(new Unit(type, index)), positions, List.of(digit)));
                 }
             }
         }

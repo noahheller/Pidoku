@@ -89,7 +89,7 @@ public class PlayerService {
 
     /**
      * Deletes the player a token belongs to and everything kept about them: their attempts (so
-     * their times leave every leaderboard), their friendships in both directions, and the player
+     * their times leave every leaderboard), their analytics events, their friendships in both directions, and the player
      * itself. Does nothing if the player doesn't exist, so deleting twice is harmless. The Firebase
      * account is deleted by the app, which holds the sign-in.
      */
@@ -98,6 +98,7 @@ public class PlayerService {
         players.findByFirebaseUid(token.getSubject()).ifPresent(player -> {
             long id = player.getId();
             jdbc.sql("DELETE FROM friendships WHERE player_id = :id OR friend_id = :id").param("id", id).update();
+            jdbc.sql("DELETE FROM events WHERE player_id = :id").param("id", id).update();
             jdbc.sql("DELETE FROM attempts WHERE player_id = :id").param("id", id).update();
             jdbc.sql("DELETE FROM players WHERE id = :id").param("id", id).update();
         });

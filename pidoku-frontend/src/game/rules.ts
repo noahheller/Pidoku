@@ -131,3 +131,16 @@ export function isSolved(rules: Rules, values: readonly number[], solution: read
   if (solution) return values.every((v, i) => v === solution[i]);
   return findConflicts(rules, values).size === 0;
 }
+
+/**
+ * The digits that could still go in cell i, as a notes bitmask (bit 1 << d for digit d): those its
+ * row, column and box don't yet hold as many times as pi allows. So a 1 or 5 stays a candidate
+ * until a unit holds both copies.
+ */
+export function candidateMask(rules: Rules, values: readonly number[], i: number): number {
+  let mask = 0;
+  for (const d of rules.digits) {
+    if (rules.unitsOf[i].every((unit) => !unitIsFullFor(rules, values, unit, d))) mask |= 1 << d;
+  }
+  return mask;
+}

@@ -32,3 +32,13 @@ processResources {
 test {
     useJUnitPlatform()
 }
+
+// Writes the frontend's tutorial puzzle, worded by the engine's MoveExplainer. TutorialExportTest
+// fails while the committed file is out of date.
+tasks.register('exportTutorial', JavaExec) {
+    group = 'pidoku'
+    description = 'Writes pidoku-frontend/src/tutorial/tutorial.json from the engine.'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'dev.noahheller.pidokuengine.explain.TutorialExport'
+    args rootProject.file('pidoku-frontend/src/tutorial/tutorial.json').absolutePath
+}

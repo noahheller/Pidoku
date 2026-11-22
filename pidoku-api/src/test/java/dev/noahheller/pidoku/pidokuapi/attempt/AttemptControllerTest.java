@@ -316,4 +316,137 @@ class AttemptControllerTest extends IntegrationTest {
                     .hasStatus(HttpStatus.UNAUTHORIZED);
         }
     }
+
+    /** A board: the givens with the first empty cell filled in, and a note pencilled in the next. */
+    private static String progressJson(int mistakes, long activeMs, boolean autoNotes) {
+        int[] values = Grids.toCells(TestPuzzles.GIVENS);
+        int[] notes = new int[values.length];
+        int first = -1;
+        for (int i = 0; i < values.length; i++) {
+            if (values[i] != 0) continue;
+            if (first < 0) {
+                first = i;
+                values[i] = Grids.toCells(TestPuzzles.SOLUTION)[i];
+            } else {
+                notes[i] = (1 << 1) | (1 << 5);
+                break;
+            }
+        }
+        return "{\"values\": %s, \"notes\": %s, \"mistakes\": %d, \"activeMs\": %d, \"autoNotesUsed\": %b}"
+                .formatted(Arrays.toString(values), Arrays.toString(notes), mistakes, activeMs, autoNotes);
+    }
+
+    private MvcTestResult saveProgress(String uid, long attemptId, String json) {
+        return mvc.put().uri("/api/attempts/{id}/progress", attemptId).with(player(uid))
+                .contentType(MediaType.APPLICATION_JSON).content(json).exchange();
+    }
+
+    @Nested
+    class Progress {
+
+        @Test
+        void startingAgainHandsBackTheSavedBoard() {
+            long id = started("alice");
+
+            assertThat(saveProgress("alice", id, progressJson(2, 45_000, false))).hasStatus(HttpStatus.NO_CONTENT);
+
+            var json = assertThat(start("alice", puzzle.getId())).hasStatusOk().bodyJson();
+            json.extractingPath("$.progress.mistakes").asNumber().isEqualTo(2);
+            json.extractingPath("$.progress.activeMs").asNumber().isEqualTo(45_000);
+            json.extractingPath("$.progress.values").asArray().hasSize(81);
+            json.extractingPath("$.progress.notes").asArray().contains(34);
+            json.extractingPath("$.progressUpdatedAt").asString().isNotEmpty();
+        }
+
+        @Test
+        void anAttemptWithNothingSavedHasNoProgress() {
+            var json = assertThat(start("alice", puzzle.getId())).hasStatusOk().bodyJson();
+            json.extractingPath("$.progress").isNull();
+            json.extractingPath("$.progressUpdatedAt").isNull();
+        }
+
+        @Test
+        void theLatestSaveWins() {
+            long id = started("alice");
+            saveProgress("alice", id, progressJson(1, 10_000, false));
+            saveProgress("alice", id, progressJson(4, 20_000, false));
+
+            assertThat(jdbc.queryForObject("SELECT (progress ->> 'activeMs')::bigint FROM attempts", Long.class)).isEqualTo(20_000L);
+        }
+
+        @Test
+        void autoNotesOnceUsedStayUsed() {
+            long id = started("alice");
+            saveProgress("alice", id, progressJson(0, 10_000, true));
+            saveProgress("alice", id, progressJson(0, 20_000, false));
+            complete("alice", id, SOLVED, 0);
+
+            assertThat(jdbc.queryForObject("SELECT auto_notes_used FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void aCompletionCanSayAutoNotesWereUsed() {
+            long id = started("alice");
+
+            assertThat(complete("alice", id, "\"autoNotesUsed\": true")).hasStatusOk()
+                    .bodyJson().extractingPath("$.autoNotesUsed").isEqualTo(true);
+        }
+
+        @Test
+        void restartingClearsTheSavedBoard() {
+            long id = started("alice");
+            saveProgress("alice", id, progressJson(0, 10_000, false));
+
+            mvc.post().uri("/api/attempts").with(player("alice")).contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"puzzleId\": %d, \"restart\": true}".formatted(puzzle.getId())).exchange();
+
+            assertThat(jdbc.queryForObject("SELECT progress IS NULL AND progress_updated_at IS NULL FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void solvingClearsTheSavedBoard() {
+            long id = started("alice");
+            saveProgress("alice", id, progressJson(0, 10_000, false));
+            complete("alice", id, SOLVED, 0);
+
+            assertThat(jdbc.queryForObject("SELECT progress IS NULL AND progress_updated_at IS NULL FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void aSaveAfterTheSolveChangesNothing() {
+            long id = started("alice");
+            complete("alice", id, SOLVED, 0);
+
+            assertThat(saveProgress("alice", id, progressJson(9, 99_000, false))).hasStatus(HttpStatus.NO_CONTENT);
+            assertThat(jdbc.queryForObject("SELECT progress IS NULL FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void aBoardThatDoesntFitThePuzzleIsABadRequest() {
+            long id = started("alice");
+            int[] changedGiven = Grids.toCells(TestPuzzles.GIVENS);
+            changedGiven[0] = changedGiven[0] == 3 ? 4 : 3;
+
+            assertThat(saveProgress("alice", id, "{\"values\": [1, 2], \"notes\": [0, 0], \"mistakes\": 0, \"activeMs\": 0}"))
+                    .hasStatus(HttpStatus.BAD_REQUEST);
+            assertThat(saveProgress("alice", id, "{\"values\": %s, \"notes\": %s, \"mistakes\": 0, \"activeMs\": 0}"
+                    .formatted(Arrays.toString(changedGiven), Arrays.toString(new int[81])))).hasStatus(HttpStatus.BAD_REQUEST);
+            assertThat(jdbc.queryForObject("SELECT progress IS NULL FROM attempts", Boolean.class)).isTrue();
+        }
+
+        @Test
+        void anotherPlayersAttemptIsNotFound() {
+            long id = started("alice");
+
+            assertThat(saveProgress("bob", id, progressJson(0, 0, false))).hasStatus(HttpStatus.NOT_FOUND);
+        }
+
+        @Test
+        void needsAToken() {
+            long id = started("alice");
+
+            assertThat(mvc.put().uri("/api/attempts/{id}/progress", id).contentType(MediaType.APPLICATION_JSON)
+                    .content(progressJson(0, 0, false))).hasStatus(HttpStatus.UNAUTHORIZED);
+        }
+    }
 }
