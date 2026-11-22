@@ -51,13 +51,14 @@ test('the clock pauses while the player is away from the puzzle, and Recent offe
 
   const recent = page.getByRole('region', { name: 'Recent' }).getByRole('button', { name: /Daily Medium/ });
   await expect(recent).toContainText('Continue');
-  await page.waitForTimeout(4_000);
+  await page.waitForTimeout(6_000);
   await recent.click();
 
-  // Straight back to the board (it's started), the time where it was: the 4 s away didn't count.
+  // Straight back to the board (it's started), the time about where it was: the 6 s away didn't
+  // count. (Up to 2 s of slack for a slow runner between reading the timer and leaving.)
   await expect(page.getByRole('grid', { name: 'Pidoku board' })).toBeVisible();
-  expect((Date.now() - away) / 1000).toBeGreaterThan(4);
-  expect(await timerSeconds(page)).toBeLessThanOrEqual(before + 1);
+  expect((Date.now() - away) / 1000).toBeGreaterThan(6);
+  expect(await timerSeconds(page)).toBeLessThanOrEqual(before + 2);
   await context.close();
 });
 

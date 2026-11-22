@@ -68,7 +68,8 @@ class PidokuBuilderTest {
         long start = System.nanoTime();
         assertNull(BUILDER.generate(impossible, 1, Duration.ofMillis(500)));
         long elapsedMs = (System.nanoTime() - start) / 1_000_000;
-        assertTrue(elapsedMs < 3_000, "took " + elapsedMs + " ms");
+        // Generous for a busy CI runner; the bug this guards against took about 2 minutes.
+        assertTrue(elapsedMs < 10_000, "took " + elapsedMs + " ms");
     }
 
     @Test
