@@ -76,6 +76,18 @@ class PlayerDeletionTest extends IntegrationTest {
     }
 
     @Test
+    void deletesTheirAnalyticsEvents() {
+        addPlayer("alice");
+        addPlayer("bob");
+        jdbc.update("INSERT INTO events (player_id, type) SELECT id, 'share' FROM players");
+
+        assertThat(delete("alice")).hasStatus(HttpStatus.NO_CONTENT);
+
+        assertThat(count("SELECT count(*) FROM events")).isOne();
+        assertThat(count("SELECT count(*) FROM events e JOIN players p ON p.id = e.player_id WHERE p.firebase_uid = 'bob'")).isOne();
+    }
+
+    @Test
     void leavesOtherPlayersAlone() {
         solve("alice");
         solve("bob");

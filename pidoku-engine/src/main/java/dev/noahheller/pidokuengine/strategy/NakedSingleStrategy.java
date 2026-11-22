@@ -17,7 +17,9 @@ public class NakedSingleStrategy implements Strategy {
                 if (!state.isEmpty(row, col)) continue;
                 List<Integer> cands = SearchUtils.getCandidates(state, row, col);
                 if (cands.size() == 1) {
-                    moves.add(Move.placement(new BoardPosition(row, col), cands.get(0)));
+                    BoardPosition position = new BoardPosition(row, col);
+                    moves.add(Move.placement(position, cands.get(0))
+                            .because(Unit.unitsOf(position, state.getRules()), List.of(position), List.of(cands.get(0))));
                 }
             }
         }

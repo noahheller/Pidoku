@@ -11,6 +11,7 @@ const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
 const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
 const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
 const HAS_ACCOUNT_KEY = 'pidoku:has-account';
+const TUTORIAL_SEEN_KEY = 'pidoku:tutorial-seen';
 
 function read<T>(key: string): T | null {
   try {
@@ -45,11 +46,17 @@ export function clearProgress(puzzleId: string): void {
   }
 }
 
-export function loadCustomPuzzles(): PuzzleDef[] {
-  return read<PuzzleDef[]>(CUSTOM_PUZZLES_KEY) ?? [];
+/**
+ * The puzzles played in this browser, oldest first: the Recent list when signed out (see
+ * game/recent.ts). Kept under its old key ("Your puzzles"), so the puzzles played before it was
+ * renamed are still there.
+ */
+export function loadRecentPuzzles(): PuzzleDef[] {
+  const puzzles = read<PuzzleDef[]>(CUSTOM_PUZZLES_KEY);
+  return Array.isArray(puzzles) ? puzzles : [];
 }
 
-export function saveCustomPuzzles(puzzles: PuzzleDef[]): void {
+export function saveRecentPuzzles(puzzles: PuzzleDef[]): void {
   write(CUSTOM_PUZZLES_KEY, puzzles);
 }
 
@@ -62,6 +69,8 @@ export interface PendingCompletion {
   activeMs?: number;
   /** When it was solved (Date.now()), so the API can take the delay off the time. Missing from solves saved before milestone 4. */
   solvedAt?: number;
+  /** The player used Auto notes. */
+  autoNotesUsed?: boolean;
 }
 
 export function loadPendingCompletions(): PendingCompletion[] {
@@ -123,6 +132,23 @@ export function loadStreak(): CachedStreak | null {
 
 export function saveStreak(streak: CachedStreak): void {
   write(STREAK_KEY, streak);
+}
+
+/**
+ * Whether this browser has seen the tutorial (or skipped it), so it isn't shown before every first
+ * puzzle. A browser that played before the tutorial existed counts as having seen it.
+ */
+export function isTutorialSeen(): boolean {
+  if (read<boolean>(TUTORIAL_SEEN_KEY) === true || hasAccount()) return true;
+  try {
+    return Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).some((k) => k?.startsWith(PROGRESS_PREFIX));
+  } catch {
+    return false;
+  }
+}
+
+export function markTutorialSeen(): void {
+  write(TUTORIAL_SEEN_KEY, true);
 }
 
 /** Whether the player chose not to pick a display name when asked. */

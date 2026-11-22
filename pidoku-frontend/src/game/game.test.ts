@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bundledPuzzles } from '../puzzles';
 import { gameReducer, newGame, toSaved, type GameAction, type GameState } from './game';
 import type { PuzzleDef } from './puzzleFile';
+import { candidateMask } from './rules';
 
 const easy = bundledPuzzles.find((p) => p.name === 'Easy')!;
 const firstEmpty = easy.givens.indexOf(0);
@@ -147,5 +148,51 @@ describe('gameReducer', () => {
 
     const tampered = { ...toSaved(s), values: s.values.map((v, i) => (i === firstGiven ? 0 : v)) };
     expect(newGame(easy, tampered).values).toEqual(easy.givens);
+  });
+});
+
+describe('auto notes', () => {
+  const expert = bundledPuzzles.find((p) => p.name === 'Expert')!;
+  const empties = expert.givens.flatMap((v, i) => (v === 0 ? [i] : []));
+
+  it('pencils every candidate into the empty cells, as one move Undo takes back', () => {
+    const s = play(newGame(expert), { type: 'autoNotes' });
+    expect(s.autoNotesUsed).toBe(true);
+    for (const i of empties) {
+      expect(s.notes[i]).toBe(candidateMask(s.rules, expert.givens, i));
+      // The solution's digit is always among them.
+      expect(s.notes[i] & (1 << expert.solution![i])).not.toBe(0);
+    }
+    expect(play(s, { type: 'undo' }).notes.every((n) => n === 0)).toBe(true);
+  });
+
+  it("keeps a cell's notes the player narrowed, only removing impossible ones", () => {
+    const i = empties[0];
+    const answerAt = expert.solution![i];
+    const s = play(newGame(expert), { type: 'select', index: i }, { type: 'toggleNotesMode' }, { type: 'input', digit: answerAt }, { type: 'autoNotes' });
+    expect(s.notes[i]).toBe(1 << answerAt);
+  });
+
+  it("isn't offered below Expert", () => {
+    const start = newGame(easy);
+    expect(play(start, { type: 'autoNotes' })).toBe(start);
+  });
+});
+
+describe('load', () => {
+  it("replaces the board with another device's, keeping the selection", () => {
+    const i = firstEmpty;
+    const values = [...easy.givens];
+    values[i] = answer;
+    const s = play(newGame(easy), { type: 'select', index: firstGiven }, { type: 'load', progress: { values, notes: Array(81).fill(0), mistakes: 2, elapsedMs: 40_000, completed: false } });
+    expect(s.values[i]).toBe(answer);
+    expect(s.mistakes).toBe(2);
+    expect(s.elapsedMs).toBe(40_000);
+    expect(s.selected).toBe(firstGiven);
+  });
+
+  it("ignores a board that doesn't fit the puzzle", () => {
+    const start = newGame(easy);
+    expect(play(start, { type: 'load', progress: { values: [1, 2], notes: [0, 0], mistakes: 0, elapsedMs: 0, completed: false } })).toBe(start);
   });
 });

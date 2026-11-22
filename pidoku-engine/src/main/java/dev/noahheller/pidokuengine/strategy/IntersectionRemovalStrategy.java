@@ -39,14 +39,14 @@ public class IntersectionRemovalStrategy implements Strategy {
                 if (sameRow) {
                     int rowRemaining = rules.getDigitFrequency(digit) - state.getRowDigitCount(row, digit);
                     if (rowRemaining == boxRemaining) {
-                        addIfAny(moves, rowOutsideBox(state, row, box, digit));
+                        addIfAny(moves, rowOutsideBox(state, row, box, digit), Unit.box(box), Unit.row(row), candidates, digit);
                     }
                 }
 
                 if (sameCol) {
                     int colRemaining = rules.getDigitFrequency(digit) - state.getColDigitCount(col, digit);
                     if (colRemaining == boxRemaining) {
-                        addIfAny(moves, colOutsideBox(state, col, box, digit));
+                        addIfAny(moves, colOutsideBox(state, col, box, digit), Unit.box(box), Unit.column(col), candidates, digit);
                     }
                 }
             }
@@ -62,7 +62,7 @@ public class IntersectionRemovalStrategy implements Strategy {
 
                 int boxRemaining = rules.getDigitFrequency(digit) - state.getBoxDigitCount(box, digit);
                 if (boxRemaining == rowRemaining) {
-                    addIfAny(moves, boxOutsideRow(state, box, row, digit));
+                    addIfAny(moves, boxOutsideRow(state, box, row, digit), Unit.row(row), Unit.box(box), candidates, digit);
                 }
             }
 
@@ -76,7 +76,7 @@ public class IntersectionRemovalStrategy implements Strategy {
 
                 int boxRemaining = rules.getDigitFrequency(digit) - state.getBoxDigitCount(box, digit);
                 if (boxRemaining == colRemaining) {
-                    addIfAny(moves, boxOutsideCol(state, box, col, digit));
+                    addIfAny(moves, boxOutsideCol(state, box, col, digit), Unit.column(col), Unit.box(box), candidates, digit);
                 }
             }
         }
@@ -84,9 +84,14 @@ public class IntersectionRemovalStrategy implements Strategy {
         return moves;
     }
 
-    private static void addIfAny(List<Move> moves, List<Move.Candidate> eliminations) {
+    /**
+     * The reason's units are the unit whose candidates all fall in the intersection, then the unit
+     * the digit is cleared from: box then line for pointing, line then box for claiming.
+     */
+    private static void addIfAny(List<Move> moves, List<Move.Candidate> eliminations, Unit source, Unit target,
+                                 List<BoardPosition> candidates, int digit) {
         Move move = Move.eliminating(eliminations);
-        if (move != null) moves.add(move);
+        if (move != null) moves.add(move.because(List.of(source, target), candidates, List.of(digit)));
     }
 
     /** @return the box every candidate is in, or null if they span several boxes (or there are none). */

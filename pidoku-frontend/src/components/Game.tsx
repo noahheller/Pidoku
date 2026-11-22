@@ -1,17 +1,21 @@
 import { ArrowLeft, CalendarDays, CircleX, Info, Pause, Play, Timer, X } from 'lucide-react';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { startAttempt, type Attempt } from '../api/client';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type RefObject } from 'react';
+import { saveProgress as uploadProgress, startAttempt, type Attempt } from '../api/client';
 import { recordCompletion } from '../api/completions';
+import { flushEvents, recordEvent } from '../api/events';
 import { dailyNumber } from '../game/daily';
 import { countClues, formatDate, formatTime } from '../game/format';
-import { gameReducer, newGame, toSaved, type GameAction } from '../game/game';
+import { gameReducer, newGame, toSaved, type GameAction, type GameState, type SavedProgress } from '../game/game';
+import { actionForKey } from '../game/keys';
 import type { PuzzleDef } from '../game/puzzleFile';
-import {isPlayable, PI_DIGITS, type Rules} from '../game/rules';
-import { loadProgress, loadResult, saveProgress, saveResult } from '../game/storage';
+import { EMPTY, PI_DIGITS, type Rules } from '../game/rules';
+import { isTutorialSeen, loadProgress, loadResult, saveProgress, saveResult } from '../game/storage';
+import { boardChanged, newerOnServer, SYNC_INTERVAL_MS } from '../game/sync';
 import { Board } from './Board';
 import { Controls } from './Controls';
 import { NumberPad } from './NumberPad';
 import { Result, type Recorded } from './Result';
+import { Tutorial } from './Tutorial';
 
 interface GameProps {
   puzzle: PuzzleDef;
@@ -22,9 +26,31 @@ interface GameProps {
   onExit: () => void;
 }
 
-export function Game({ puzzle, replay = false, notice = null, onExit }: GameProps) {
+/**
+ * A puzzle, after the tutorial if this browser has never seen it (the first puzzle anyone opens
+ * here). Nothing starts, not the clock nor the attempt, until the tutorial is done or skipped.
+ */
+export function Game(props: GameProps) {
+  const [tutorial, setTutorial] = useState(() => !isTutorialSeen());
+  if (tutorial) return <Tutorial onDone={() => setTutorial(false)} doneLabel={`Start ${props.puzzle.name}`} />;
+  return <PuzzleGame {...props} />;
+}
+
+function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps) {
   const [state, dispatch] = useReducer(gameReducer, puzzle, (p) => newGame(p, loadProgress(p.id)));
-  const { values, notes, mistakes, elapsedMs, completed, rules } = state;
+  const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, rules } = state;
+  // When the board (not just the clock) last changed here, to tell this browser's copy from a newer
+  // one saved on another device. 0 for a board never touched in this browser.
+  const boardChangedAt = useRef<number>(loadProgress(puzzle.id)?.savedAt ?? 0);
+  // Compared by identity, so React re-running the effect (StrictMode) doesn't count as a change.
+  const lastBoard = useRef({ values, notes, mistakes });
+  useEffect(() => {
+    const last = lastBoard.current;
+    if (last.values === values && last.notes === notes && last.mistakes === mistakes) return;
+    lastBoard.current = { values, notes, mistakes };
+    boardChangedAt.current = Date.now();
+  }, [values, notes, mistakes]);
+  const [synced, setSynced] = useState(false);
   // A daily waits on its start screen until the player presses Start: its ranked time is the
   // server's wall-clock time, so the start has to be deliberate. Once started (there's saved
   // progress) it opens straight to the board. Other puzzles start when opened.
@@ -36,8 +62,8 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
 
   useEffect(() => {
     // Nothing saved before Start, or the start screen would be skipped next time.
-    if (ready) saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed });
-  }, [ready, puzzle.id, values, notes, mistakes, elapsedMs, completed]);
+    if (ready) saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, savedAt: boardChangedAt.current });
+  }, [ready, puzzle.id, values, notes, mistakes, elapsedMs, completed, autoNotesUsed]);
 
   // Records the game on the server, for puzzles that came from the API. The attempt starts when
   // the puzzle is opened unsolved, or for a daily when Start is pressed (the API hands back the
@@ -49,24 +75,49 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
   // Only the first start of a replay restarts the clock; later ones (StrictMode's second run of
   // the effect) continue that attempt.
   const restartOnStart = useRef(replay);
-  const latest = useRef({ values, mistakes, elapsedMs });
+  const latest = useRef({ values, mistakes, elapsedMs, autoNotesUsed });
   useEffect(() => {
-    latest.current = { values, mistakes, elapsedMs };
-  }, [values, mistakes, elapsedMs]);
+    latest.current = { values, mistakes, elapsedMs, autoNotesUsed };
+  }, [values, mistakes, elapsedMs, autoNotesUsed]);
+  // The started attempt's id, once known, for saving progress to it.
+  const attemptId = useRef<number | null>(null);
+  // Kept current in a layout effect, which runs before any effect's cleanup: the cleanups that
+  // run as the puzzle is solved (useProgressSync, useAbandonedEvent) then see it solved.
+  const stateRef = useRef(state);
+  useLayoutEffect(() => {
+    stateRef.current = state;
+  });
   useEffect(() => {
     const { apiId } = puzzle;
     if (apiId === undefined || !ready) return;
     if (!completed) {
-      attempt.current = startAttempt(apiId, restartOnStart.current).catch(() => null);
+      const restart = restartOnStart.current;
       restartOnStart.current = false;
-      return;
+      attempt.current = startAttempt(apiId, restart).catch(() => null);
+      const live = { current: true };
+      void attempt.current.then((started) => {
+        if (!started || !live.current) return;
+        attemptId.current = started.id;
+        // Signed in now, so any analytics waiting for an account can go.
+        void flushEvents();
+        // Played on another device since this browser last saved: carry on from there.
+        const local = toSaved(stateRef.current, boardChangedAt.current);
+        const remote = restart ? null : newerOnServer(local, started);
+        if (remote) {
+          dispatch({ type: 'load', progress: remote });
+          setSynced(true);
+        }
+      });
+      return () => {
+        live.current = false;
+      };
     }
     const started = attempt.current;
     attempt.current = null;
     if (!started) return;
-    const { values: grid, mistakes: wrong, elapsedMs: activeMs } = latest.current;
+    const { values: grid, mistakes: wrong, elapsedMs: activeMs, autoNotesUsed: autoNotes } = latest.current;
     setRecorded({ status: 'saving' });
-    void recordCompletion(started, { grid, mistakes: wrong, activeMs: Math.round(activeMs) }).then((done) => {
+    void recordCompletion(started, { grid, mistakes: wrong, activeMs: Math.round(activeMs), autoNotesUsed: autoNotes }).then((done) => {
       switch (done.status) {
         case 'recorded': {
           // The game's timer is the ranked time; the server's wall-clock time only when it has none.
@@ -94,10 +145,6 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
   // button, or any other navigation) pauses it, and it picks up from the saved time on return.
   // clockFrom is when the time not yet added to elapsedMs began, or null while paused.
   const clockFrom = useRef<number | null>(null);
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  });
   /** Takes the time since clockFrom, restarting the count from now. */
   const takeClock = useCallback(() => {
     if (clockFrom.current === null) return 0;
@@ -133,10 +180,13 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
         dispatch({ type: 'tick', ms });
         // Leaving the game unmounts it before the save effect could run, so save the paused time here.
         const current = stateRef.current;
-        saveProgress(puzzle.id, { ...toSaved(current), elapsedMs: current.elapsedMs + ms });
+        saveProgress(puzzle.id, { ...toSaved(current, boardChangedAt.current), elapsedMs: current.elapsedMs + ms });
       }
     };
   }, [running, flushClock, takeClock, puzzle.id]);
+
+  useProgressSync({ puzzle, running, attemptId, stateRef, board: { values, notes, mistakes } });
+  useAbandonedEvent({ puzzle, running, stateRef });
 
   /** Every move first counts the time up to it, so a solve's time ends at the last digit. */
   const play = useCallback(
@@ -167,7 +217,10 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
   const { apiId } = puzzle;
   const act = useCallback(
     (action: GameAction) => {
-      if (action.type === 'restart' && apiId !== undefined) attempt.current = startAttempt(apiId, true).catch(() => null);
+      if (action.type === 'restart' && apiId !== undefined) {
+        attempt.current = startAttempt(apiId, true).catch(() => null);
+        setSynced(false);
+      }
       play(action);
     },
     [apiId, play],
@@ -202,6 +255,7 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
       </header>
 
       {notice && <Notice text={notice} />}
+      {synced && <Notice text="Carried on from where you left off on another device." />}
 
       {!ready && <StartScreen puzzle={puzzle} onStart={() => setReady(true)} />}
 
@@ -225,38 +279,94 @@ export function Game({ puzzle, replay = false, notice = null, onExit }: GameProp
   );
 }
 
-function actionForKey(event: KeyboardEvent, rules: Rules): GameAction | null {
-  const mod = event.ctrlKey || event.metaKey;
-  if (mod && event.key.toLowerCase() === 'z') return { type: event.shiftKey ? 'redo' : 'undo' };
-  if (mod && event.key.toLowerCase() === 'y') return { type: 'redo' };
-  if (mod || event.altKey) return null;
+interface SyncOptions {
+  puzzle: PuzzleDef;
+  /** The board is on screen and the puzzle unfinished. */
+  running: boolean;
+  attemptId: RefObject<number | null>;
+  stateRef: RefObject<GameState>;
+  /** The board as rendered, so a change schedules a save. */
+  board: Pick<GameState, 'values' | 'notes' | 'mistakes'>;
+}
 
-  switch (event.key) {
-    case 'ArrowUp':
-      return { type: 'move', dRow: -1, dCol: 0 };
-    case 'ArrowDown':
-      return { type: 'move', dRow: 1, dCol: 0 };
-    case 'ArrowLeft':
-      return { type: 'move', dRow: 0, dCol: -1 };
-    case 'ArrowRight':
-      return { type: 'move', dRow: 0, dCol: 1 };
-    case 'Backspace':
-    case 'Delete':
-      return { type: 'erase' };
-    case 'n':
-    case 'N':
-      return { type: 'toggleNotesMode' };
-    case 'Escape':
-      return { type: 'select', index: null };
-  }
+/**
+ * Saves the unfinished board to the server, so it follows the player to another device (see
+ * game/sync.ts): at most every {@link SYNC_INTERVAL_MS} while they play, and straight away when
+ * the page is hidden or closed or they leave the game (with `keepalive`, so it survives the tab
+ * closing). Only puzzles from the API, once their attempt has started.
+ */
+function useProgressSync({ puzzle, running, attemptId, stateRef, board: { values, notes, mistakes } }: SyncOptions) {
+  const lastSent = useRef<SavedProgress | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // event.code, not event.key, so Shift+1 still reads as 1 rather than "!".
-  const match = /^(?:Digit|Numpad)(\d)$/.exec(event.code);
-  if (match) {
-    const digit = Number(match[1]);
-    if (isPlayable(rules, digit)) return { type: 'input', digit, asNote: event.shiftKey ? true : undefined };
-  }
-  return null;
+  const send = useCallback(
+    (keepalive: boolean) => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      const id = attemptId.current;
+      const state = stateRef.current;
+      if (id === null || state.completed) return;
+      const board = toSaved(state);
+      const elapsedMs = Math.round(state.elapsedMs);
+      // Nothing new: the board's the same and the clock has barely moved.
+      if (!boardChanged(lastSent.current, board) && Math.abs(elapsedMs - (lastSent.current?.elapsedMs ?? 0)) < 5_000) return;
+      lastSent.current = { ...board, elapsedMs };
+      uploadProgress(id, { values: board.values, notes: board.notes, mistakes: board.mistakes, activeMs: elapsedMs, autoNotesUsed: board.autoNotesUsed ?? false }, keepalive).catch(() => {
+        // Offline or signed out: this browser still has it, and the next save tries again.
+        lastSent.current = null;
+      });
+    },
+    [attemptId, stateRef],
+  );
+
+  // A move schedules a save, which picks up every move made before it goes.
+  useEffect(() => {
+    if (!running || puzzle.apiId === undefined || timer.current) return;
+    timer.current = setTimeout(() => send(false), SYNC_INTERVAL_MS);
+  }, [running, puzzle.apiId, values, notes, mistakes, send]);
+
+  useEffect(() => {
+    if (!running || puzzle.apiId === undefined) return;
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') send(true);
+    };
+    const onPageHide = () => send(true);
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onPageHide);
+      // Leaving the game (or solving it, when this sends nothing).
+      send(true);
+    };
+  }, [running, puzzle.apiId, send]);
+}
+
+/**
+ * Records an `abandoned` analytics event when the player leaves an unfinished API puzzle (back to
+ * Puzzles, or closing the tab): how far they got. They may come back to it; the event says where
+ * people stop, not that they never return. Ignores leaving within a few seconds of opening.
+ */
+function useAbandonedEvent({ puzzle, running, stateRef }: Pick<SyncOptions, 'puzzle' | 'running' | 'stateRef'>) {
+  useEffect(() => {
+    if (!running || puzzle.apiId === undefined) return;
+    const apiId = puzzle.apiId;
+    const sent = { current: false };
+    const record = (keepalive: boolean) => {
+      const state = stateRef.current;
+      if (sent.current || state.completed || state.elapsedMs < 5_000) return;
+      sent.current = true;
+      const filled = state.values.filter((v, i) => v !== EMPTY && puzzle.givens[i] === EMPTY).length;
+      const empty = state.values.filter((v) => v === EMPTY).length;
+      recordEvent('abandoned', { puzzleId: apiId, detail: { filled, empty, activeMs: Math.round(state.elapsedMs), mistakes: state.mistakes, daily: puzzle.dailyDate !== undefined } }, keepalive);
+    };
+    const onPageHide = () => record(true);
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      record(false);
+    };
+  }, [running, puzzle, stateRef]);
 }
 
 const SHORTCUTS: [keys: string[], action: string][] = [
