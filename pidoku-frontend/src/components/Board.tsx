@@ -2,14 +2,41 @@ import { memo, useMemo, type CSSProperties } from 'react';
 import { isGiven, isMistake, type GameState } from '../game/game';
 import { EMPTY, findConflicts, isPeer } from '../game/rules';
 
+/**
+ * Cells to point the player at, for the tutorial (and hints): what "Explain a move" says to look
+ * at. All are row-major cell indices.
+ */
+export interface BoardHighlight {
+  /** The rows, columns and boxes the reasoning is about: shaded lightly. */
+  area: number[];
+  /** The cells that make the pattern: shaded strongly. */
+  pattern: number[];
+  /** Filled cells that rule the digit out elsewhere: ringed. */
+  blockers: number[];
+  /** The cell to fill in, if any: ringed and shaded. */
+  target: number | null;
+}
+
+type Mark = 'target' | 'pattern' | 'area' | null;
+
 interface BoardProps {
   state: GameState;
   onSelect: (index: number) => void;
+  highlight?: BoardHighlight | null;
 }
 
-export function Board({ state, onSelect }: BoardProps) {
+export function Board({ state, onSelect, highlight = null }: BoardProps) {
   const { rules, values, notes, selected } = state;
   const conflicts = useMemo(() => findConflicts(rules, values), [rules, values]);
+  const marks = useMemo(() => {
+    const byCell = new Map<number, Mark>();
+    if (!highlight) return byCell;
+    for (const i of highlight.area) byCell.set(i, 'area');
+    for (const i of highlight.pattern) byCell.set(i, 'pattern');
+    if (highlight.target !== null) byCell.set(highlight.target, 'target');
+    return byCell;
+  }, [highlight]);
+  const blockers = useMemo(() => new Set(highlight?.blockers ?? []), [highlight]);
   const selectedValue = selected === null ? EMPTY : values[selected];
 
   return (
@@ -49,6 +76,8 @@ export function Board({ state, onSelect }: BoardProps) {
             highlightNote={selectedValue}
             error={error}
             clash={clash}
+            mark={marks.get(i) ?? null}
+            blocker={blockers.has(i)}
             boxRight={(col + 1) % rules.boxDim === 0 && col !== rules.size - 1}
             boxBottom={(row + 1) % rules.boxDim === 0 && row !== rules.size - 1}
             lastCol={col === rules.size - 1}
@@ -74,6 +103,9 @@ interface CellProps {
   error: boolean;
   /** Clashes with a wrong digit in its row, column or box, without being wrong itself. */
   clash: boolean;
+  /** Pointed at by a highlight (see BoardHighlight). */
+  mark: Mark;
+  blocker: boolean;
   boxRight: boolean;
   boxBottom: boolean;
   lastCol: boolean;
@@ -85,17 +117,30 @@ interface CellProps {
 const NOTE_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 const Cell = memo(function Cell(props: CellProps) {
-  const { index, value, notes, given, selected, peer, sameDigit, highlightNote, error, clash, boxRight, boxBottom, lastCol, lastRow, label, onSelect } = props;
+  const { index, value, notes, given, selected, peer, sameDigit, highlightNote, error, clash, mark, blocker, boxRight, boxBottom, lastCol, lastRow, label, onSelect } = props;
   // Each property is picked in one place so no two utilities fight over it.
   const background = selected
     ? 'bg-(color:--hl)/35'
     : error
       ? 'bg-error/15'
-      : sameDigit
-        ? 'bg-(color:--hl)/20'
-        : peer
-          ? 'bg-(color:--hl)/8'
-          : 'bg-base-100';
+      : mark === 'target'
+        ? 'bg-warning/45'
+        : mark === 'pattern'
+          ? 'bg-warning/30'
+          : sameDigit
+            ? 'bg-(color:--hl)/20'
+            : mark === 'area'
+              ? 'bg-warning/12'
+              : peer
+                ? 'bg-(color:--hl)/8'
+                : 'bg-base-100';
+  // One outline per cell: a highlighted target or blocker, else a clash with a wrong digit.
+  const outline =
+    mark === 'target'
+      ? 'outline-3 -outline-offset-3 outline-warning motion-safe:animate-pulse'
+      : blocker
+        ? 'outline-2 -outline-offset-4 outline-info rounded-full'
+        : clash && 'outline-2 -outline-offset-3 outline-error/60';
   const color = error ? 'text-error' : given ? 'text-base-content' : 'text-primary';
   const right = lastCol ? 'border-r-0' : boxRight ? 'border-r-2 border-r-base-content' : 'border-r border-r-base-300';
   const bottom = lastRow ? 'border-b-0' : boxBottom ? 'border-b-2 border-b-base-content' : 'border-b border-b-base-300';
@@ -109,7 +154,7 @@ const Cell = memo(function Cell(props: CellProps) {
     // Clues are printed; digits the player writes use the handwritten font.
     given ? 'font-bold' : 'casual font-medium',
     // An outline, so it doesn't fight the hover wash (an inset shadow); focus still overrides it.
-    clash && 'outline-2 -outline-offset-3 outline-error/60',
+    outline,
     background,
     color,
     right,
@@ -119,7 +164,8 @@ const Cell = memo(function Cell(props: CellProps) {
     .join(' ');
 
   const description =
-    value !== EMPTY ? `${value}${given ? ', given' : ''}${error ? ', incorrect' : ''}${clash ? ', clashes with a wrong digit' : ''}` : 'empty';
+    (value !== EMPTY ? `${value}${given ? ', given' : ''}${error ? ', incorrect' : ''}${clash ? ', clashes with a wrong digit' : ''}` : 'empty') +
+    (mark === 'target' ? ', highlighted: fill this cell' : mark === 'pattern' ? ', highlighted' : blocker ? ', highlighted: rules the digit out' : '');
 
   return (
     <button

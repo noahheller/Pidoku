@@ -55,6 +55,9 @@ flowchart LR
   training run at build time: the Spring context is ready in about 4 s instead of 8 s on one CPU.
 - **Integration tests against real Postgres.** Every migration and endpoint is tested with
   Testcontainers; CI runs them on every pull request and deploys every merge to main.
+- **End-to-end tests.** Playwright plays the real app, at desktop and phone sizes, against the
+  real API on a throwaway Postgres, signed in with test-only tokens instead of Firebase: solving
+  a daily, friends and leaderboards, a game carrying over to a second device, the tutorial.
 
 ## Modules
 
@@ -85,6 +88,7 @@ Or run the pieces yourself:
 ./gradlew :pidoku-api:bootRun   # runs the API
 cd pidoku-frontend && npm install && npm run dev
 cd pidoku-frontend && npm test  # frontend game-logic tests (Vitest)
+cd pidoku-frontend && npm run e2e  # end-to-end tests (Playwright; see pidoku-frontend/e2e/README.md)
 ```
 
 The frontend gets its puzzles from the API (the Vite dev server proxies `/api` to `:8080`). When

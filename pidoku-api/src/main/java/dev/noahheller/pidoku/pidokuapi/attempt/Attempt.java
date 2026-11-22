@@ -12,6 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -70,6 +72,19 @@ public class Attempt {
     @Column(nullable = false)
     private boolean late;
 
+    /** The board as the player last left it, for another device; null until the first save. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "progress")
+    private AttemptProgress progress;
+
+    /** When {@link #progress} was saved (server time); null with it. */
+    @Column(name = "progress_updated_at")
+    private Instant progressUpdatedAt;
+
+    /** The player used Auto notes during the attempt. */
+    @Column(name = "auto_notes_used", nullable = false)
+    private boolean autoNotesUsed;
+
     /** For JPA. */
     protected Attempt() {
     }
@@ -88,6 +103,25 @@ public class Attempt {
             throw new IllegalStateException("attempt " + id + " is already complete");
         }
         this.startedAt = now;
+        // The board was wiped, so another device shouldn't bring the old one back.
+        this.progress = null;
+        this.progressUpdatedAt = null;
+        this.autoNotesUsed = false;
+    }
+
+    /**
+     * Saves the board as the player left it, so another device can carry on from it.
+     *
+     * @throws IllegalStateException if the attempt is already complete
+     */
+    public void saveProgress(AttemptProgress progress, boolean autoNotesUsed, Instant now) {
+        if (isCompleted()) {
+            throw new IllegalStateException("attempt " + id + " is already complete");
+        }
+        this.progress = progress;
+        this.progressUpdatedAt = now;
+        // Once used, always used: a later save from a device that didn't press it doesn't undo that.
+        this.autoNotesUsed |= autoNotesUsed;
     }
 
     /**
@@ -99,9 +133,10 @@ public class Attempt {
      * @param lateBy   how long before {@code now} the puzzle was really solved, as the client claims;
      *                 null or zero for a completion sent straight away. The solve is then recorded at
      *                 {@code now - lateBy}, but never before the attempt started.
+     * @param autoNotesUsed the player used Auto notes (also kept if a progress save said so)
      * @throws IllegalStateException if the attempt is already complete
      */
-    public void complete(Instant now, int mistakes, Long activeMs, Duration lateBy) {
+    public void complete(Instant now, int mistakes, Long activeMs, Duration lateBy, boolean autoNotesUsed) {
         if (isCompleted()) {
             throw new IllegalStateException("attempt " + id + " is already complete");
         }
@@ -116,5 +151,9 @@ public class Attempt {
         // time on screen fits inside the time since the start. (It can come out a little under
         // the real figure, by the network delay of the start request, never over.)
         this.activeMs = activeMs == null ? null : Math.min(activeMs, elapsedMs);
+        this.autoNotesUsed |= autoNotesUsed;
+        // The solved grid is checked, not kept: a finished attempt needs no board to carry on from.
+        this.progress = null;
+        this.progressUpdatedAt = null;
     }
 }

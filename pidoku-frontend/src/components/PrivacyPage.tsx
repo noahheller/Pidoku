@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
 const CONTACT = 'pidoku@googlegroups.com';
-const UPDATED = '20 November 2026';
+const UPDATED = '21 November 2026';
 
 /** `/privacy`: what Pidoku keeps about players, who sees it, and how to delete it. */
 export function PrivacyPage() {
@@ -17,8 +17,8 @@ export function PrivacyPage() {
           <ShieldCheck className="size-6 text-primary" aria-hidden="true" /> Privacy
         </h1>
         <p className="text-base-content/80">
-          Pidoku is a free hobby puzzle game. It keeps only what it needs for streaks, friends and leaderboards. There are no ads, no analytics and no tracking cookies, and nothing is
-          sold or shared for marketing.
+          Pidoku is a free hobby puzzle game. It keeps only what it needs for streaks, friends and leaderboards, and a few game events to learn what to improve. There are no
+          ads, no third-party analytics and no tracking cookies, and nothing is sold or shared for marketing.
         </p>
         <p className="text-sm text-base-content/60">Last updated {UPDATED}.</p>
       </header>
@@ -36,6 +36,14 @@ export function PrivacyPage() {
         <Item name="Your solves">
           Which puzzles you start and finish, when, how long they took, and how many mistakes you made. These make your streak and the leaderboards.
         </Item>
+        <Item name="Game events">
+          A few things that happen in the game, tied to your account ID: tapping Share or Copy on a result, opening a share link (and whether you were new), leaving a puzzle
+          unfinished (how far you got), and finishing or skipping the tutorial. They're counted to see which puzzles are too hard and whether sharing brings new players. They're
+          kept in Pidoku's own database, not sent to any analytics company.
+        </Item>
+        <Item name="Games in progress">
+          Once you've started a puzzle, its board is saved to your account every few seconds, so you can carry on on another device. It's cleared when you finish.
+        </Item>
         <Item name="Request logs">
           Like most websites, the hosting (Firebase Hosting and Google Cloud Run) briefly logs requests, including IP addresses and browser type, to keep the site working and secure.
         </Item>
@@ -43,8 +51,8 @@ export function PrivacyPage() {
 
       <Section title="What stays in your browser">
         <p>
-          Games in progress, your results, your own puzzles and settings like the leaderboard filters are saved in this browser's storage. They stay on your device, apart from finished
-          solves, which are sent to the server as above.
+          Games in progress, your results, your recent puzzles and settings like the leaderboard filters are saved in this browser's storage. They stay on your device, apart from
+          solves and games in progress on Pidoku's puzzles, which are sent to the server as above.
         </p>
       </Section>
 
@@ -65,7 +73,8 @@ export function PrivacyPage() {
           <Link to="/me" className="link link-primary">
             You &amp; friends
           </Link>
-          , choose <strong>Delete my account</strong>. It deletes straight away and for good your name, friends, every solve (so your times leave the leaderboards), your sign-in, and
+          , choose <strong>Delete my account</strong>. It deletes straight away and for good your name, friends, every solve and game in progress (so your times leave the leaderboards), your
+          game events, your sign-in, and
           Pidoku's data in that browser. Database backups can hold a copy for a short while until they expire.
         </p>
         <p>

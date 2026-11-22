@@ -1,12 +1,13 @@
-import { CircleAlert, Flame, Puzzle, RotateCw, Shuffle, Trophy, Users, X, Zap } from 'lucide-react';
+import { CircleAlert, Flame, GraduationCap, Puzzle, RotateCw, Shuffle, Trophy, Users, Zap } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { DIFFICULTIES, fetchDailySummary, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
+import { DIFFICULTIES, fetchDailySummary, fetchRecent, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
 import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
 import { cardStats } from '../game/dailyStats';
 import { formatDate, formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
+import { localEntries, recentList, serverEntries, type RecentEntry } from '../game/recent';
 import { PI_DIGITS } from '../game/rules';
 import { clearProgress, clearResult, loadProgress, loadStreak, saveStreak, type CachedStreak } from '../game/storage';
 import { strategyName } from '../game/strategies';
@@ -21,13 +22,12 @@ export interface PlayOptions {
 
 interface PuzzlePickerProps {
   bundled: PuzzleDef[];
-  custom: PuzzleDef[];
+  /** The puzzles played in this browser, oldest first (see game/recent.ts). */
+  recent: PuzzleDef[];
   onPlay: (puzzle: PuzzleDef, options?: PlayOptions) => void;
-  onAddCustom: (puzzles: PuzzleDef[]) => void;
-  onRemoveCustom: (id: string) => void;
 }
 
-export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCustom }: PuzzlePickerProps) {
+export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
   const daily = useDaily();
   const summary = useDailySummary(daily.state.status === 'loaded' ? daily.state.daily.date : null);
 
@@ -38,9 +38,14 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
           <h1 className="text-4xl font-bold">
             Pidoku <span className="text-primary">π</span>
           </h1>
-          <Link to="/me" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
-            <Users className="size-4" aria-hidden="true" /> You &amp; friends
-          </Link>
+          <nav className="flex flex-wrap justify-end gap-2" aria-label="Pidoku">
+            <Link to="/tutorial" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+              <GraduationCap className="size-4" aria-hidden="true" /> How to play
+            </Link>
+            <Link to="/me" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+              <Users className="size-4" aria-hidden="true" /> You &amp; friends
+            </Link>
+          </nav>
         </div>
         <DigitRow />
         <p className="text-base-content/60">Sudoku with the digits of pi. Play today's puzzles and race your friends, or try a random one.</p>
@@ -74,13 +79,7 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
         )}
       </section>
 
-      <RandomPuzzle
-        onPlay={(puzzle, options) => {
-          // Also kept in "Your puzzles", so leaving it doesn't lose it.
-          onAddCustom([puzzle]);
-          onPlay(puzzle, options);
-        }}
-      />
+      <RandomPuzzle onPlay={onPlay} />
 
       {/* Bundled puzzles are the offline fallback: only shown when the API can't be reached. */}
       {daily.state.status === 'failed' && (
@@ -93,12 +92,7 @@ export function PuzzlePicker({ bundled, custom, onPlay, onAddCustom, onRemoveCus
         </section>
       )}
 
-      {custom.length > 0 && (
-        <section>
-          <h2 className="mb-3 text-lg font-semibold">Your puzzles</h2>
-          <PuzzleList puzzles={custom} onPlay={onPlay} onRemove={onRemoveCustom} />
-        </section>
-      )}
+      <Recent local={recent} onPlay={onPlay} />
 
       <footer className="flex justify-center text-sm text-base-content/50">
         <Link to="/privacy" className="link link-hover">
@@ -163,12 +157,11 @@ function useDailySummary(date: string | null): Summary {
 interface PuzzleListProps {
   puzzles: PuzzleDef[];
   onPlay: (p: PuzzleDef) => void;
-  onRemove?: (id: string) => void;
   /** For dailies: who has solved each one. */
   summary?: Summary;
 }
 
-function PuzzleList({ puzzles, onPlay, onRemove, summary }: PuzzleListProps) {
+function PuzzleList({ puzzles, onPlay, summary }: PuzzleListProps) {
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
       {puzzles.map((puzzle) => (
@@ -183,11 +176,6 @@ function PuzzleList({ puzzles, onPlay, onRemove, summary }: PuzzleListProps) {
             {summary && <SolvedBy summary={summary} difficulty={puzzle.difficulty} />}
             <ProgressBadge id={puzzle.id} />
           </button>
-          {onRemove && (
-            <button type="button" className="btn btn-circle btn-ghost btn-xs absolute top-2 right-2 text-base-content/60 hover:bg-error/10 hover:text-error" aria-label={`Remove ${puzzle.name}`} onClick={() => onRemove(puzzle.id)}>
-              <X className="size-4" aria-hidden="true" />
-            </button>
-          )}
         </li>
       ))}
     </ul>
@@ -339,4 +327,54 @@ function ProgressBadge({ id }: { id: string }) {
   if (!progress) return <span className="text-xs font-semibold text-base-content/60">New</span>;
   if (progress.completed) return <span className="text-xs font-semibold text-success">Solved · {formatTime(progress.elapsedMs)}</span>;
   return <span className="text-xs font-semibold text-primary">In progress · {formatTime(progress.elapsedMs)}</span>;
+}
+
+/**
+ * The puzzles last played, unfinished first ("Continue"), then the latest solves with their times.
+ * From the server for a browser that has signed in (the same list on every device, dailies
+ * included), with this browser's own puzzles until it answers or if it can't be reached.
+ */
+function Recent({ local, onPlay }: { local: PuzzleDef[]; onPlay: (p: PuzzleDef) => void }) {
+  const [server, setServer] = useState<RecentEntry[] | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchRecent(controller.signal)
+      .then((recent) => {
+        if (recent) setServer(serverEntries(recent));
+      })
+      .catch(() => {
+        // This browser's list stands in.
+      });
+    return () => controller.abort();
+  }, []);
+
+  const entries = recentList(server, localEntries(local));
+  if (entries.length === 0) return null;
+  return (
+    <section aria-labelledby="recent-title">
+      <h2 id="recent-title" className="mb-3 text-lg font-semibold">
+        Recent
+      </h2>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
+        {entries.map(({ puzzle, completed, timeMs }) => (
+          <li key={puzzle.id}>
+            <button
+              type="button"
+              className="card card-border h-full w-full cursor-pointer gap-1 border-base-300 bg-base-100 p-4 text-left transition hover:border-primary hover:shadow-md motion-safe:hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-primary"
+              onClick={() => onPlay(puzzle)}
+            >
+              <span className="text-lg font-semibold">{puzzle.name}</span>
+              {puzzle.dailyDate && <span className="text-sm text-base-content/60">{formatDate(puzzle.dailyDate)}</span>}
+              <Technique strategy={puzzle.hardestStrategy} />
+              {completed ? (
+                <span className="text-xs font-semibold text-success">Solved{timeMs !== null && ` · ${formatTime(timeMs)}`}</span>
+              ) : (
+                <span className="text-xs font-semibold text-primary">Continue{timeMs !== null && timeMs > 0 && ` · ${formatTime(timeMs)}`}</span>
+              )}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
 }

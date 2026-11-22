@@ -8,7 +8,10 @@ import jakarta.validation.constraints.Size;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,9 +45,25 @@ public class AttemptController {
      * @param activeMs the client's own timer, paused while the tab was hidden; may be left out
      * @param lateByMs how long ago the puzzle was solved, when the completion couldn't be sent at
      *                 the time; left out when it's sent straight away
+     * @param autoNotesUsed the player used Auto notes; may be left out
      */
     public record CompleteRequest(@NotNull @Size(max = 625) List<@NotNull Integer> grid, @Min(0) int mistakes,
-                                  @Min(0) Long activeMs, @Min(0) Long lateByMs) {
+                                  @Min(0) Long activeMs, @Min(0) Long lateByMs, Boolean autoNotesUsed) {
+    }
+
+    /**
+     * An unfinished board, as {@link AttemptProgress}.
+     *
+     * @param autoNotesUsed the player has used Auto notes; may be left out
+     */
+    public record ProgressRequest(@NotNull @Size(max = 625) List<@NotNull Integer> values,
+                                  @NotNull @Size(max = 625) List<@NotNull Integer> notes,
+                                  @Min(0) int mistakes, @Min(0) long activeMs, Boolean autoNotesUsed) {
+
+        AttemptProgress toProgress() {
+            return new AttemptProgress(values.stream().mapToInt(Integer::intValue).toArray(),
+                    notes.stream().mapToInt(Integer::intValue).toArray(), mistakes, activeMs);
+        }
     }
 
     /**
@@ -70,6 +89,20 @@ public class AttemptController {
         int[] grid = request.grid().stream().mapToInt(Integer::intValue).toArray();
         return AttemptResponse.from(
                 attemptService.complete(playerService.forToken(token), id, grid, request.mistakes(),
-                        request.activeMs(), request.lateByMs()));
+                        request.activeMs(), request.lateByMs(), Boolean.TRUE.equals(request.autoNotesUsed())));
+    }
+
+    /**
+     * Saves an unfinished attempt's board, notes, mistakes and timer, so the player can carry on
+     * from it on another device: the frontend sends it every few moves and when the page is hidden.
+     * 204; nothing changes if the attempt is already complete. 400 if the board doesn't fit the
+     * puzzle.
+     */
+    @PutMapping("/{id}/progress")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void saveProgress(@AuthenticationPrincipal Jwt token, @PathVariable long id,
+                             @Valid @RequestBody ProgressRequest request) {
+        attemptService.saveProgress(playerService.forToken(token), id, request.toProgress(),
+                Boolean.TRUE.equals(request.autoNotesUsed()));
     }
 }

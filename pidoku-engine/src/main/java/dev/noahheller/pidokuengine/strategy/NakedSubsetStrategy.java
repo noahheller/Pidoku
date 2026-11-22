@@ -41,7 +41,8 @@ public class NakedSubsetStrategy extends SubsetSearchStrategy<BoardPosition> {
                 }
             }
         }
-        return Move.eliminating(eliminations);
+        Move move = Move.eliminating(eliminations);
+        return move == null ? null : move.because(List.of(new Unit(type, index)), subset, union.stream().sorted().toList());
     }
 
     @Override

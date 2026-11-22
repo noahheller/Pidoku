@@ -1,5 +1,5 @@
 import type { PuzzleDef } from '../game/puzzleFile';
-import { existingIdToken, idToken } from './auth';
+import { cachedIdToken, existingIdToken, idToken } from './auth';
 
 /**
  * The Pidoku API. URLs are relative: in production Firebase Hosting rewrites /api/** to Cloud Run
@@ -49,6 +49,22 @@ export interface Attempt {
   activeMs: number | null;
   /** The completion was sent some time after the solve, and the server took that delay off. */
   late: boolean;
+  /** The board as last saved from any device (see `saveProgress`), or null if none was. Missing from older API versions. */
+  progress?: AttemptProgress | null;
+  /** When the server got `progress` (ISO timestamp), so a device can tell whose copy is newer. */
+  progressUpdatedAt?: string | null;
+  /** The player used Auto notes during the attempt. */
+  autoNotesUsed?: boolean;
+}
+
+/** An unfinished board, so it follows the player to another device (pidoku-api's AttemptProgress). */
+export interface AttemptProgress {
+  values: number[];
+  /** Bitmasks: bit (1 << d) for digit d. */
+  notes: number[];
+  mistakes: number;
+  /** The game's timer so far. */
+  activeMs: number;
 }
 
 /** The signed-in player (pidoku-api's PlayerResponse). */
@@ -134,6 +150,8 @@ export interface Completion {
   activeMs?: number;
   /** How long ago the puzzle was solved, for a completion that couldn't be sent at the time. */
   lateByMs?: number;
+  /** The player used Auto notes. */
+  autoNotesUsed?: boolean;
 }
 
 export interface DailyPuzzles {
@@ -265,6 +283,67 @@ export async function completeAttempt(attemptId: number, completion: Completion,
   return request<Attempt>(`/api/attempts/${attemptId}/complete`, { method: 'POST', body: completion, token: await requireToken(), signal }, BUSY);
 }
 
+/**
+ * Saves an unfinished attempt's board, so the player can carry on from it on another device.
+ *
+ * @param keepalive for a save sent as the page is hidden or closed: the request outlives the page,
+ *        and uses the token already at hand (nothing is sent if there isn't one)
+ * @throws ApiError if it couldn't be saved
+ */
+export async function saveProgress(attemptId: number, progress: AttemptProgress & { autoNotesUsed: boolean }, keepalive = false): Promise<void> {
+  const token = keepalive ? cachedIdToken() : await requireToken();
+  if (!token) throw new ApiError("Couldn't sign you in, so this game isn't being saved.", null);
+  await request<void>(`/api/attempts/${attemptId}/progress`, { method: 'PUT', body: progress, token, keepalive }, BUSY);
+}
+
+/** One of the player's recent puzzles (pidoku-api's RecentPuzzle). */
+export interface RecentPuzzle {
+  puzzle: PuzzleDef;
+  /** False while there's an unfinished attempt at it. */
+  completed: boolean;
+  /** The solve's time, or the timer as last saved for an unfinished one; null if unknown. */
+  timeMs: number | null;
+  mistakes: number;
+  /** ISO timestamp. */
+  lastPlayedAt: string;
+}
+
+/**
+ * The player's last ten puzzles, unfinished first, from the server so they're the same on every
+ * device. Null for a browser that has never signed in (it has no attempts to list); never signs
+ * anyone in.
+ */
+export async function fetchRecent(signal?: AbortSignal): Promise<RecentPuzzle[] | null> {
+  const token = await existingIdToken();
+  if (!token) return null;
+  const body = await request<(Omit<RecentPuzzle, 'puzzle'> & { puzzle: ApiPuzzle })[]>('/api/players/me/recent', { token, signal }, BUSY);
+  return body.map((r) => ({ ...r, puzzle: toPuzzleDef(r.puzzle) }));
+}
+
+/** An analytics event as the API takes it (pidoku-api's EventController.EventRequest). */
+export interface ApiEvent {
+  type: 'share' | 'share_arrival' | 'abandoned' | 'tutorial_completed' | 'tutorial_skipped';
+  puzzleId?: number;
+  detail?: Record<string, string | number | boolean | null>;
+  /** ISO timestamp of when it happened. */
+  occurredAt: string;
+}
+
+/**
+ * Sends analytics events (see api/events.ts, which queues them). Signs with the account this
+ * browser already has; never signs anyone in.
+ *
+ * @param keepalive for events sent as the page closes (uses the token already at hand)
+ * @returns false if there's no account to send them for yet
+ * @throws ApiError if they couldn't be sent
+ */
+export async function postEvents(events: ApiEvent[], keepalive = false): Promise<boolean> {
+  const token = keepalive ? cachedIdToken() : await existingIdToken();
+  if (!token) return false;
+  await request<void>('/api/events', { method: 'POST', body: events, token, keepalive }, BUSY);
+  return true;
+}
+
 /** The signed-in player, signing them in (and creating the player) if needed. */
 export async function fetchPlayer(signal?: AbortSignal): Promise<Player> {
   return request<Player>('/api/players/me', { token: await requireToken(), signal }, BUSY);
@@ -384,12 +463,14 @@ export function toPuzzleDef(puzzle: ApiPuzzle, name = `${puzzle.dailyDate ? 'Dai
 }
 
 interface RequestOptions {
-  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   /** Sent as JSON. */
   body?: unknown;
   /** A Firebase ID token to sign the request with; left out, the request is anonymous. */
   token?: string | null;
   signal?: AbortSignal;
+  /** Let the request outlive the page (it's being hidden or closed). */
+  keepalive?: boolean;
 }
 
 /**
@@ -397,13 +478,13 @@ interface RequestOptions {
  * produced the puzzle yet) gets `unavailableMessage`, other errors the problem detail's `detail`
  * if it has one.
  */
-async function request<T>(url: string, { method = 'GET', body, token, signal }: RequestOptions, unavailableMessage: string): Promise<T> {
+async function request<T>(url: string, { method = 'GET', body, token, signal, keepalive }: RequestOptions, unavailableMessage: string): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (token) headers.Authorization = `Bearer ${token}`;
   let response: Response;
   try {
-    response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal });
+    response = await fetch(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal, ...(keepalive ? { keepalive } : {}) });
   } catch (e) {
     if (e instanceof DOMException && e.name === 'AbortError') throw e;
     throw new ApiError(UNREACHABLE, null);

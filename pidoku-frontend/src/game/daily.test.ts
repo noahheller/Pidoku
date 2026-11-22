@@ -32,7 +32,7 @@ describe('shareLine', () => {
 
 describe('shareUrl', () => {
   it('links to the puzzle on this site', () => {
-    expect(shareUrl('89TU533C', 'https://pidoku.web.app')).toBe('https://pidoku.web.app/p/89TU533C');
+    expect(shareUrl('89TU533C', 'https://pidoku.web.app')).toBe('https://pidoku.web.app/p/89TU533C?ref=share');
   });
 });
 
