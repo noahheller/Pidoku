@@ -134,13 +134,24 @@ public final class TutorialExport {
         step.put("cell", explanation.cell() == null ? null : index(explanation.cell(), size));
         step.put("digit", explanation.digit());
         step.put("units", explanation.units().stream()
-                .map(u -> Map.of("type", u.type().name().toLowerCase(), "index", u.index())).toList());
+                .map(u -> ordered("type", u.type().name().toLowerCase(), "index", u.index())).toList());
         step.put("pattern", explanation.pattern().stream().map(p -> index(p, size)).toList());
         step.put("blockers", explanation.blockers().stream().map(p -> index(p, size)).toList());
         step.put("eliminations", explanation.eliminations().stream()
-                .map(c -> Map.of("cell", index(c.position(), size), "digit", c.value())).toList());
+                .map(c -> ordered("cell", index(c.position(), size), "digit", c.value())).toList());
         step.put("text", explanation.text());
         return step;
+    }
+
+    /**
+     * A two-key object whose keys are written in this order. Not {@code Map.of}: its iteration
+     * order changes from one JVM run to the next, so the file would too.
+     */
+    private static Map<String, Object> ordered(String k1, Object v1, String k2, Object v2) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put(k1, v1);
+        map.put(k2, v2);
+        return map;
     }
 
     private static int index(BoardPosition position, int size) {
