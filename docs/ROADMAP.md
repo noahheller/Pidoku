@@ -62,13 +62,9 @@ own difficulty and the puzzle has to be generated on demand.
 
    **— v1: the game is worth sending to friends and putting on a resume —**
 
-   Next, before milestone 6, in this order (see "After v1"):
-   - Analytics events first, so each change below can be measured against what came before.
-   - An "explain a move" layer, then a tutorial for first-time players built on it.
-   - Auto notes on Expert and Fiendish puzzles.
-   - Playwright end-to-end tests, written alongside the above.
-   - Progress sync between devices.
-   - Recents in place of "Your puzzles".
+   Done after v1, before milestone 6 (2026-11-21, see "After v1"): analytics events, "Explain a
+   move", the tutorial, auto notes on Expert and Fiendish, Playwright end-to-end tests, progress
+   sync between devices, and Recent in place of "Your puzzles".
 
 6. Hints (reusing the "explain a move" layer).
 
@@ -192,8 +188,9 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/friends?today=…`, `POST /api/friends`, `DELETE /api/friends/{id}` | List (with each friend's current streak when `today` is given), add by friend code, remove | 5 (done) |
 | `GET /api/friends/{id}?today=…` | One friend's profile: streaks, dailies solved, clean rate, best time per difficulty, last 7 days of dailies. 404 unless you're friends | 5 (done) |
 | `GET /api/puzzles/daily/{date}/summary` | For the home screen's cards: how many have solved each of the date's dailies and the fastest time; signed in, also how many friends have and the fastest among them. Counted like the leaderboards | after v1 (done) |
-| `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device | after v1 |
-| `GET /api/players/me/recent` | The player's last few puzzles, unfinished first, for Recents | after v1 |
+| `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device. Handed back by `POST /api/attempts`; cleared on restart and on the solve | after v1 (done) |
+| `GET /api/players/me/recent` | The player's last 10 puzzles, unfinished first, for Recent | after v1 (done) |
+| `POST /api/events` | Up to 50 analytics events (share, share_arrival, abandoned, tutorial_completed, tutorial_skipped) | after v1 (done) |
 | `GET /api/players/me/stats?source=all\|daily\|random&today=…` | The player's stats page: solves, average and best times per difficulty, clean rate, streaks | after 6 |
 | `GET /api/puzzles/{shareCode}/leaderboard` | Fastest times for any puzzle, not just dailies (challenge links) | after 6 |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
@@ -489,89 +486,89 @@ them; challenge links and streak reminders come after hints and before custom ge
 - Wording: the leaderboard and result screen no longer say the server times solves; the ranked
   time is the game's clock.
 
-### Analytics first
-Do the first analytics steps (see "Monetisation and analytics") before the rest of this list:
-the `events` table, `?ref=share` on share links and the `abandoned` event. Each piece below
-changes how people play or how fast they solve, and its effect can only be measured if the data
-starts before it ships (for example, finish rate on Hard before and after the tutorial). Record
-tutorial completion, auto notes and (milestone 6) hints as they arrive, so calibration
-(milestone 9) can tell assisted solves from unassisted ones.
+### Done after v1 (2026-11-21)
+Built in the order planned, so each change after analytics can be measured against what came
+before.
 
-### Explain a move
-The tutorial and hints need the same thing: a solving step turned into something a player can
-follow. Build it once, before either.
-- The engine already finds each step (`Move`: the strategy, the cells it places or clears). Add
-  what a player needs: the cells to highlight (the pattern and its target) and one plain sentence,
-  e.g. "Row 4 needs two more 5s, and only these two cells can take a 5."
-- The doubled digits need their own wording; they're what the tutorial is mostly about.
-- Player-facing technique names already exist in `pidoku-frontend/src/game/strategies.ts`; keep
-  one source of truth (the engine's names sent with the step, or that file).
-- Used by the tutorial, hints (milestone 6) and later custom generation ("must need an X-Wing").
+**Analytics events.** An `events` table (V8: player, type, puzzle, a JSONB detail of at most
+1000 characters, created_at) and `POST /api/events`, which takes batches of up to 50.
+- Types: `share` (Share or Copy on a result, with the method), `share_arrival` (a visit from a
+  share link, which carries `?ref=share`, with the share code and whether this browser had never
+  signed in), `abandoned` (leaving an unfinished API puzzle after at least 5 s, or closing its
+  tab: cells filled and left, active time, mistakes), `tutorial_completed` and `tutorial_skipped`.
+  Auto notes are on `attempts` (`auto_notes_used`), not an event. Hints will be recorded the same
+  way in milestone 6.
+- The browser queues events in localStorage (at most 50) and sends them only with an account it
+  already has, so recording one never signs a visitor in. A first visit's `share_arrival` waits
+  until the player starts a puzzle, then goes with `occurredAt` saying when it happened (clamped
+  to the last 7 days). Events the API refuses for good (a 4xx) are dropped so they can't block
+  the queue. A closing page sends with `keepalive` and the cached token.
+- `?ref=share` is dropped from the address once counted, so a reload or a copied link doesn't
+  count again. Deleting an account deletes its events. The privacy page says what's collected.
 
-### Tutorial
-The doubled 1s and 5s are the whole twist, and also the part new players get wrong. Today the
-rule is a line of text under the number pad, easy to miss on a phone.
-- Shown the first time someone opens a puzzle (remembered in this browser), and always
-  reachable from the home screen ("How to play").
-- A short guided puzzle (a small or Trivial board) with step-by-step prompts that point at
-  cells, worded by "Explain a move": a normal single, then a row that already holds one 5 and
-  needs its second, then a note being cleared automatically once a unit holds both copies.
-- Explains the controls along the way: notes mode, undo and erase, and that wrong digits show
-  in red and count as mistakes.
-- Not timed and not recorded as an attempt.
+**Explain a move** (engine, `explain/`). Every strategy now attaches a `Move.Reason` (the units,
+the pattern cells and the digits), and `MoveExplainer` turns a move into an `Explanation`: the
+cell and digit, the eliminations, the units to shade, the pattern, the "blockers" (filled cells
+that rule the digit out elsewhere) and one sentence. The doubled digits have their own wording
+("Row 4 already has one 5 and needs its second, and this is the only cell left in it that can
+take a 5"; "…still needs both its 5s, and only these two cells can take a 5"). The sentence never
+names the technique: `strategies.ts` stays the one source of player-facing names.
+`HumanPidokuSolver.nextMove` exposes the solver's next step (same choice as before, so scores
+didn't change); hints will use it. A property test explains every move every strategy finds on
+300 boards and checks the highlighted cells against the board.
 
-### Auto notes
-A button that pencils every candidate into every empty cell, so Expert and Fiendish players
-don't spend minutes on bookkeeping before the real solving starts.
-- Only on **Expert and Fiendish** puzzles; easier ones are meant to be solved without it.
-- Candidates follow the Pidoku rule: a digit stays a candidate in a unit until the unit holds as
-  many copies as π allows (two for 1 and 5).
-- Fills from the board as it is (filled cells and the notes the player cleared are respected, or
-  everything is refilled: decide when building it), and is one step on the undo stack.
-- Available to everyone, so it doesn't change who can rank. Record its use
-  (`attempts.auto_notes_used` or an `events` row) because it changes solve times and the
-  calibration (milestone 9) has to account for it.
+**Tutorial** (`/tutorial`, "How to play" on the home screen). Shown before the first puzzle a
+browser opens (a browser that had played or signed in before counts as having seen it), before
+any start screen or clock. Eight lessons on a nearly full 9×9 board: the rule, a box single, a
+row needing its second 5, pencilling a 1 into two cells, placing the row's second 1 and watching
+the other note clear itself, mistakes and undo, then the last cells with a "Show me" that
+highlights the next step. A wrong digit gets its own message. Not timed and not an attempt.
+- The board and the wording come from the engine: `./gradlew :pidoku-engine:exportTutorial`
+  writes `pidoku-frontend/src/tutorial/tutorial.json` (the guided steps are checked to be the
+  singles they claim to be), and `TutorialExportTest` fails while the file is out of date. The
+  lessons around the steps (the rules and controls) are written in `tutorial/lessons.ts`.
+- A 9×9 board rather than a Trivial one, so the doubled 1s and 5s look as they do in play.
+- The board takes a highlight (shaded units, the pattern, a pulsing target, ringed blockers),
+  which hints will reuse.
 
-### Playwright end-to-end tests
-The frontend's unit tests cover the game logic and the API client, and the API's tests cover the
-endpoints, but nothing checks the pieces together. Add Playwright tests against a local API
-(Testcontainers Postgres) and the Vite build:
-- Open a daily, press Start, solve it from the solution, and see the result screen with the
-  server's time, the streak and the share line; "Next" opens the next daily.
-- The clock pauses when going back to Puzzles and carries on when the puzzle is reopened.
-- Leaderboard: the solve appears on Everyone and, after adding a friend by code, on Friends; the
-  date picker moves between days.
-- The home screen's cards show the solve ("1 friend solved") for a friend.
-- Run them on a phone-sized viewport as well as desktop, and in CI on every pull request.
-- Firebase sign-in in tests: use the Firebase Auth emulator, or a test-only token the local API
-  accepts, so the tests don't depend on the real project. (Checked by hand on 2026-11-20 with
-  headless Chromium, Firebase blocked, against a local API on a throwaway Postgres; the
-  Playwright tests make that repeatable.)
+**Auto notes** on Expert and Fiendish: a button that pencils the candidates into every empty
+cell, by the Pidoku rule (a digit stays a candidate until the unit holds as many copies as π
+allows). Decided: a cell with notes keeps only those still possible (the player's narrowing is
+respected); a cell without notes gets all its candidates. Wrong digits on the board don't count
+against candidates. One step on the undo stack. Its use is saved with the progress and the
+completion (`attempts.auto_notes_used`, V9, once true stays true), so calibration can tell
+assisted solves apart.
 
-### Progress sync between devices
-A game's board lives in one browser's localStorage. The attempt (and its clock) follows the
-player to another device, but the board doesn't: a daily started on a phone opens on a laptop
-with an empty board and the game's timer at 0:00, so its ranked time only counts the second
-device. The Google sign-in prompt promises play on other devices, so this is owed.
-- Save the unfinished attempt's board, notes, mistakes and game timer to the server
-  (`PUT /api/attempts/{id}/progress`): every few moves (debounced, about every 10 seconds of
-  play) and when the page is hidden (`fetch` with `keepalive`, so it survives closing the tab).
-  New columns on `attempts` (the board and notes as JSONB, `progress_updated_at`).
-- Opening a puzzle with an unfinished attempt takes whichever copy is newer, the server's or
-  this browser's. Last write wins; two devices playing the same puzzle at once isn't worth more.
-- The ranked time is then the timer carried across devices, still capped at the server's
-  wall-clock time.
-- Campaign (milestone 8) needs the same thing ("progress synced to the server"), so it's built
-  once here.
+**Progress sync between devices.** `PUT /api/attempts/{id}/progress` saves an unfinished
+attempt's board, notes, mistakes and game timer (`attempts.progress` JSONB and
+`progress_updated_at`, V9; the API checks the board fits the puzzle). The game sends it at most
+every 10 s while the board changes, and with `keepalive` when the page is hidden or closed or the
+player leaves. `POST /api/attempts` hands it back; the game takes it if it's newer than this
+browser's copy (local saves now carry `savedAt`) and says "Carried on from where you left off on
+another device." Last write wins. Restarting or solving clears it.
 
-### Recents
-"Your puzzles" keeps every random puzzle ever played, in this browser only, and never shrinks.
-With "Load a puzzle" gone, it's really a history.
-- Rename it **Recent**: the last 10 or so puzzles, unfinished first ("Continue"), then the latest
-  solves with their times. Older ones drop off (their saved progress is cleared with them).
-- Signed in, it comes from the server's attempts (`GET /api/players/me/recent`), so with progress
-  sync it's the same list on every device; signed out, from localStorage as now.
-- Dailies can appear too, which also gives a way back to a daily started earlier in the day.
+**Recent** in place of "Your puzzles": the last 10 puzzles, unfinished first ("Continue", with
+the timer so far), then solves with their times. From `GET /api/players/me/recent` for a browser
+that has signed in (dailies included, one row per puzzle preferring the unfinished attempt), plus
+any of this browser's puzzles the server doesn't know; this browser's list otherwise. Puzzles
+falling off this browser's list lose their saved progress, except dailies (that's what marks
+today's cards solved). The list keeps its old localStorage key, so nothing played before is lost.
+Custom puzzles can no longer be removed by hand; they age out.
+
+**Playwright end-to-end tests** (`pidoku-frontend/e2e`, see its README). The real API on a
+Testcontainers Postgres (`./gradlew :pidoku-api:bootTestRun`: the test classpath's
+`E2eApiApplication`, the `e2e` profile, run from `pidoku-api/build/e2e` so `.env` is never
+loaded) and the `VITE_E2E_AUTH=1` build (`dist-e2e/`, never deployed) under `vite preview`.
+- Sign-in: the e2e build never loads Firebase; each browser sends `Bearer e2e.<uid>`, which only
+  the e2e profile's `JwtDecoder` accepts (a dot, since bearer tokens can't hold a colon). Tests
+  pick the uid, so two contexts can be one player on two devices.
+- Today's dailies are generated by the real engine before the server takes requests.
+- Covered, at desktop and phone sizes in UTC: solving a daily (result, streak, share line,
+  leaderboard, Next, Recent), the clock pausing while away, a friend added by code on the home
+  card and both leaderboard tabs, the date picker, progress carrying over to a second device,
+  the tutorial (skipped, and played through with a mistake), and the share, share-arrival and
+  abandoned events (and no abandoned event on a solve).
+- CI runs them on every pull request (the `e2e` job), and deploy waits for them.
 
 ### Leaderboards for any shared puzzle (challenge links)
 Only dailies have leaderboards, and dailies stop at Hard, so Expert and Fiendish are played
@@ -761,12 +758,11 @@ What to collect, most useful first:
 Rules:
 - Analytics rows carry `player_id` only, never emails or display names.
 - Don't log every keystroke; record an event only when it answers a question above.
-- Keep the privacy page (`/privacy`, done) up to date: it says there are no analytics, so the
-  first analytics change must update it.
+- Keep the privacy page (`/privacy`) up to date: it lists the game events (updated 2026-11-21).
 - First steps: the budget alert and share-link tracking. They show whether monetising is
   needed at all and whether the game is spreading.
-- Then the `events` table and the `abandoned` event, before the tutorial, auto notes and hints
-  ship (see "After v1": "Analytics first").
+- Done 2026-11-21: the `events` table, share-link tracking and the `abandoned` event (see "After
+  v1"). Still to do: the page-view counter and Sentry.
 
 ## Showcase
 
@@ -777,7 +773,8 @@ are done before v1 is called done.
   (`docs/images/screenshot.png`), an architecture diagram (Mermaid) and the engineering worth
   reading about, with its numbers. Retake the screenshot when the home screen changes.
 - ~~**CI (v1).**~~ Done: CI runs on GitHub Actions (section 2), with its badge in the README.
-- **End-to-end tests.** Playwright, planned in "After v1".
+- ~~**End-to-end tests.**~~ Done 2026-11-21: Playwright, desktop and phone, in CI on every pull
+  request (see "After v1").
 - **Calibration write-up (after milestone 9).** A short section or page: the model, the data,
   the fit, a chart of predicted against actual solve time.
 
@@ -787,10 +784,11 @@ are done before v1 is called done.
   (`src/puzzles`, engine JSON files) are the offline fallback. Loading engine JSON from the home
   screen was removed on 2026-11-20; dropping a file into `src/puzzles` is the way to try one.
 - Home screen today: Today's dailies (each card with its hardest technique, who has solved it and
-  the fastest time) with the streak, Random puzzle, Your puzzles (to become Recent). Leaderboards
-  (any date) and You & friends (5). To come: How to play (tutorial), Generate (7), Campaign (8).
+  the fastest time) with the streak, Random puzzle, Recent. How to play (tutorial), Leaderboards
+  (any date) and You & friends (5). To come: Generate (7), Campaign (8).
 - Routes: `/`, `/p/{shareCode}` and `/local/{id}` (milestone 4); `/leaderboard/{date}`, `/me` and
-  `/f/{friendCode}` (milestone 5). Campaign levels will add theirs.
+  `/f/{friendCode}` (milestone 5); `/privacy` and `/tutorial` (after v1). Campaign levels will add
+  theirs.
 
 ## Engine follow-ups
 

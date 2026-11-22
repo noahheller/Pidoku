@@ -49,7 +49,10 @@ public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
                 }
             }
         }
-        return Move.eliminating(eliminations);
+        Move move = Move.eliminating(eliminations);
+        if (move == null) return null;
+        List<BoardPosition> cells = cellSet.stream().map(empty::get).toList();
+        return move.because(List.of(new Unit(type, index)), cells, subset.stream().sorted().toList());
     }
 
     @Override

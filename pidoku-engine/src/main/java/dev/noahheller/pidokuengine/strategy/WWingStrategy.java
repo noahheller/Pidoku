@@ -72,7 +72,10 @@ public class WWingStrategy implements Strategy {
                 }
             }
             Move move = Move.eliminating(eliminations);
-            if (move != null) moves.add(move);
+            // Reason: the unit holding the strong link; the two wing cells, then the link's ends;
+            // the link digit, then the digit cleared.
+            if (move != null) moves.add(move.because(List.of(link.unit),
+                    List.of(a.position, b.position, link.first, link.second), List.of(linkDigit, eliminateDigit)));
         }
     }
 
@@ -145,7 +148,7 @@ public class WWingStrategy implements Strategy {
                 }
             }
             if (candidates.size() == 2) {
-                links.add(new StrongLink(candidates.get(0), candidates.get(1)));
+                links.add(new StrongLink(candidates.get(0), candidates.get(1), Unit.row(row)));
             }
         }
     }
@@ -160,7 +163,7 @@ public class WWingStrategy implements Strategy {
                 }
             }
             if (candidates.size() == 2) {
-                links.add(new StrongLink(candidates.get(0), candidates.get(1)));
+                links.add(new StrongLink(candidates.get(0), candidates.get(1), Unit.column(col)));
             }
         }
     }
@@ -176,7 +179,7 @@ public class WWingStrategy implements Strategy {
                 }
             }
             if (digitCandidates.size() == 2) {
-                links.add(new StrongLink(digitCandidates.get(0), digitCandidates.get(1)));
+                links.add(new StrongLink(digitCandidates.get(0), digitCandidates.get(1), Unit.box(box)));
             }
         }
     }
@@ -197,13 +200,16 @@ public class WWingStrategy implements Strategy {
         }
     }
 
+    /** The only two places left for a digit in {@code unit}. */
     private static class StrongLink {
         private final BoardPosition first;
         private final BoardPosition second;
+        private final Unit unit;
 
-        private StrongLink(BoardPosition first, BoardPosition second) {
+        private StrongLink(BoardPosition first, BoardPosition second, Unit unit) {
             this.first = first;
             this.second = second;
+            this.unit = unit;
         }
     }
 }

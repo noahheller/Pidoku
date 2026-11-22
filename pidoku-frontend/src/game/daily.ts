@@ -70,9 +70,12 @@ export function nextUnsolved<T extends { id: string }>(dailies: readonly T[], cu
   return after.find((p) => p.id !== currentId && !isSolved(p.id)) ?? null;
 }
 
-/** The share link for a puzzle from the API, on this site. */
+/**
+ * The share link for a puzzle from the API, on this site. `?ref=share` lets the app count visits
+ * that came from a share (see App's useShareArrival); it's dropped from the address once read.
+ */
 export function shareUrl(shareCode: string, origin: string = window.location.origin): string {
-  return `${origin}/p/${shareCode}`;
+  return `${origin}/p/${shareCode}?ref=share`;
 }
 
 /** A friend's invite link (`/f/{friendCode}`), on this site. */

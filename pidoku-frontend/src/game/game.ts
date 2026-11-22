@@ -1,5 +1,5 @@
 import type { PuzzleDef } from './puzzleFile';
-import { EMPTY, isPlayable, isSolved, rulesFor, unitIsFullFor, type Rules } from './rules';
+import { candidateMask, EMPTY, isPlayable, isSolved, rulesFor, unitIsFullFor, type Rules } from './rules';
 
 /** notes[i] is a bitmask: bit (1 << d) set means digit d is pencilled into cell i. */
 export interface GameState {
@@ -15,6 +15,8 @@ export interface GameState {
   mistakes: number;
   elapsedMs: number;
   completed: boolean;
+  /** Auto notes was pressed on this board (it changes solve times, so it's recorded). */
+  autoNotesUsed: boolean;
 }
 
 interface Snapshot {
@@ -29,6 +31,10 @@ export interface SavedProgress {
   mistakes: number;
   elapsedMs: number;
   completed: boolean;
+  /** Missing from games saved before auto notes existed. */
+  autoNotesUsed?: boolean;
+  /** When it was saved (Date.now()), to tell it from a newer copy saved on another device. Missing from older saves. */
+  savedAt?: number;
 }
 
 export type GameAction =
@@ -40,7 +46,17 @@ export type GameAction =
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'tick'; ms: number }
-  | { type: 'restart' };
+  | { type: 'restart' }
+  /** Pencils every candidate into the empty cells (Expert and Fiendish only, see `canAutoNote`). */
+  | { type: 'autoNotes' }
+  /** Replaces the board with one saved on another device. */
+  | { type: 'load'; progress: SavedProgress };
+
+/** Auto notes is only offered on the hardest puzzles; easier ones are meant to be solved without it. */
+export function canAutoNote(puzzle: PuzzleDef): boolean {
+  const difficulty = puzzle.difficulty?.toLowerCase();
+  return difficulty === 'expert' || difficulty === 'fiendish';
+}
 
 const MAX_HISTORY = 500;
 
@@ -60,12 +76,13 @@ export function newGame(puzzle: PuzzleDef, saved?: SavedProgress | null): GameSt
     mistakes: restored?.mistakes ?? 0,
     elapsedMs: restored?.elapsedMs ?? 0,
     completed: restored?.completed ?? false,
+    autoNotesUsed: restored?.autoNotesUsed ?? false,
   };
 }
 
-export function toSaved(state: GameState): SavedProgress {
-  const { values, notes, mistakes, elapsedMs, completed } = state;
-  return { values, notes, mistakes, elapsedMs, completed };
+export function toSaved(state: GameState, now: number = Date.now()): SavedProgress {
+  const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed } = state;
+  return { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, savedAt: now };
 }
 
 export function isGiven(state: GameState, index: number): boolean {
@@ -136,6 +153,16 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       });
     }
 
+    case 'autoNotes':
+      if (state.completed || !canAutoNote(state.puzzle)) return state;
+      return { ...fillCandidates(state), autoNotesUsed: true };
+
+    case 'load': {
+      // A save that doesn't fit this puzzle leaves the board as it is.
+      if (!isCompatible(state.puzzle, action.progress)) return state;
+      return { ...newGame(state.puzzle, action.progress), selected: state.selected, notesMode: state.notesMode };
+    }
+
     case 'restart':
     {
       // A daily is ranked, so restarting one only clears the board: its time and mistakes carry on
@@ -144,6 +171,24 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return state.puzzle.dailyDate ? { ...fresh, elapsedMs: state.elapsedMs, mistakes: state.mistakes } : fresh;
     }
   }
+}
+
+/**
+ * Auto notes: every empty cell with no notes gets all its candidates, and cells the player has
+ * pencilled keep their notes minus any that are no longer possible, so digits they ruled out stay
+ * ruled out. Wrong digits on the board don't count, so a mistake can't clear a true candidate.
+ * One step on the undo stack.
+ */
+function fillCandidates(state: GameState): GameState {
+  const { rules, values, puzzle } = state;
+  const counted = puzzle.solution ? values.map((v, i) => (v !== EMPTY && v !== puzzle.solution![i] ? EMPTY : v)) : values;
+  const notes = state.notes.map((n, i) => {
+    if (values[i] !== EMPTY) return n;
+    const candidates = candidateMask(rules, counted, i);
+    return n === 0 ? candidates : n & candidates;
+  });
+  if (notes.every((n, i) => n === state.notes[i])) return state;
+  return commit(state, values, notes);
 }
 
 function toggleNote(state: GameState, i: number, digit: number): GameState {

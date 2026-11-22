@@ -118,3 +118,13 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
+
+// The API for the frontend's Playwright tests: ./gradlew :pidoku-api:bootTestRun (pidoku-frontend's
+// playwright.config.ts starts it). It runs from build/e2e rather than pidoku-api/, so a local .env
+// (spring.config.import in application.properties) is never loaded: the database is a Testcontainers one.
+tasks.named('bootTestRun') {
+    mainClass = 'dev.noahheller.pidoku.pidokuapi.e2e.E2eApiApplication'
+    def dir = layout.buildDirectory.dir('e2e')
+    doFirst { dir.get().asFile.mkdirs() }
+    workingDir = dir.get().asFile
+}

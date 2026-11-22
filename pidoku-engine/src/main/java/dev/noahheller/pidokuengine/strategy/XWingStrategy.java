@@ -60,7 +60,12 @@ public class XWingStrategy implements Strategy {
                     }
                 }
                 Move move = Move.eliminating(eliminations);
-                if (move != null) moves.add(move);
+                // Reason: the two base rows, then the two columns cleared, and the four corners.
+                if (move != null) moves.add(move.because(
+                        List.of(Unit.row(a.row), Unit.row(b.row), Unit.column(a.col1), Unit.column(a.col2)),
+                        List.of(new BoardPosition(a.row, a.col1), new BoardPosition(a.row, a.col2),
+                                new BoardPosition(b.row, a.col1), new BoardPosition(b.row, a.col2)),
+                        List.of(digit)));
             }
         }
     }
@@ -102,7 +107,12 @@ public class XWingStrategy implements Strategy {
                     }
                 }
                 Move move = Move.eliminating(eliminations);
-                if (move != null) moves.add(move);
+                // Reason: the two base columns, then the two rows cleared, and the four corners.
+                if (move != null) moves.add(move.because(
+                        List.of(Unit.column(a.col), Unit.column(b.col), Unit.row(a.row1), Unit.row(a.row2)),
+                        List.of(new BoardPosition(a.row1, a.col), new BoardPosition(a.row2, a.col),
+                                new BoardPosition(a.row1, b.col), new BoardPosition(a.row2, b.col)),
+                        List.of(digit)));
             }
         }
     }

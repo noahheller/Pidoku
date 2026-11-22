@@ -14,6 +14,61 @@ import { firebaseConfig } from './firebaseConfig';
 let authInstance: Promise<Auth> | null = null;
 let anonymousSignIn: Promise<User> | null = null;
 
+/**
+ * The Playwright build (`VITE_E2E_AUTH=1`, see e2e/README.md) never loads Firebase: each browser
+ * gets a made-up uid and signs in with the test token `e2e.<uid>`, which only the API's e2e
+ * profile accepts. A constant, so production builds drop this code.
+ */
+const E2E_AUTH = import.meta.env.VITE_E2E_AUTH === '1';
+const E2E_UID_KEY = 'pidoku:e2e-uid';
+
+function e2eToken(create: boolean): string | null {
+  let uid: string | null = null;
+  try {
+    uid = localStorage.getItem(E2E_UID_KEY);
+    if (!uid && create) {
+      uid = `player-${crypto.randomUUID()}`;
+      localStorage.setItem(E2E_UID_KEY, uid);
+    }
+  } catch {
+    return null;
+  }
+  if (!uid) return null;
+  markHasAccount();
+  return remember(`e2e.${uid}`);
+}
+
+/** The last ID token handed out, for requests that can't wait for one (see `cachedIdToken`). */
+let lastToken: string | null = null;
+
+function remember(token: string): string {
+  lastToken = token;
+  return token;
+}
+
+/**
+ * The last ID token handed out, if it hasn't expired, without waiting: for a request sent as the
+ * page closes (`fetch` with `keepalive`), when there's no time to ask Firebase. Null if there's
+ * none, or it's within a minute of expiring.
+ */
+export function cachedIdToken(now: number = Date.now()): string | null {
+  if (!lastToken) return null;
+  const expiresAt = tokenExpiry(lastToken);
+  return expiresAt === null || expiresAt - now > 60_000 ? lastToken : null;
+}
+
+/** A JWT's expiry (ms since 1970), or null if it has none (an e2e test token) or can't be read. */
+function tokenExpiry(token: string): number | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+    const { exp } = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: unknown };
+    return typeof exp === 'number' ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The Firebase Auth instance, once it has restored any saved account. */
 function getAuthInstance(config: NonNullable<typeof firebaseConfig>): Promise<Auth> {
   authInstance ??= (async () => {
@@ -50,10 +105,11 @@ async function currentUser(auth: Auth): Promise<User> {
  * first-time visitor's home screen stays light.
  */
 export async function existingIdToken(): Promise<string | null> {
+  if (E2E_AUTH) return hasAccount() ? e2eToken(false) : null;
   if (!firebaseConfig || !hasAccount()) return null;
   try {
     const user = (await getAuthInstance(firebaseConfig)).currentUser;
-    return user ? await user.getIdToken() : null;
+    return user ? remember(await user.getIdToken()) : null;
   } catch {
     return null;
   }
@@ -65,10 +121,11 @@ export async function existingIdToken(): Promise<string | null> {
  * without, and the game works as a signed-out one.
  */
 export async function idToken(): Promise<string | null> {
+  if (E2E_AUTH) return e2eToken(true);
   if (!firebaseConfig) return null;
   try {
     // The SDK returns its cached token and refreshes it when it's about to expire.
-    return await (await currentUser(await getAuthInstance(firebaseConfig))).getIdToken();
+    return remember(await (await currentUser(await getAuthInstance(firebaseConfig))).getIdToken());
   } catch {
     return null;
   }
@@ -84,6 +141,7 @@ export interface Account {
 
 /** The player's account, signing them in anonymously if needed. Null when sign-in isn't possible. */
 export async function currentAccount(): Promise<Account | null> {
+  if (E2E_AUTH) return e2eToken(true) ? { isAnonymous: true, email: null } : null;
   if (!firebaseConfig) return null;
   try {
     const user = await currentUser(await getAuthInstance(firebaseConfig));
@@ -119,7 +177,7 @@ export class SignInError extends Error {
  * @throws SignInError if it didn't work
  */
 export async function signInWithGoogle(beforeSwitch: () => Promise<void> = async () => {}): Promise<GoogleSignIn> {
-  if (!firebaseConfig) throw new SignInError('Sign-in is turned off on this site.');
+  if (E2E_AUTH || !firebaseConfig) throw new SignInError('Sign-in is turned off on this site.');
   const [auth, { GoogleAuthProvider, linkWithPopup, signInWithCredential, signInWithPopup }] = await Promise.all([
     getAuthInstance(firebaseConfig),
     import('firebase/auth'),
@@ -179,6 +237,11 @@ function googleError(e: unknown): SignInError {
  * @throws SignInError if the popup didn't work; whatever `deleteData` throws, with nothing deleted
  */
 export async function deleteAccount(deleteData: () => Promise<void>): Promise<'deleted' | 'cancelled'> {
+  if (E2E_AUTH) {
+    await deleteData();
+    forgetE2eUid();
+    return 'deleted';
+  }
   if (!firebaseConfig) throw new SignInError('Sign-in is turned off on this site.');
   const [auth, { GoogleAuthProvider, deleteUser, reauthenticateWithPopup, signOut: firebaseSignOut }] = await Promise.all([
     getAuthInstance(firebaseConfig),
@@ -207,6 +270,8 @@ export async function deleteAccount(deleteData: () => Promise<void>): Promise<'d
  * with Google again brings the old one back.
  */
 export async function signOut(): Promise<void> {
+  lastToken = null;
+  if (E2E_AUTH) return forgetE2eUid();
   if (!firebaseConfig) return;
   const [auth, { signOut: firebaseSignOut }] = await Promise.all([getAuthInstance(firebaseConfig), import('firebase/auth')]);
   await firebaseSignOut(auth);
@@ -214,4 +279,13 @@ export async function signOut(): Promise<void> {
 
 function errorCode(e: unknown): string | null {
   return typeof e === 'object' && e !== null && typeof (e as { code?: unknown }).code === 'string' ? (e as { code: string }).code : null;
+}
+
+function forgetE2eUid(): void {
+  lastToken = null;
+  try {
+    localStorage.removeItem(E2E_UID_KEY);
+  } catch {
+    // Storage disabled: there was no uid kept.
+  }
 }

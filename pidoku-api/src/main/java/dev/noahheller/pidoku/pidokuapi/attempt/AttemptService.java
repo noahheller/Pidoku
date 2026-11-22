@@ -71,11 +71,13 @@ public class AttemptService {
      * @param activeMs the client's own timer, paused while the tab was hidden; null if not sent
      * @param lateByMs how long ago the puzzle was solved, for a completion the client couldn't send
      *                 at the time; null if sent straight away. Taken off the recorded time.
+     * @param autoNotesUsed the player used Auto notes
      * @throws AttemptNotFoundException if the player has no attempt with the id
      * @throws WrongSolutionException   if the grid isn't the solution
      */
     @Transactional
-    public Attempt complete(Player player, long attemptId, int[] grid, int mistakes, Long activeMs, Long lateByMs) {
+    public Attempt complete(Player player, long attemptId, int[] grid, int mistakes, Long activeMs, Long lateByMs,
+                            boolean autoNotesUsed) {
         Attempt attempt = attempts.findForUpdate(attemptId, player)
                 .orElseThrow(() -> new AttemptNotFoundException(attemptId));
         if (attempt.isCompleted()) {
@@ -84,7 +86,45 @@ public class AttemptService {
         if (!Arrays.equals(grid, Grids.toCells(attempt.getPuzzle().getSolution()))) {
             throw new WrongSolutionException();
         }
-        attempt.complete(clock.instant(), mistakes, activeMs, lateByMs == null ? null : Duration.ofMillis(lateByMs));
+        attempt.complete(clock.instant(), mistakes, activeMs, lateByMs == null ? null : Duration.ofMillis(lateByMs),
+                autoNotesUsed);
         return attempt;
+    }
+
+    /**
+     * Saves an unfinished attempt's board, so the player can carry on from it on another device.
+     * Saving progress for an attempt that's already complete changes nothing (a save sent as the
+     * tab closed can arrive after the completion).
+     *
+     * @throws AttemptNotFoundException if the player has no attempt with the id
+     * @throws InvalidProgressException if the grids don't fit the puzzle
+     */
+    @Transactional
+    public Attempt saveProgress(Player player, long attemptId, AttemptProgress progress, boolean autoNotesUsed) {
+        Attempt attempt = attempts.findForUpdate(attemptId, player)
+                .orElseThrow(() -> new AttemptNotFoundException(attemptId));
+        if (attempt.isCompleted()) {
+            return attempt;
+        }
+        checkFits(progress, attempt.getPuzzle());
+        attempt.saveProgress(progress, autoNotesUsed, clock.instant());
+        return attempt;
+    }
+
+    /** The grids are the puzzle's size, keep its givens, and hold only digits and note bits. */
+    private static void checkFits(AttemptProgress progress, Puzzle puzzle) {
+        int[] givens = Grids.toCells(puzzle.getGivens());
+        if (progress.values().length != givens.length || progress.notes().length != givens.length) {
+            throw new InvalidProgressException("The board must have " + givens.length + " cells.");
+        }
+        for (int i = 0; i < givens.length; i++) {
+            int value = progress.values()[i];
+            if (value < 0 || value > 9 || (givens[i] != 0 && value != givens[i])) {
+                throw new InvalidProgressException("Cell " + i + " doesn't fit the puzzle.");
+            }
+            if (progress.notes()[i] < 0 || progress.notes()[i] >= 1 << 10) {
+                throw new InvalidProgressException("Cell " + i + " has notes that aren't digits.");
+            }
+        }
     }
 }

@@ -3,6 +3,8 @@ package dev.noahheller.pidokuengine.generation;
 import dev.noahheller.pidokuengine.BoardPosition;
 import dev.noahheller.pidokuengine.PidokuPuzzle;
 import dev.noahheller.pidokuengine.PidokuRules;
+import dev.noahheller.pidokuengine.explain.Explanation;
+import dev.noahheller.pidokuengine.explain.MoveExplainer;
 import dev.noahheller.pidokuengine.searching.DifficultyScorer;
 import dev.noahheller.pidokuengine.searching.SearchUtils;
 import dev.noahheller.pidokuengine.searching.SolveTrace;
@@ -13,6 +15,7 @@ import dev.noahheller.pidokuengine.strategy.StrategyResult;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -49,12 +52,27 @@ public class HumanPidokuSolver implements PidokuSolver {
         return new PidokuPuzzle(puzzle, trace);
     }
 
-    private record Choice(StrategyEnum strategy, Move move, double cost) {}
+    /**
+     * A step the solver would take.
+     *
+     * @param options how many cells a single could fill at this point; 0 when the step needs an elimination
+     */
+    public record NextMove(StrategyEnum strategy, Move move, double cost, int options) {
 
-    /** Makes the easiest available move. Returns false if no strategy can make progress. */
-    private boolean takeStep(SolverSearchState state, SolveTrace trace) {
+        /** The step as a player can follow it, as of {@code before}, the board before it's made. */
+        public Explanation explain(SolverSearchState before) {
+            return MoveExplainer.explain(strategy, move, before);
+        }
+    }
+
+    /**
+     * The easiest move on this board, the one {@link #solve} would make next, or empty if no
+     * strategy can make progress (the board is solved, or needs guessing). Doesn't change the board.
+     */
+    public static Optional<NextMove> nextMove(SolverSearchState state) {
+        PidokuRules rules = state.getRules();
         // Placements first: every single counts as an option, and the cheapest one is taken.
-        Choice best = null;
+        NextMove best = null;
         Set<BoardPosition> placeableCells = new HashSet<>();
         for (StrategyEnum strategy : StrategyEnum.values()) {
             if (!strategy.placesDigits()) continue;
@@ -62,29 +80,53 @@ public class HumanPidokuSolver implements PidokuSolver {
                 placeableCells.add(move.getPosition());
                 double cost = DifficultyScorer.moveCost(strategy, move, rules);
                 if (best == null || cost < best.cost()) {
-                    best = new Choice(strategy, move, cost);
+                    best = new NextMove(strategy, move, cost, 0);
                 }
             }
         }
-        // Options are the cells a single could fill; 0 when the step needs an elimination.
-        int options = placeableCells.size();
-
-        // No singles: fall back to the first elimination strategy that applies.
-        if (best == null) {
-            for (StrategyEnum strategy : StrategyEnum.values()) {
-                if (strategy.placesDigits()) continue;
-                List<Move> moves = strategy.getStrategy().findAll(state);
-                if (moves.isEmpty()) continue;
-                best = new Choice(strategy, moves.get(0), DifficultyScorer.moveCost(strategy, moves.get(0), rules));
-                break;
-            }
+        if (best != null) {
+            return Optional.of(new NextMove(best.strategy(), best.move(), best.cost(), placeableCells.size()));
         }
 
-        if (best == null) return false;
+        // No singles: fall back to the first elimination strategy that applies.
+        for (StrategyEnum strategy : StrategyEnum.values()) {
+            if (strategy.placesDigits()) continue;
+            List<Move> moves = strategy.getStrategy().findAll(state);
+            if (moves.isEmpty()) continue;
+            return Optional.of(new NextMove(strategy, moves.getFirst(), DifficultyScorer.moveCost(strategy, moves.getFirst(), rules), 0));
+        }
+        return Optional.empty();
+    }
 
+    /**
+     * The easiest way to justify placing {@code digit} at {@code cell} right now: the cheapest
+     * single that finds that placement, or empty if no single does (it may still be right, just
+     * not deducible yet without eliminations).
+     */
+    public static Optional<NextMove> findPlacement(SolverSearchState state, BoardPosition cell, int digit) {
+        PidokuRules rules = state.getRules();
+        NextMove best = null;
+        for (StrategyEnum strategy : StrategyEnum.values()) {
+            if (!strategy.placesDigits()) continue;
+            for (Move move : strategy.getStrategy().findAll(state)) {
+                if (!move.getPosition().equals(cell) || move.getValue() != digit) continue;
+                double cost = DifficultyScorer.moveCost(strategy, move, rules);
+                if (best == null || cost < best.cost()) {
+                    best = new NextMove(strategy, move, cost, 0);
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    /** Makes the easiest available move. Returns false if no strategy can make progress. */
+    private boolean takeStep(SolverSearchState state, SolveTrace trace) {
+        Optional<NextMove> next = nextMove(state);
+        if (next.isEmpty()) return false;
+        NextMove best = next.get();
         int empty = SearchUtils.countEmpty(state);
         StrategyResult result = best.move().applyTo(state);
-        trace.record(best.strategy(), result, best.cost(), options, empty);
+        trace.record(best.strategy(), result, best.cost(), best.options(), empty);
         return true;
     }
 }

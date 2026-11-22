@@ -2,6 +2,7 @@ import { ArrowRight, Check, CircleAlert, CircleX, CloudOff, Copy, Flame, Share2,
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { currentAccount } from '../api/auth';
+import { recordEvent } from '../api/events';
 import { ApiError, DAILY_DIFFICULTIES, fetchDailyOn, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
 import { dailyNumber, nextUnsolved, shareLine, shareUrl } from '../game/daily';
 import { formatTime } from '../game/format';
@@ -56,6 +57,9 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
     mistakes: puzzle.solution ? mistakes : null,
   };
   const share = shareLine({ ...shareDetails, url });
+  // Share taps are counted (analytics), to see whether sharing is what brings players.
+  const shared = (method: 'share' | 'copy') =>
+    recordEvent('share', { puzzleId: puzzle.apiId, detail: { method, daily: puzzle.dailyDate !== undefined } });
 
   return (
     <section className="card border-2 border-success bg-base-100 shadow-sm" aria-labelledby="result-title">
@@ -102,8 +106,8 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
             {share}
           </pre>
           <div className="flex flex-wrap justify-end gap-2">
-            <ShareButton text={shareLine({ ...shareDetails, url: null })} url={url} />
-            <CopyButton text={share} />
+            <ShareButton text={shareLine({ ...shareDetails, url: null })} url={url} onShared={() => shared('share')} />
+            <CopyButton text={share} onCopied={() => shared('copy')} />
             {puzzle.dailyDate ? (
               <NextDailyButton puzzle={puzzle} onExit={onExit} />
             ) : (
@@ -301,10 +305,10 @@ function NextDailyButton({ puzzle, onExit }: { puzzle: PuzzleDef; onExit: () => 
 }
 
 /** The phone's share sheet, where there is one: how a result gets into the group chat. */
-function ShareButton({ text, url }: { text: string; url: string | null }) {
+function ShareButton({ text, url, onShared }: { text: string; url: string | null; onShared: () => void }) {
   if (typeof navigator.share !== 'function') return null;
   const share = () => {
-    navigator.share(url ? { text, url } : { text }).catch(() => {
+    navigator.share(url ? { text, url } : { text }).then(onShared, () => {
       // Closed the share sheet, or sharing isn't allowed: Copy is right next to it.
     });
   };
@@ -315,12 +319,13 @@ function ShareButton({ text, url }: { text: string; url: string | null }) {
   );
 }
 
-function CopyButton({ text }: { text: string }) {
+function CopyButton({ text, onCopied }: { text: string; onCopied: () => void }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
+      onCopied();
     } catch {
       // No clipboard access (an old browser, or not allowed): the line is on screen to copy by hand.
       setCopied(false);

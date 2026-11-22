@@ -202,6 +202,11 @@ public class SolverSearchState {
         return boxDigitCounts[boxIndex][digit];
     }
 
+    /** The digit in a cell, or {@link PidokuRules#EMPTY}. */
+    public int getValue(BoardPosition position) {
+        return grid[position.getRow()][position.getCol()];
+    }
+
     public boolean isEmpty(int row, int col) {
         return grid[row][col] == PidokuRules.EMPTY;
     }
