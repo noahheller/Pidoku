@@ -21,10 +21,15 @@ test('a friend added by code shows on the home card and the Friends leaderboard'
   await alice.page.goto('/');
   await expect(alice.page.getByRole('region', { name: 'Today' }).getByRole('button', { name: /^Daily Hard/ })).toContainText('1 friend solved');
 
-  // He's on the leaderboard, under Everyone and Friends.
+  // His solve is on the Everyone leaderboard. Checked as Bob, whose own row always shows (as
+  // "Your place" if he's outside the top 50): the database outlives a run when the API is reused
+  // locally, so other tests' solvers can push him out of Alice's top 50.
+  await bob.page.goto(`/leaderboard/${today()}?difficulty=hard`);
+  await expect(bob.page.getByRole('heading', { name: 'Leaderboards' })).toBeVisible();
+  await expect(bob.page.getByRole('main')).toContainText(bobName);
+
+  // And on Alice's Friends leaderboard, which only holds her and her friends.
   await alice.page.goto(`/leaderboard/${today()}?difficulty=hard`);
-  await expect(alice.page.getByRole('heading', { name: 'Leaderboards' })).toBeVisible();
-  await expect(alice.page.getByRole('list', { name: /^Everyone/ })).toContainText(bobName);
   await alice.page.getByRole('tab', { name: 'Friends' }).click();
   await expect(alice.page.getByRole('list', { name: /^Friends/ })).toContainText(bobName);
 
