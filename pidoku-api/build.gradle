@@ -5,6 +5,13 @@ plugins {
     id 'com.google.cloud.tools.jib' version '3.5.4'
 }
 
+// Spring AOT: processAot works out the beans at build time (configuration classes, conditions,
+// JPA entities, Spring Data repository queries) and generates code for them, so a cold start skips
+// that work. The generated code only runs with -Dspring.aot.enabled=true, which only the Cloud Run
+// service sets (JAVA_TOOL_OPTIONS on the service). Tests, scripts/dev.sh and the generator job run
+// without it, as before.
+apply plugin: 'org.springframework.boot.aot'
+
 description = 'pidoku-api'
 
 java {
@@ -72,6 +79,21 @@ jib {
             }
         }
     }
+}
+
+// The bean set is fixed at build time, including its profile: "api" (application-api.properties) is
+// the Cloud Run service, and AOT mode turns it on at runtime. Runs from build/aot-work rather than
+tasks.named('processAot') {
+    args('--spring.profiles.active=api')
+    def dir = layout.buildDirectory.dir('aot-work')
+    doFirst { dir.get().asFile.mkdirs() }
+    workingDir = dir.get().asFile
+}
+
+// Jib's packaged mode puts the plain jar on the classpath (not bootJar, which the AOT plugin already
+// covers), so the generated classes and resources go into it too.
+tasks.named('jar') {
+    from(sourceSets.aot.output)
 }
 
 // Fail early with a clear message instead of building an image whose JVM flag points at nothing.

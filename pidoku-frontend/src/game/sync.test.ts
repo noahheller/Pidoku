@@ -46,6 +46,11 @@ describe('newerOnServer', () => {
     expect(newerOnServer(null, attempt())).toMatchObject({ values: [3, 1, 4] });
   });
 
+  it("keeps this browser's board when the server's is the same board, uploaded after it last changed", () => {
+    const local = board({ values: [3, 1, 4], notes: [0, 0, 0], mistakes: 1, autoNotesUsed: true, elapsedMs: 95_000 });
+    expect(newerOnServer(local, attempt())).toBeNull();
+  });
+
   it("keeps this browser's board when it's newer", () => {
     expect(newerOnServer(board({ savedAt: Date.parse('2026-11-21T12:00:00Z') }), attempt())).toBeNull();
   });
