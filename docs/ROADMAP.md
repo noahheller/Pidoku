@@ -215,9 +215,22 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
   - Fixed JVM flags: Serial GC (what the JVM picks on one vCPU anyway, pinned so training and
     production match), compact object headers, `MaxRAMPercentage=75`.
   - Jib uses `productionRuntimeClasspath`, so devtools stays out of the image.
-  - Not used: Spring AOT (`processAot`). It fixes profiles at build time, which clashes with one
-    image serving both the API and the `generator` profile. GraalVM native only if cold starts
-    are still too slow once measured on Cloud Run.
+  - Spring AOT (`processAot`) for the service only, built with the `api` profile. Its code only
+    runs with `-Dspring.aot.enabled=true`, which the service sets in `JAVA_TOOL_OPTIONS`, so the
+    same image still runs the `generator` and `migrate` profiles without it.
+  - No database work on the service's cold start: migrations run in CI (the job with the
+    `migrate` profile) before the deploy, Hibernate neither validates nor reads metadata, and the
+    first connection opens on a background thread.
+  - The AOT cache is trained on a round of real requests, not just startup.
+  - Measured on a private copy of the service (4 cold starts each, Spring's "process running
+    for"): 8.7 s before, 7.1 s with these changes on gen1, 4.7 s on gen2. Locally, on one CPU:
+    about 3.5 s instead of 5 s.
+  - CI's deploy sets gen2, the AOT flag and the probes on every deploy (see ci.yml). The startup
+    probe is an HTTP check of `/actuator/health/readiness` every second, with no readiness probe:
+    with the old TCP startup probe plus a readiness probe every 10 s, the readiness probe failed
+    on most cold starts (Spring reports ready a moment after the port opens), and the new instance
+    then took no requests for 10–20 s.
+  - GraalVM native only if cold starts are still too slow once measured on Cloud Run.
 - **API on Cloud Run**
   - Image pushed to Artifact Registry.
   - min-instances=0, max-instances=3, concurrency about 40. Memory: the API used about 225 MiB

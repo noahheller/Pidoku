@@ -9,8 +9,9 @@ import { cachedIdToken, existingIdToken, idToken } from './auth';
 /**
  * Pings the liveness check so a scaled-to-zero Cloud Run instance starts booting while the app
  * loads and signs in, rather than on the player's first uncached request. Liveness doesn't query
- * the database, so the ping alone never wakes Neon: it wakes in under a second on the first real
- * request, while the JVM's cold start takes seconds. Fire and forget: failures don't matter.
+ * the database, so pinging a running instance doesn't wake Neon; a cold start does, but on a
+ * background thread while the JVM starts (DatabaseWarmup in the API). Fire and forget: failures
+ * don't matter.
  */
 export function warmUpApi(): void {
   fetch('/actuator/health/liveness', { cache: 'no-store' }).catch(() => {});

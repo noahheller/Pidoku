@@ -177,9 +177,17 @@ scripts/build-image.sh IMAGE      # also pushes it, e.g. <region>-docker.pkg.dev
 
 The image includes a JVM AOT cache (JDK 25), which stores the classes the JVM loaded and linked
 during a training run, so cold starts on Cloud Run skip most of that work. The script builds the
-image, starts it once against a throwaway Postgres to record the cache, rebuilds it with the cache,
-then checks the result with `-XX:AOTMode=on`, which fails rather than silently ignoring a cache that
-doesn't match. On one CPU, the time to a ready Spring context drops from about 8 s to about 4 s.
+image, runs it against a throwaway Postgres (seeded with a few generated puzzles) while it serves a
+round of typical requests, records the cache when it stops, rebuilds the image with the cache, then
+checks the result with `-XX:AOTMode=on`, which fails rather than silently ignoring a cache that
+doesn't match.
+
+The Cloud Run service also runs Spring AOT code (`processAot`, built with the `api` profile) and
+touches no database while starting: it doesn't migrate or check the schema, and it opens its first
+connection on a background thread. It gets this by setting
+`JAVA_TOOL_OPTIONS=-Dspring.aot.enabled=true`; the generator job, tests and `scripts/dev.sh` run
+without it. Measured locally on one CPU against a local Postgres: ready in about 3.5 s instead of
+5 s, and the first request answered after about 4 s instead of 6 s.
 
 Things that keep the cache valid (see `pidoku-api/build.gradle`):
 - The base image is pinned by digest. A cache only works with the exact JDK build that made it.
@@ -225,13 +233,18 @@ and deploys every merge to main. To deploy by hand anyway, run this from the rep
 
 IMAGE=us-east4-docker.pkg.dev/pidoku/pidoku-repository/pidoku-api:$(git rev-parse --short HEAD)
 scripts/build-image.sh "$IMAGE"
-gcloud run deploy pidoku-api-service --project pidoku --region us-east4 --image "$IMAGE"
 gcloud run jobs update pidoku-api --project pidoku --region us-east4 --image "$IMAGE"
+gcloud run jobs execute pidoku-api --project pidoku --region us-east4 \
+    --update-env-vars SPRING_PROFILES_ACTIVE=migrate --wait   # database migrations
+gcloud run deploy pidoku-api-service --project pidoku --region us-east4 --image "$IMAGE" \
+    --execution-environment gen2 --update-env-vars JAVA_TOOL_OPTIONS=-Dspring.aot.enabled=true \
+    --startup-probe=httpGet.path=/actuator/health/readiness,httpGet.port=8080,periodSeconds=1,timeoutSeconds=1,failureThreshold=120 \
+    --readiness-probe=""   # the same settings as CI; see the comments in ci.yml
 firebase deploy --only hosting --project pidoku   # builds the frontend first
 ```
 
-The API goes first: it runs new database migrations on startup, and the frontend may call
-endpoints the old API doesn't have.
+Migrations go first, because the service doesn't run them on startup. Then the API, because the
+frontend may call endpoints the old API doesn't have.
 
 ## API
 
