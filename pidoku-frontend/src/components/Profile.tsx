@@ -1,11 +1,12 @@
-import { ArrowLeft, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeft, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, Trash2, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { currentAccount, deleteAccount, signInWithGoogle, signOut, SignInError, type Account } from '../api/auth';
-import { addFriend, ApiError, deletePlayer, fetchFriends, fetchPlayer, removeFriend, updateDisplayName, type Friend, type Player } from '../api/client';
+import { addFriend, ApiError, deletePlayer, fetchFriends, fetchPlayer, removeFriend, updateDisplayName, updateProfileVisibility, type Friend, type Player, type ProfileVisibility } from '../api/client';
 import { sendPendingCompletions } from '../api/completions';
 import { friendUrl } from '../game/daily';
 import { clearAllLocalData, clearPlayerCaches } from '../game/storage';
+import { VISIBILITY } from './visibility';
 
 type Loaded =
   | { status: 'loading' }
@@ -14,7 +15,7 @@ type Loaded =
   | { status: 'deleted' };
 
 /**
- * `/me`: the player's name, friends and account. Signs the player in (anonymously) when opened,
+ * `/me`: the player's name, profile, friends and account. Signs the player in (anonymously) when opened,
  * like starting a puzzle does.
  */
 export function Profile() {
@@ -56,7 +57,11 @@ export function Profile() {
       {state.status === 'loaded' && (
         <>
           <Card title="Your name">
-            <NameForm player={state.player} onSaved={(player) => setState({ ...state, player })} />
+            {/* Keyed by the name, so a name set elsewhere (from Google, on sign-in) fills the field. */}
+            <NameForm key={state.player.displayName ?? ''} player={state.player} onSaved={(player) => setState({ ...state, player })} />
+          </Card>
+          <Card title="Your profile">
+            <ProfileSettings player={state.player} onSaved={(player) => setState({ ...state, player })} />
           </Card>
           <Card title="Friends">
             <FriendCode code={state.player.friendCode} />
@@ -67,7 +72,15 @@ export function Profile() {
             <Card title="Account">
               <AccountSection
                 account={state.account}
-                onLinked={() => setState({ ...state, account: { ...state.account!, isAnonymous: false } })}
+                onLinked={() => {
+                  setState({ ...state, account: { ...state.account!, isAnonymous: false } });
+                  // A player with no name takes their Google account's on the next request: show it.
+                  fetchPlayer()
+                    .then((player) => setState((s) => (s.status === 'loaded' ? { ...s, player } : s)))
+                    .catch(() => {
+                      // The old name stays on screen until the page is opened again.
+                    });
+                }}
                 onPlayerChanged={() => {
                   // Another player now: what was cached for the old one no longer applies.
                   clearPlayerCaches();
@@ -140,7 +153,7 @@ function NameForm({ player, onSaved }: { player: Player; onSaved: (player: Playe
   return (
     <form className="grid gap-2" onSubmit={save}>
       <label htmlFor="profile-name" className="text-sm text-base-content/70">
-        What friends and leaderboards show. {player.displayName === null && 'Until you pick one, you show as Anonymous.'}
+        What friends and leaderboards show. {player.displayName === null && "Until you pick one, you show as Anonymous (or your Google account's name, once you sign in with Google)."}
       </label>
       <div className="flex gap-2">
         {/* text-base (16px) so iOS doesn't zoom in when the field is focused. */}
@@ -163,6 +176,64 @@ function NameForm({ player, onSaved }: { player: Player; onSaved: (player: Playe
         </p>
       )}
     </form>
+  );
+}
+
+/** A link to the player's own profile, and who else can see it. Saved as soon as it's picked. */
+function ProfileSettings({ player, onSaved }: { player: Player; onSaved: (player: Player) => void }) {
+  const [saving, setSaving] = useState<ProfileVisibility | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const shown = saving ?? player.profileVisibility;
+
+  const pick = (visibility: ProfileVisibility) => {
+    if (visibility === player.profileVisibility || saving) return;
+    setSaving(visibility);
+    setError(null);
+    updateProfileVisibility(visibility)
+      .then(onSaved)
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => setSaving(null));
+  };
+
+  return (
+    <div className="grid gap-3">
+      <p className="text-sm text-base-content/70">Your streaks, best times and this week's dailies.</p>
+      <Link to={`/players/${player.id}`} className="btn btn-sm w-fit">
+        <UserRound className="size-4" aria-hidden="true" /> View your profile
+      </Link>
+      <fieldset className="grid gap-2" disabled={saving !== null}>
+        <legend className="mb-2 text-sm font-semibold">Who can see it</legend>
+        {(Object.keys(VISIBILITY) as ProfileVisibility[]).map((visibility) => {
+          const { label, description, Icon } = VISIBILITY[visibility];
+          return (
+            <label
+              key={visibility}
+              className={`flex cursor-pointer items-start gap-3 rounded-box border p-3 transition ${shown === visibility ? 'border-primary bg-primary/5' : 'border-base-300 hover:border-primary/50'}`}
+            >
+              <input
+                type="radio"
+                name="profile-visibility"
+                className="radio radio-primary radio-sm mt-0.5"
+                checked={shown === visibility}
+                onChange={() => pick(visibility)}
+              />
+              <span className="grid gap-0.5">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Icon className="size-4" aria-hidden="true" /> {label}
+                  {saving === visibility && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
+                </span>
+                <span className="text-sm text-base-content/70">{description}</span>
+              </span>
+            </label>
+          );
+        })}
+      </fieldset>
+      {error && (
+        <p className="text-sm text-error" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -274,7 +345,7 @@ function FriendList({ friends, onRemoved }: { friends: Friend[]; onRemoved: (id:
       <ul className="grid gap-1" aria-label="Your friends">
         {friends.map((friend) => (
           <li key={friend.id} className="flex items-center gap-2 rounded-field px-2 py-1.5 hover:bg-base-200">
-            <Link to={`/friends/${friend.id}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-field py-0.5 focus-visible:outline-2 focus-visible:outline-primary">
+            <Link to={`/players/${friend.id}`} className="flex min-w-0 flex-1 items-center gap-2 rounded-field py-0.5 focus-visible:outline-2 focus-visible:outline-primary">
               <span className="min-w-0 flex-1 truncate">{friend.displayName ?? <span className="text-base-content/60 italic">Anonymous</span>}</span>
               {friend.currentStreak !== null && friend.currentStreak > 0 && (
                 <span className="flex items-center gap-0.5 text-sm font-semibold text-warning tabular-nums" title={`${friend.currentStreak}-day streak`}>

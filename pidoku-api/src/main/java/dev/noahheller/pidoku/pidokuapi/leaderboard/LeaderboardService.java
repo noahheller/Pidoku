@@ -5,6 +5,7 @@ import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzle;
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
 import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
+import dev.noahheller.pidoku.pidokuapi.player.ProfileVisibility;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleNotFoundException;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -158,11 +159,8 @@ public class LeaderboardService {
                             ORDER BY a.player_id, a.completed_at, a.id
                         ),
                         ranked AS (
-                            SELECT f.player_id, p.display_name, f.elapsed_ms, f.mistakes, f.late,
-                                   -- Late solves' completion times are the client's claim, so they
-                                   -- can't be first to finish.
-                                   COALESCE(NOT f.late AND f.completed_at
-                                            = MIN(f.completed_at) FILTER (WHERE NOT f.late) OVER (), false) AS first_to_finish,
+                            SELECT f.player_id, p.display_name, p.profile_visibility, f.elapsed_ms, f.mistakes, f.late,
+                                   f.player_id IN (SELECT friend_id FROM friendships WHERE player_id = :viewerId) AS friend,
                                    COALESCE(f.mistakes = 0 AND f.elapsed_ms
                                             = MIN(f.elapsed_ms) FILTER (WHERE f.mistakes = 0) OVER (), false) AS fastest_clean,
                                    RANK() OVER (ORDER BY f.elapsed_ms) AS rank,
@@ -179,7 +177,7 @@ public class LeaderboardService {
                         """ : "") + """
                         )
                         SELECT * FROM ranked
-                        WHERE position <= :top OR player_id = :viewerId OR first_to_finish OR fastest_clean
+                        WHERE position <= :top OR player_id = :viewerId OR fastest_clean
                         ORDER BY position
                         """)
                 .param("puzzleId", daily.getPuzzle().getId())
@@ -198,21 +196,22 @@ public class LeaderboardService {
                 .findFirst()
                 .map(row -> row.toEntry(viewerId))
                 .orElse(null);
-        Leaderboard.Entry firstToFinish = rows.stream().filter(Row::firstToFinish).findFirst()
-                .map(row -> row.toEntry(viewerId)).orElse(null);
         Leaderboard.Entry fastestClean = rows.stream().filter(Row::fastestClean).findFirst()
                 .map(row -> row.toEntry(viewerId)).orElse(null);
         int total = rows.isEmpty() ? 0 : (int) rows.getFirst().total();
-        return new Leaderboard(slot.date(), slot.difficulty(), friendsOnly, cleanOnly, total, entries, you, firstToFinish, fastestClean);
+        return new Leaderboard(slot.date(), slot.difficulty(), friendsOnly, cleanOnly, total, entries, you, fastestClean);
     }
 
     /** One row of the ranking query; JdbcClient maps the snake_case columns onto it. */
-    record Row(long playerId, String displayName, long elapsedMs, int mistakes, boolean late,
-               boolean firstToFinish, boolean fastestClean, long rank, long position, long total) {
+    record Row(long playerId, String displayName, String profileVisibility, long elapsedMs, int mistakes, boolean late,
+               boolean friend, boolean fastestClean, long rank, long position, long total) {
 
         Leaderboard.Entry toEntry(long viewerId) {
-            return new Leaderboard.Entry((int) rank, displayName, elapsedMs, mistakes, late, playerId == viewerId,
-                    firstToFinish, fastestClean);
+            boolean you = playerId == viewerId;
+            // Only the ids of profiles the viewer may open, so private players' ids don't leak.
+            Long profileId = ProfileVisibility.fromId(profileVisibility).visibleTo(you, friend) ? playerId : null;
+            return new Leaderboard.Entry((int) rank, displayName, profileId, elapsedMs, mistakes, late, you,
+                    fastestClean);
         }
     }
 }

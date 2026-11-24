@@ -48,8 +48,24 @@ describe('gameReducer', () => {
     expect(s.mistakes).toBe(1);
   });
 
-  it('clears a cell when the same digit is entered again', () => {
-    const s = play(newGame(easy), { type: 'select', index: firstEmpty }, { type: 'input', digit: answer }, { type: 'input', digit: answer });
+  it('clears a wrong digit when it is entered again', () => {
+    const s = play(newGame(easy), { type: 'select', index: firstEmpty }, { type: 'input', digit: wrongDigit }, { type: 'input', digit: wrongDigit });
+    expect(s.values[firstEmpty]).toBe(0);
+  });
+
+  it('locks a correct digit: erasing, retyping or overwriting it changes nothing', () => {
+    const placed = play(newGame(easy), { type: 'select', index: firstEmpty }, { type: 'input', digit: answer });
+    expect(play(placed, { type: 'erase' })).toBe(placed);
+    expect(play(placed, { type: 'input', digit: answer })).toBe(placed);
+    expect(play(placed, { type: 'input', digit: wrongDigit })).toBe(placed);
+    expect(play(placed, { type: 'input', digit: wrongDigit, asNote: true })).toBe(placed);
+    // Undo can still take it back.
+    expect(play(placed, { type: 'undo' }).values[firstEmpty]).toBe(0);
+  });
+
+  it('without a solution, a placed digit can still be cleared', () => {
+    const noSolution: PuzzleDef = { ...easy, id: 'no-solution', solution: null };
+    const s = play(newGame(noSolution), { type: 'select', index: firstEmpty }, { type: 'input', digit: answer }, { type: 'erase' });
     expect(s.values[firstEmpty]).toBe(0);
   });
 

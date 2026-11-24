@@ -28,17 +28,24 @@ public class PlayerController {
         return PlayerResponse.from(playerService.me(token));
     }
 
-    /** @param displayName checked by {@link DisplayName}; null is refused like an empty name */
-    public record UpdateRequest(String displayName) {
+    /**
+     * Either or both may be given; a field left out (or null) stays as it is. A request with neither
+     * is refused like an empty name.
+     *
+     * @param displayName       checked by {@link DisplayName}
+     * @param profileVisibility a {@link ProfileVisibility} id: "public", "friends" or "private"
+     */
+    public record UpdateRequest(String displayName, String profileVisibility) {
     }
 
     /**
-     * Changes the signed-in player's details. Today that's only the display name friends see
-     * (trimmed, 1–40 characters); 400 if it isn't allowed.
+     * Changes the signed-in player's details: the display name friends see (trimmed, 1–40
+     * characters) and who can see their profile. 400 if either isn't allowed, and then neither
+     * changes.
      */
     @PatchMapping("/api/players/me")
     public PlayerResponse update(@AuthenticationPrincipal Jwt token, @RequestBody UpdateRequest request) {
-        return PlayerResponse.from(playerService.rename(token, request.displayName()));
+        return PlayerResponse.from(playerService.update(token, request.displayName(), request.profileVisibility()));
     }
 
     /**
