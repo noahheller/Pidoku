@@ -23,7 +23,7 @@ export function newerOnServer(local: SavedProgress | null, attempt: Attempt): Sa
   // A local save from before saves were timestamped can't be compared: the server's is newer
   // unless this browser has played further.
   if (local && (local.savedAt === undefined ? local.elapsedMs >= progress.activeMs : local.savedAt >= serverAt)) return null;
-  return {
+  const remote: SavedProgress = {
     values: progress.values,
     notes: progress.notes,
     mistakes: progress.mistakes,
@@ -32,6 +32,11 @@ export function newerOnServer(local: SavedProgress | null, attempt: Attempt): Sa
     autoNotesUsed: attempt.autoNotesUsed ?? false,
     savedAt: serverAt,
   };
+  // The server stamps its copy when it arrives, which is after this browser's board last changed,
+  // so this browser's own upload (sent on leaving the game) looks newer. Only a different board
+  // means it was played elsewhere.
+  if (local && !boardChanged({ ...local, autoNotesUsed: local.autoNotesUsed ?? false }, remote)) return null;
+  return remote;
 }
 
 /** Whether two boards differ in what's worth sending (the timer alone isn't). */
