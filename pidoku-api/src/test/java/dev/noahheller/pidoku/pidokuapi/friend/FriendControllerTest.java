@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 import java.time.LocalDate;
 import java.util.List;
 
+import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.googlePlayer;
 import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.player;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -152,45 +153,16 @@ class FriendControllerTest extends IntegrationTest {
                 """, puzzle.getId(), date + "T12:00:00Z", date + "T12:00:00Z", uid);
     }
 
-    private void solveAt(String uid, LocalDate date, Difficulty difficulty, int seconds, int mistakes, long seed) {
-        Puzzle puzzle = dailyPuzzleService.fillWithNew(new DailySlot(date, difficulty),
-                TestPuzzles.generated(difficulty, seed)).getPuzzle();
-        jdbc.update("""
-                INSERT INTO attempts (player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes)
-                SELECT id, ?, ?::timestamptz - make_interval(secs => ?), ?::timestamptz, ?, ?
-                FROM players WHERE firebase_uid = ?
-                """, puzzle.getId(), date + "T12:00:00Z", seconds, date + "T12:00:00Z", seconds * 1000L, mistakes, uid);
-    }
-
     @Test
-    void aFriendsProfileHasTheirStreaksTotalsBestTimesAndRecentDailies() {
-        LocalDate today = dailyPuzzleService.today();
+    void theOldFriendProfileEndpointStillWorksForFriendsOnly() {
         name("bob", "Bob");
         add("alice", codeOf("bob"));
-        solveAt("bob", today.minusDays(20), Difficulty.HARD, 200, 0, 1);
-        solveAt("bob", today.minusDays(1), Difficulty.EASY, 90, 2, 2);
-        solveAt("bob", today, Difficulty.HARD, 300, 0, 3);
-        solveAt("bob", today, Difficulty.EASY, 60, 0, 4);
+        codeOf("carol");
 
-        assertThat(mvc.get().uri("/api/friends/{id}?today={today}", idOf("bob"), today).with(player("alice")))
-                .hasStatusOk().bodyJson().satisfies(json -> {
-                    assertThat(json).extractingPath("$.displayName").isEqualTo("Bob");
-                    assertThat(json).extractingPath("$.currentStreak").isEqualTo(2);
-                    assertThat(json).extractingPath("$.bestStreak").isEqualTo(2);
-                    assertThat(json).extractingPath("$.dailiesSolved").isEqualTo(4);
-                    assertThat(json).extractingPath("$.cleanSolves").isEqualTo(3);
-                    assertThat(json).extractingPath("$.bestTimes").isEqualTo(java.util.Map.of("easy", 60000, "hard", 200000));
-                    // The solve 20 days ago isn't recent; newest date first, easiest first within it.
-                    assertThat(json).extractingPath("$.recent[*].elapsedMs").isEqualTo(List.of(60000, 300000, 90000));
-                    assertThat(json).extractingPath("$.recent[0].difficulty").isEqualTo("easy");
-                });
-    }
-
-    @Test
-    void aPlayerWhoIsntAFriendHasNoProfile() {
-        codeOf("bob");
-
-        assertThat(mvc.get().uri("/api/friends/{id}?today={today}", idOf("bob"), dailyPuzzleService.today()).with(player("alice")))
+        assertThat(mvc.get().uri("/api/friends/{id}?today={today}", idOf("bob"), dailyPuzzleService.today()).with(googlePlayer("alice", null)))
+                .hasStatusOk().bodyJson().extractingPath("$.displayName").isEqualTo("Bob");
+        jdbc.update("UPDATE players SET profile_visibility = 'public' WHERE firebase_uid = 'carol'");
+        assertThat(mvc.get().uri("/api/friends/{id}?today={today}", idOf("carol"), dailyPuzzleService.today()).with(googlePlayer("alice", null)))
                 .hasStatus(HttpStatus.NOT_FOUND);
     }
 

@@ -28,8 +28,8 @@ export function PrivacyPage() {
           Every player gets an account without signing up: a random ID from Firebase (Google's sign-in service). It's how the game knows you're the same player next time.
         </Item>
         <Item name="Your Google email, if you sign in with Google">
-          Firebase keeps your Google account's email address and name so you can sign in on other devices. Pidoku's own database doesn't store them; your email is only shown to you,
-          on your own page.
+          Firebase keeps your Google account's email address and name so you can sign in on other devices. Pidoku's own database doesn't store your email; it's only shown to you,
+          on your own page. If you haven't picked a display name, Pidoku uses your Google account's name as one, which you can change any time.
         </Item>
         <Item name="The name you pick">Optional. Until you pick one you show as Anonymous.</Item>
         <Item name="Your friends">Your friend code and who you're friends with.</Item>
@@ -59,7 +59,10 @@ export function PrivacyPage() {
       <Section title="Who can see it">
         <ul className="list-disc ps-5">
           <li>Everyone: the leaderboards show your name (or Anonymous) and your times on the daily puzzles.</li>
-          <li>Your friends: also your streak, best times and recent dailies.</li>
+          <li>
+            Your profile (your streak, best times and recent dailies): your friends by default. On <strong>You &amp; friends</strong> you can make it public, so any player can see
+            it, or private, so only you can. Only players signed in with Google can see other players' profiles.
+          </li>
           <li>Nobody else sees your email, and no one but you sees your unfinished games.</li>
         </ul>
         <p>

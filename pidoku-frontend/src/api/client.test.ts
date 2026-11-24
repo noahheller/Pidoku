@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existingIdToken, idToken } from './auth';
-import { addFriend, ApiError, deletePlayer, fetchFriendProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
@@ -227,7 +227,7 @@ describe('fetchDailySummary', () => {
 });
 
 describe('fetchLeaderboard', () => {
-  const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, firstToFinish: null, fastestClean: null };
+  const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, fastestClean: null };
 
   it("asks for a daily's leaderboard, signed in if possible", async () => {
     signIn('token-1');
@@ -284,11 +284,11 @@ describe('friends', () => {
     await expect(addFriend('ZZZZZZZZ')).rejects.toMatchObject({ status: 404, message: "No player has the friend code 'ZZZZZZZZ'." });
   });
 
-  it("fetches a friend's profile as of the player's date", async () => {
+  it("fetches a player's profile as of the player's date", async () => {
     signIn('token-1');
     const fetchMock = respond(200, { id: 3, displayName: 'Bob' });
-    await fetchFriendProfile(3, undefined, new Date(2026, 10, 17, 23, 30));
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/friends/3?today=2026-11-17');
+    await fetchProfile(3, undefined, new Date(2026, 10, 17, 23, 30));
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/players/3/profile?today=2026-11-17');
   });
 
   it('removes a friend, expecting no content back', async () => {

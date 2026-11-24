@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
+import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.googlePlayer;
 import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.player;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -113,5 +114,65 @@ class PlayerControllerTest extends IntegrationTest {
     void needsAToken() {
         assertThat(mvc.get().uri("/api/players/me")).hasStatus(HttpStatus.UNAUTHORIZED);
         assertThat(players.count()).isZero();
+    }
+
+    @Test
+    void profilesAreForFriendsUntilChanged() {
+        assertThat(mvc.get().uri("/api/players/me").with(player("alice")))
+                .bodyJson().extractingPath("$.profileVisibility").isEqualTo("friends");
+    }
+
+    @Test
+    void theProfileVisibilityCanBeChangedWithoutTouchingTheName() {
+        rename("alice", "{\"displayName\": \"Alice\"}");
+
+        assertThat(rename("alice", "{\"profileVisibility\": \"public\"}")).hasStatusOk().bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.profileVisibility").isEqualTo("public");
+            assertThat(json).extractingPath("$.displayName").isEqualTo("Alice");
+        });
+        assertThat(rename("alice", "{\"profileVisibility\": \"private\"}")).hasStatusOk();
+        assertThat(players.findByFirebaseUid("alice").orElseThrow().getProfileVisibility()).isEqualTo(ProfileVisibility.PRIVATE);
+    }
+
+    @Test
+    void refusesAnUnknownVisibilityAndChangesNothing() {
+        assertThat(rename("alice", "{\"displayName\": \"Alice\", \"profileVisibility\": \"everyone\"}"))
+                .hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").asString().contains("public, friends, private");
+
+        assertThat(players.findByFirebaseUid("alice").map(Player::getDisplayName)).isEmpty();
+    }
+
+    @Test
+    void aGooglePlayerWithoutANameTakesTheirGoogleName() {
+        assertThat(mvc.get().uri("/api/players/me").with(player("alice")))
+                .bodyJson().extractingPath("$.displayName").isNull();
+
+        // Linked to Google: the same uid, now with a Google token.
+        assertThat(mvc.get().uri("/api/players/me").with(googlePlayer("alice", "  Alice Liddell ")))
+                .bodyJson().extractingPath("$.displayName").isEqualTo("Alice Liddell");
+        assertThat(players.findByFirebaseUid("alice").orElseThrow().getDisplayName()).isEqualTo("Alice Liddell");
+    }
+
+    @Test
+    void aNameThePlayerPickedIsKeptOverTheGoogleName() {
+        rename("alice", "{\"displayName\": \"Al\"}");
+
+        assertThat(mvc.get().uri("/api/players/me").with(googlePlayer("alice", "Alice Liddell")))
+                .bodyJson().extractingPath("$.displayName").isEqualTo("Al");
+    }
+
+    @Test
+    void aLongGoogleNameIsCutToFortyCharacters() {
+        assertThat(mvc.get().uri("/api/players/me").with(googlePlayer("alice", "x".repeat(50))))
+                .bodyJson().extractingPath("$.displayName").isEqualTo("x".repeat(40));
+    }
+
+    @Test
+    void anonymousTokensNeverSetAName() {
+        // An anonymous account has no name claim; even one claiming a name isn't trusted.
+        assertThat(mvc.get().uri("/api/players/me").with(org.springframework.security.test.web.servlet.request
+                        .SecurityMockMvcRequestPostProcessors.jwt().jwt(t -> t.subject("alice").claim("name", "Alice"))))
+                .bodyJson().extractingPath("$.displayName").isNull();
     }
 }
