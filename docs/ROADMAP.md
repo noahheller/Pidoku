@@ -809,6 +809,13 @@ are done before v1 is called done.
   Gradle project version, and `PidokuPuzzle.getEngineVersion()`.
 - ~~Make generation thread-safe.~~ Done: `PidokuBuilder.standard(rules)` is shared, and
   `generate(profile, seed)` keeps its random state local to the call.
+- ~~Stop Easy, Medium and Hard overlapping.~~ Done in engine 1.2.0 (migration V10 regenerated
+  the future dailies): score windows 25–40 / 45–69 / 70–120, targets 32 / 57 / 95, Medium capped
+  at 36 clues (Easy needs 38+), Hard at 36. Why: the 2026-11-23 Medium (39 clues) was almost the
+  same puzzle as that day's Easy (40), and all four players who solved both were faster on it.
+  An early fit on 29 solves of 14 dailies (11-19 to 11-24) found clue count tracked solve times
+  better than dependency within Easy and Medium, but under leave-one-puzzle-out no rewrite of the
+  score beat the current one, so the weights are unchanged until milestone 9 has more data.
 - Tune the Trivial target, which is too easy at 65 clues.
 - Shared-candidate speedup (needed for custom generation).
 - **Techniques only Pidoku has.** The doubled digits allow deductions classic Sudoku doesn't.

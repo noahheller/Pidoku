@@ -35,6 +35,12 @@ public class DifficultyProfile {
     // Score windows are calibrated against DifficultyScorer (p10-p90 over ~100k generated puzzles):
     // singles-only 18-31 at 50-65 clues, 27-43 at 40-45, 40-69 at 25-30; pairs/intersections 66-120;
     // triples 120-130; quads/X-Wing 128-161; W-Wing 152+. Tier floors/ceilings separate the overlaps.
+    //
+    // Easy, Medium and Hard don't overlap in score, and Easy and Medium (both singles only) don't
+    // overlap in clue count either; Hard is set apart by its strategy floor (engine 1.2.0). Before that, a
+    // 39-clue Medium was almost the same puzzle as a 40-clue Easy and players solved it faster
+    // (daily 2026-11-23): the score told them apart only by how many moves were open, which
+    // predicted real solve times poorly. Clue count did better.
     public static DifficultyProfile trivial() {
         return new Builder("Trivial")
                 .scoreRange(0, 32)
@@ -46,7 +52,7 @@ public class DifficultyProfile {
     /** Between Trivial and Medium: singles only, with enough clues that there's usually more than one move available. */
     public static DifficultyProfile easy() {
         return new Builder("Easy")
-                .scoreRange(25, 45)
+                .scoreRange(25, 40)
                 .clueRange(38, 45)
                 .ceiling(Tier.BEGINNER)
                 .floor(Tier.BEGINNER)
@@ -55,8 +61,8 @@ public class DifficultyProfile {
 
     public static DifficultyProfile medium() {
         return new Builder("Medium")
-                .scoreRange(35, 70)
-                .clueRange(30, 45)
+                .scoreRange(45, 69)
+                .clueRange(30, 36)
                 .ceiling(Tier.BEGINNER)
                 .floor(Tier.BEGINNER)
                 .build();
@@ -64,8 +70,8 @@ public class DifficultyProfile {
 
     public static DifficultyProfile hard() {
         return new Builder("Hard")
-                .scoreRange(65, 120)
-                .clueRange(25, 40)
+                .scoreRange(70, 120)
+                .clueRange(25, 36)
                 .ceiling(Tier.EASY)
                 .floor(Tier.EASY)
                 .maxUses(StrategyEnum.NAKED_PAIR, 4)
