@@ -123,11 +123,31 @@ jobs:
       - name: Build and push the API image
         run: scripts/build-image.sh "$IMAGE_REPO:$GITHUB_SHA"
 
-      # Only the image changes; memory, secrets, probes etc. stay as configured on the service and job.
-      - name: Deploy the API
-        run: gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE_REPO:$GITHUB_SHA" --quiet
+      # The job only gets the new image; its other settings stay as configured on the job.
       - name: Point the generator job at the new image
         run: gcloud run jobs update "$JOB" --project "$PROJECT_ID" --region "$REGION" --image "$IMAGE_REPO:$GITHUB_SHA" --quiet
+      # The service doesn't migrate on startup (application-api.properties), so new migrations run
+      # here first: one execution of the job with the "migrate" profile instead of "generator".
+      # The old service keeps serving meanwhile, so migrations must keep working with it, as before.
+      - name: Run database migrations
+        run: gcloud run jobs execute "$JOB" --project "$PROJECT_ID" --region "$REGION" --update-env-vars SPRING_PROFILES_ACTIVE=migrate --wait
+      # The settings that shape a cold start are set on every deploy, so they live here rather than
+      # only on the service. Memory, secrets, scaling, CPU boost etc. stay as configured on it.
+      #  - gen2: about 2 s faster to a ready Spring context than gen1 on Cloud Run.
+      #  - JAVA_TOOL_OPTIONS turns on the Spring AOT code (and with it the "api" profile), which
+      #    only images built since then contain.
+      #  - One startup probe on Spring's readiness state, checked every second, and no readiness
+      #    probe. With a TCP startup probe, the port opens a moment before Spring reports ready, a
+      #    readiness probe landing in between fails, and the new instance takes no more requests
+      #    until two passes 10 s apart.
+      - name: Deploy the API
+        run: >-
+          gcloud run deploy "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --quiet
+          --image "$IMAGE_REPO:$GITHUB_SHA"
+          --execution-environment gen2
+          --update-env-vars JAVA_TOOL_OPTIONS=-Dspring.aot.enabled=true
+          --startup-probe=httpGet.path=/actuator/health/readiness,httpGet.port=8080,periodSeconds=1,timeoutSeconds=1,failureThreshold=120
+          --readiness-probe=""
 
       # firebase.json's predeploy step builds the frontend.
       - run: npm ci --prefix pidoku-frontend
