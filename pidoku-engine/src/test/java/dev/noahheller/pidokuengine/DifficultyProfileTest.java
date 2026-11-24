@@ -37,6 +37,25 @@ class DifficultyProfileTest {
         }
     }
 
+    /** The daily tiers' score windows are disjoint, so a harder tier always scores higher. */
+    @Test
+    void easyMediumAndHardScoresDoNotOverlap() {
+        DifficultyProfile[] tiers = {DifficultyProfile.easy(), DifficultyProfile.medium(), DifficultyProfile.hard()};
+        for (int i = 1; i < tiers.length; i++) {
+            assertTrue(tiers[i - 1].maxScore < tiers[i].minScore, tiers[i - 1] + " overlaps " + tiers[i]);
+        }
+    }
+
+    /**
+     * Easy and Medium both use singles only, so clue count is what sets them apart: a 39-clue
+     * Medium once played faster than that day's 40-clue Easy. (Hard is set apart by its strategy
+     * floor, so it may share clue counts with Medium.)
+     */
+    @Test
+    void mediumHasFewerCluesThanAnyEasy() {
+        assertTrue(DifficultyProfile.medium().maxClues < DifficultyProfile.easy().minClues);
+    }
+
     @Test
     void rejectsSettingsNoPuzzleCouldMeet() {
         assertThrows(IllegalArgumentException.class, () -> new DifficultyProfile.Builder("x").scoreRange(50, 10).build());
