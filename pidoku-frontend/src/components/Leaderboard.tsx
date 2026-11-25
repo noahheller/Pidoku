@@ -195,7 +195,9 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
       className={`relative flex items-center gap-2 rounded-field px-2 py-1.5 sm:gap-3 ${entry.you ? 'bg-primary/10 ring-1 ring-primary/40' : ''} ${entry.profileId !== null ? 'transition hover:bg-base-200' : ''}`}
     >
       <span className={`grid size-7 shrink-0 place-items-center rounded-full text-sm font-bold tabular-nums ${medal}`}>{entry.rank}</span>
-      <span className="min-w-0 flex-1 truncate">
+      {/* w-0: the name takes only the room left over. Without it, its full unwrapped width (badges
+          and all) counts toward the page's minimum width, and long rows made phones zoom out. */}
+      <span className="w-0 min-w-0 flex-1 truncate">
         {entry.profileId !== null ? (
           <Link
             to={`/players/${entry.profileId}`}
