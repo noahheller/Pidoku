@@ -8,15 +8,10 @@ import org.springframework.context.ApplicationContext;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** Flyway migrates, Hibernate validates the entities against the schema, and the context starts. */
 class PidokuApiApplicationTests extends IntegrationTest {
 
     @Autowired
     ApplicationContext context;
-
-    @Test
-    void contextLoads() {
-    }
 
     @Test
     void generatorJobOnlyRunsWithItsProfile() {
