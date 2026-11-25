@@ -212,3 +212,22 @@ describe('load', () => {
     expect(play(start, { type: 'load', progress: { values: [1, 2], notes: [0, 0], mistakes: 0, elapsedMs: 0, completed: false } })).toBe(start);
   });
 });
+
+describe('hints', () => {
+  it('keeps the server’s hint totals, saves them, and keeps them when another device’s board loads', () => {
+    const hinted = play(newGame(easy), { type: 'hinted', hintsUsed: 2, hintPenaltyMs: 30_000 });
+    expect(toSaved(hinted)).toMatchObject({ hintsUsed: 2, hintPenaltyMs: 30_000 });
+    expect(newGame(easy, toSaved(hinted)).hintPenaltyMs).toBe(30_000);
+
+    const loaded = play(hinted, { type: 'load', progress: toSaved(newGame(easy)) });
+    expect(loaded.hintPenaltyMs).toBe(30_000);
+  });
+
+  it('restarting clears them, except on a daily', () => {
+    const hinted = play(newGame(easy), { type: 'hinted', hintsUsed: 1, hintPenaltyMs: 10_000 });
+    expect(play(hinted, { type: 'restart' }).hintPenaltyMs).toBe(0);
+
+    const daily = play(newGame({ ...easy, dailyDate: '2026-11-25' }), { type: 'hinted', hintsUsed: 1, hintPenaltyMs: 10_000 });
+    expect(play(daily, { type: 'restart' })).toMatchObject({ hintsUsed: 1, hintPenaltyMs: 10_000 });
+  });
+});

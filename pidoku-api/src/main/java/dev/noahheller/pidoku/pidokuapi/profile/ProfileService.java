@@ -75,19 +75,21 @@ public class ProfileService {
         }
         Streak streak = streakService.forPlayers(List.of(playerId), today).get(playerId);
 
-        record Solve(LocalDate puzzleDate, String difficulty, long elapsedMs, int mistakes, boolean late) {
+        record Solve(LocalDate puzzleDate, String difficulty, long elapsedMs, long penaltyMs, int mistakes,
+                     int hintsUsed, boolean late) {
         }
         List<Solve> solves = jdbc.sql("""
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.puzzle_id)
                                    d.puzzle_date, d.difficulty, a.started_at,
-                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.mistakes, a.late
+                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.penalty_ms, a.mistakes,
+                                   a.hints_used, a.late
                             FROM attempts a
                             JOIN daily_puzzles d ON d.puzzle_id = a.puzzle_id
                             WHERE a.player_id = :playerId AND a.completed_at IS NOT NULL
                             ORDER BY a.puzzle_id, a.completed_at, a.id
                         )
-                        SELECT puzzle_date, difficulty, elapsed_ms, mistakes, late
+                        SELECT puzzle_date, difficulty, elapsed_ms, penalty_ms, mistakes, hints_used, late
                         FROM firsts
                         WHERE started_at >= (puzzle_date - interval '14 hours') AT TIME ZONE 'UTC'
                         ORDER BY puzzle_date DESC
@@ -102,13 +104,14 @@ public class ProfileService {
         List<PlayerProfile.RecentSolve> recent = new ArrayList<>();
         for (Solve solve : solves) {
             Difficulty difficulty = Difficulty.valueOf(solve.difficulty());
-            bestTimes.merge(difficulty, solve.elapsedMs(), Math::min);
-            if (solve.mistakes() == 0) {
+            // Ranked like the leaderboards: penalties included.
+            bestTimes.merge(difficulty, solve.elapsedMs() + solve.penaltyMs(), Math::min);
+            if (solve.mistakes() == 0 && solve.hintsUsed() == 0) {
                 clean++;
             }
             if (!solve.puzzleDate().isBefore(recentFrom) && !solve.puzzleDate().isAfter(today)) {
                 recent.add(new PlayerProfile.RecentSolve(solve.puzzleDate(), difficulty, solve.elapsedMs(),
-                        solve.mistakes(), solve.late()));
+                        solve.penaltyMs(), solve.mistakes(), solve.hintsUsed(), solve.late()));
             }
         }
         recent.sort(Comparator.comparing(PlayerProfile.RecentSolve::date).reversed()

@@ -1,12 +1,13 @@
-import { ArrowRight, Check, CircleAlert, CircleX, CloudOff, Copy, Flame, PencilLine, Share2, ShieldCheck, Sparkles, Timer, Trophy } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, CircleX, CloudOff, Copy, Flame, Lightbulb, PencilLine, Share2, ShieldCheck, Sparkles, Timer, Trophy } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { currentAccount } from '../api/auth';
 import { recordEvent } from '../api/events';
 import { ApiError, DAILY_DIFFICULTIES, fetchDailyOn, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
 import { dailyNumber, nextUnsolved, shareLine, shareUrl } from '../game/daily';
-import { formatTime } from '../game/format';
+import { formatPenalty, formatTime } from '../game/format';
 import { canAutoNote } from '../game/game';
+import { mistakePenaltyMs } from '../game/penalties';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, loadProgress, saveStreak } from '../game/storage';
 import { LeaderboardView } from './Leaderboard';
@@ -37,6 +38,10 @@ interface ResultProps {
   mistakes: number;
   /** Auto notes was used (only offered on Expert and Fiendish, where the result says either way). */
   autoNotesUsed: boolean;
+  /** Hint steps revealed. */
+  hintsUsed: number;
+  /** What the leaderboards add to the time for mistakes and hints; 0 for a puzzle that isn't ranked. */
+  penaltyMs: number;
   recorded: Recorded;
   onExit: () => void;
 }
@@ -47,7 +52,7 @@ interface ResultProps {
  * share with friends. The first time a solve is recorded, it also asks for the name friends will
  * see; once there's a streak worth keeping, it suggests signing in with Google.
  */
-export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, recorded, onExit }: ResultProps) {
+export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, hintsUsed, penaltyMs, recorded, onExit }: ResultProps) {
   const isRecorded = recorded.status === 'recorded';
   const streak = useStreak(isRecorded && puzzle.dailyDate !== undefined);
   const dailyDifficulty = DAILY_DIFFICULTIES.find((d) => d === puzzle.difficulty?.toLowerCase());
@@ -59,6 +64,8 @@ export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, recorded, o
     elapsedMs: time,
     mistakes: puzzle.solution ? mistakes : null,
     autoNotesUsed,
+    penaltyMs,
+    hintsUsed,
   };
   const share = shareLine({ ...shareDetails, url });
   // Share taps are counted (analytics), to see whether sharing is what brings players.
@@ -80,8 +87,29 @@ export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, recorded, o
         </header>
 
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
-          <Stat icon={<Timer className="size-4" aria-hidden="true" />} label="Time" value={formatTime(time)} note={timeNote(recorded)} />
-          {puzzle.solution && <Stat icon={<CircleX className="size-4" aria-hidden="true" />} label="Mistakes" value={String(mistakes)} />}
+          <Stat
+            icon={<Timer className="size-4" aria-hidden="true" />}
+            label="Time"
+            value={formatTime(time)}
+            extra={penaltyMs > 0 ? formatPenalty(penaltyMs) : undefined}
+            note={penaltyMs > 0 ? `Ranked as ${formatTime(time + penaltyMs)}${timeNote(recorded) ? ` · ${timeNote(recorded)}` : ''}` : timeNote(recorded)}
+          />
+          {puzzle.solution && (
+            <Stat
+              icon={<CircleX className="size-4" aria-hidden="true" />}
+              label="Mistakes"
+              value={String(mistakes)}
+              note={penaltyMs > 0 && mistakes > 0 ? formatPenalty(mistakePenaltyMs(mistakes)) : undefined}
+            />
+          )}
+          {hintsUsed > 0 && (
+            <Stat
+              icon={<Lightbulb className="size-4" aria-hidden="true" />}
+              label="Hints"
+              value={String(hintsUsed)}
+              note={`${hintsUsed === 1 ? 'step' : 'steps'} · ${formatPenalty(penaltyMs - mistakePenaltyMs(mistakes))}`}
+            />
+          )}
           {canAutoNote(puzzle) && (
             <Stat
               icon={autoNotesUsed ? <Sparkles className="size-4" aria-hidden="true" /> : <PencilLine className="size-4" aria-hidden="true" />}
@@ -163,13 +191,16 @@ function timeNote(recorded: Recorded): string | undefined {
   }
 }
 
-function Stat({ icon, label, value, note }: { icon: ReactNode; label: string; value: string; note?: string }) {
+function Stat({ icon, label, value, extra, note }: { icon: ReactNode; label: string; value: string; extra?: string; note?: string }) {
   return (
     <div className="grid gap-0.5">
       <dt className="flex items-center gap-1 text-xs font-semibold tracking-wide text-base-content/60 uppercase">
         {icon} {label}
       </dt>
-      <dd className="text-2xl font-bold tabular-nums">{value}</dd>
+      <dd className="text-2xl font-bold tabular-nums">
+        {value}
+        {extra && <span className="ml-1 text-base font-semibold text-warning">{extra}</span>}
+      </dd>
       {note && <dd className="text-xs text-base-content/60">{note}</dd>}
     </div>
   );

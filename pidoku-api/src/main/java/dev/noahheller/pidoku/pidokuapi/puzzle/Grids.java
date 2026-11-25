@@ -41,6 +41,19 @@ public final class Grids {
         return cells;
     }
 
+    /** A flat, row-major grid as the engine's {@code int[row][col]}. */
+    public static int[][] toGrid(int[] cells, int size) {
+        if (cells.length != size * size) {
+            throw new IllegalArgumentException("a " + size + "x" + size + " grid has " + size * size
+                    + " cells, not " + cells.length);
+        }
+        int[][] grid = new int[size][size];
+        for (int i = 0; i < cells.length; i++) {
+            grid[i / size][i % size] = cells[i];
+        }
+        return grid;
+    }
+
     /** Number of non-empty cells in an encoded grid. */
     public static int countClues(String encoded) {
         return (int) encoded.chars().filter(c -> c != '0').count();

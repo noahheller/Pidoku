@@ -4,7 +4,7 @@ import { addRecent, localEntries, recentList, type RecentEntry } from './recent'
 import { saveProgress, saveResult } from './storage';
 
 const puzzle = (id: string, dailyDate?: string): PuzzleDef => ({ id, name: id, difficulty: null, size: 9, givens: [], solution: null, score: null, hardestStrategy: null, ...(dailyDate ? { dailyDate } : {}) });
-const entry = (id: string, lastPlayedAt: number, completed = false): RecentEntry => ({ puzzle: puzzle(id), completed, timeMs: null, autoNotesUsed: false, lastPlayedAt });
+const entry = (id: string, lastPlayedAt: number, completed = false): RecentEntry => ({ puzzle: puzzle(id), completed, timeMs: null, penaltyMs: 0, autoNotesUsed: false, lastPlayedAt });
 const ids = (entries: RecentEntry[]) => entries.map((e) => e.puzzle.id);
 
 beforeEach(() => {
@@ -39,9 +39,15 @@ describe('localEntries', () => {
     saveProgress('solved', { values: [], notes: [], mistakes: 0, elapsedMs: 9_000, completed: true, savedAt: 60 });
     saveResult('solved', { elapsedMs: 8_500, late: false });
     expect(localEntries([puzzle('opened'), puzzle('started'), puzzle('solved')])).toEqual([
-      { puzzle: puzzle('started'), completed: false, timeMs: 4_000, autoNotesUsed: false, lastPlayedAt: 50 },
-      { puzzle: puzzle('solved'), completed: true, timeMs: 8_500, autoNotesUsed: false, lastPlayedAt: 60 },
+      { puzzle: puzzle('started'), completed: false, timeMs: 4_000, penaltyMs: 0, autoNotesUsed: false, lastPlayedAt: 50 },
+      { puzzle: puzzle('solved'), completed: true, timeMs: 8_500, penaltyMs: 0, autoNotesUsed: false, lastPlayedAt: 60 },
     ]);
+  });
+
+  it('adds the penalty for mistakes and hints on puzzles from the API only', () => {
+    saveProgress('api', { values: [], notes: [], mistakes: 2, elapsedMs: 4_000, completed: false, hintPenaltyMs: 30_000, savedAt: 50 });
+    saveProgress('local', { values: [], notes: [], mistakes: 2, elapsedMs: 4_000, completed: false, savedAt: 60 });
+    expect(localEntries([{ ...puzzle('api'), apiId: 7 }, puzzle('local')]).map((e) => e.penaltyMs)).toEqual([50_000, 0]);
   });
 });
 

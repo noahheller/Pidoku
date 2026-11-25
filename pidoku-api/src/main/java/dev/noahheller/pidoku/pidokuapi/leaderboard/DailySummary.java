@@ -27,7 +27,8 @@ public record DailySummary(LocalDate date, List<Daily> dailies) {
 
     /**
      * @param displayName null if the player hasn't picked one
-     * @param elapsedMs   the ranked time: the game's timer, or the server's for solves without one
+     * @param elapsedMs   the ranked time: the game's timer (or the server's for solves without one)
+     *                    plus the penalties for mistakes and hints
      * @param you         it's the viewer's own solve
      */
     public record Time(String displayName, long elapsedMs, boolean you) {

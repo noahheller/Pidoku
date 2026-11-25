@@ -25,6 +25,11 @@ describe('shareLine', () => {
     expect(shareLine({ ...daily, mistakes: 2 })).toBe('Pidoku #3 Hard 4:12 2✗\nhttps://pidoku.web.app/p/89TU533C');
   });
 
+  it('adds the penalty after the time, and the hints', () => {
+    expect(shareLine({ ...daily, mistakes: 2, penaltyMs: 50_000, hintsUsed: 2 })).toBe('Pidoku #3 Hard 4:12 +50s 2✗ (2 hints)\nhttps://pidoku.web.app/p/89TU533C');
+    expect(shareLine({ ...daily, penaltyMs: 10_000, hintsUsed: 1, url: null })).toBe('Pidoku #3 Hard 4:12 +10s ✓ (1 hint)');
+  });
+
   it('says when auto notes was used', () => {
     expect(shareLine({ difficulty: 'Expert', dailyDate: null, elapsedMs: 600_000, mistakes: 0, autoNotesUsed: true, url: null })).toBe('Pidoku Expert 10:00 ✓ (auto notes)');
   });

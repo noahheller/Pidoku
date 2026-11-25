@@ -45,7 +45,12 @@ export interface Attempt {
   completedAt: string | null;
   elapsedMs: number | null;
   mistakes: number;
+  /** Hint steps revealed. */
   hintsUsed: number;
+  /** Time added for hints so far. Missing from older API versions. */
+  hintPenaltyMs?: number;
+  /** What leaderboards add to the time: 5 s x recorded mistakes² plus `hintPenaltyMs`. Missing from older API versions. */
+  penaltyMs?: number;
   /** The client's own timer as sent on completion; null if it wasn't sent. */
   activeMs: number | null;
   /** The completion was sent some time after the solve, and the server took that delay off. */
@@ -102,14 +107,18 @@ export interface LeaderboardEntry {
   displayName: string | null;
   /** Their player id, if the player may open their profile; null otherwise. */
   profileId: number | null;
-  /** The server-measured solve time. */
+  /** The game's solve time (the server's for solves without one). */
   elapsedMs: number;
+  /** Added to `elapsedMs` for mistakes and hints; the sum is what's ranked. */
+  penaltyMs: number;
   mistakes: number;
+  /** Hint steps revealed. */
+  hintsUsed: number;
   /** Sent late, so the time is partly what the player's device claimed. */
   late: boolean;
   /** The signed-in player's own solve. */
   you: boolean;
-  /** The fastest solve with no mistakes on this board. */
+  /** The fastest solve with no mistakes and no hints on this board. */
   fastestClean: boolean;
 }
 
@@ -118,7 +127,7 @@ export interface Leaderboard {
   date: string;
   difficulty: Difficulty;
   friendsOnly: boolean;
-  /** Only solves with no mistakes are ranked. */
+  /** Only solves with no mistakes and no hints are ranked. */
   cleanOnly: boolean;
   /** Everyone ranked, including those beyond `entries`. */
   total: number;
@@ -126,7 +135,7 @@ export interface Leaderboard {
   entries: LeaderboardEntry[];
   /** The player's own entry, also when it's beyond `entries`; null if they haven't solved it. */
   you: LeaderboardEntry | null;
-  /** The fastest solve with no mistakes, also when beyond `entries`; null if there's none. */
+  /** The fastest solve with no mistakes and no hints, also when beyond `entries`; null if there's none. */
   fastestClean: LeaderboardEntry | null;
 }
 
@@ -199,6 +208,7 @@ export async function fetchDailyOn(date: string, signal?: AbortSignal): Promise<
 /** A solve time on a daily card (pidoku-api's DailySummary.Time). */
 export interface SummaryTime {
   displayName: string | null;
+  /** The ranked time, with the penalties for mistakes and hints included. */
   elapsedMs: number;
   you: boolean;
 }
@@ -288,6 +298,36 @@ export async function completeAttempt(attemptId: number, completion: Completion,
 }
 
 /**
+ * One hint step (pidoku-api's HintResponse), in the shape of the tutorial's explained steps. Only
+ * what the step reveals is there: 1 the units, 2 also the technique and its pattern, 3 the answer.
+ */
+export interface Hint {
+  step: 1 | 2 | 3;
+  units: { type: 'row' | 'column' | 'box'; index: number }[];
+  strategy?: string;
+  pattern?: number[];
+  blockers?: number[];
+  /** The cell to fill (step 3); missing for a step that only clears candidates. */
+  cell?: number;
+  digit?: number;
+  eliminations?: { cell: number; digit: number }[];
+  text?: string;
+  /** The attempt's totals, this step included. */
+  hintsUsed: number;
+  hintPenaltyMs: number;
+}
+
+/**
+ * The next hint step for the board: the next step of the same move as last time, or the first
+ * step of a new one. Charged to the attempt (see the leaderboard penalties).
+ *
+ * @throws ApiError 422 if the board has wrong digits, 409 if there's nothing to hint
+ */
+export async function fetchHint(attemptId: number, board: { values: number[]; notes: number[] }): Promise<Hint> {
+  return request<Hint>(`/api/attempts/${attemptId}/hint`, { method: 'POST', body: board, token: await requireToken() }, BUSY);
+}
+
+/**
  * Saves an unfinished attempt's board, so the player can carry on from it on another device.
  *
  * @param keepalive for a save sent as the page is hidden or closed: the request outlives the page,
@@ -308,6 +348,8 @@ export interface RecentPuzzle {
   /** The solve's time, or the timer as last saved for an unfinished one; null if unknown. */
   timeMs: number | null;
   mistakes: number;
+  /** What the leaderboards add to `timeMs` for its mistakes and hints. Missing from older API versions. */
+  penaltyMs?: number;
   /** Auto notes was used on the attempt shown. Missing from older API versions. */
   autoNotesUsed?: boolean;
   /** ISO timestamp. */
@@ -400,12 +442,12 @@ export interface PlayerProfile {
   currentStreak: number;
   bestStreak: number;
   dailiesSolved: number;
-  /** How many of those had no mistakes. */
+  /** How many of those had no mistakes and no hints. */
   cleanSolves: number;
-  /** Their fastest solve of each daily difficulty they've played, in ms, easiest first. */
+  /** Their fastest solve of each daily difficulty they've played, in ms with penalties included, easiest first. */
   bestTimes: Partial<Record<Difficulty, number>>;
-  /** The last week of dailies, newest date first. */
-  recent: { date: string; difficulty: Difficulty; elapsedMs: number; mistakes: number; late: boolean }[];
+  /** The last week of dailies, newest date first. `penaltyMs` is added for mistakes and hints. */
+  recent: { date: string; difficulty: Difficulty; elapsedMs: number; penaltyMs: number; mistakes: number; hintsUsed: number; late: boolean }[];
 }
 
 /**
