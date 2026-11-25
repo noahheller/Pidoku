@@ -5,11 +5,11 @@ import { fasterThanPercent, formatGap, gapLine, gaps, ordinal, photoFinishes, st
 const entry = (rank: number, displayName: string | null, seconds: number, you = false): LeaderboardEntry => ({
   rank,
   displayName,
+  profileId: null,
   elapsedMs: seconds * 1000,
   mistakes: 0,
   late: false,
   you,
-  firstToFinish: false,
   fastestClean: false,
 });
 
@@ -21,7 +21,6 @@ const board = (entries: LeaderboardEntry[], overrides: Partial<Leaderboard> = {}
   total: entries.length,
   entries,
   you: entries.find((e) => e.you) ?? null,
-  firstToFinish: null,
   fastestClean: null,
   ...overrides,
 });

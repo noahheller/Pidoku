@@ -412,9 +412,9 @@ Decisions made while building it:
   doesn't make the clean board. The switch is remembered like Everyone/Friends.
 - **Fun facts, cheap on the database.** Worked out in the browser from the leaderboard response
   (`game/leaderboardStats.ts`): "Faster than N% of solvers", your place among friends, the gap to
-  the players either side, and "photo finish" for times under a second apart. Two extra columns in
-  the same ranking query: first to finish (late solves excluded, their times being the client's
-  claim) and the fastest clean solve, both returned even when beyond the top 50. Friends' current
+  the players either side, and "photo finish" for times under a second apart. An extra column in
+  the same ranking query: the fastest clean solve, returned even when beyond the top 50. (A "first
+  to finish" highlight was here too, removed in Nov 2026.) Friends' current
   streaks come from one query for all friends when `/me` opens, as of the viewer's date (it can be a
   day out for a friend far away). Head-to-head records are left for later.
 - **Friend profiles** (`/friends/{id}`, opened from the friend list): streak and best streak,

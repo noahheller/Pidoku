@@ -5,8 +5,8 @@ import { fetchByShareCode } from './api/client';
 import { sendPendingCompletions } from './api/completions';
 import { flushEvents, recordEvent } from './api/events';
 import { Game } from './components/Game';
-import { FriendPage } from './components/FriendPage';
 import { LeaderboardPage } from './components/LeaderboardPage';
+import { PlayerPage } from './components/PlayerPage';
 import { PrivacyPage } from './components/PrivacyPage';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
@@ -25,8 +25,9 @@ const firstVisit = !hasAccount();
  * - `/p/{shareCode}`: a puzzle from the API. This is the share link, so it works opened cold.
  * - `/local/{id}`: a puzzle that only exists in this browser (bundled, or loaded from a file).
  * - `/leaderboard/{date}?difficulty=hard`: a date's daily leaderboards.
- * - `/me`: the player's name, friends and Google sign-in.
- * - `/friends/{playerId}`: one friend's streaks, best times and recent dailies.
+ * - `/me`: the player's name, profile visibility, friends and Google sign-in.
+ * - `/players/{playerId}`: a player's streaks, best times and recent dailies: their own, a
+ *   friend's, or a public one. `/friends/{playerId}` is its older address.
  * - `/f/{friendCode}`: a friend's invite link.
  * - `/privacy`: what Pidoku keeps about players, and how to delete it.
  * - `/tutorial`: how to play, a short guided puzzle.
@@ -81,7 +82,8 @@ function App() {
       <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...recent]} />} />
       <Route path="/leaderboard/:date" element={<LeaderboardPage />} />
       <Route path="/me" element={<Profile />} />
-      <Route path="/friends/:id" element={<FriendPage />} />
+      <Route path="/players/:id" element={<PlayerPage />} />
+      <Route path="/friends/:id" element={<PlayerPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/tutorial" element={<TutorialPage />} />

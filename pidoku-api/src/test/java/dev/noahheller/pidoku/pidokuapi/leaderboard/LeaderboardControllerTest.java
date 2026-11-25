@@ -83,7 +83,6 @@ class LeaderboardControllerTest extends IntegrationTest {
     void ranksPlayersByTheServersTime() {
         addPlayer("alice", "Alice");
         addPlayer("bob", "Bob");
-        // Each insert's now() is a moment later, so Bob, recorded first, finished first.
         solve("bob", 300);
         solve("alice", 200);
         solve("nameless", 400);
@@ -92,16 +91,14 @@ class LeaderboardControllerTest extends IntegrationTest {
                 {
                   "date": "%s", "difficulty": "hard", "friendsOnly": false, "cleanOnly": false, "total": 3,
                   "entries": [
-                    {"rank": 1, "displayName": "Alice", "elapsedMs": 200000, "mistakes": 1, "late": false, "you": false,
-                     "firstToFinish": false, "fastestClean": false},
-                    {"rank": 2, "displayName": "Bob", "elapsedMs": 300000, "mistakes": 1, "late": false, "you": false,
-                     "firstToFinish": true, "fastestClean": false},
-                    {"rank": 3, "displayName": null, "elapsedMs": 400000, "mistakes": 1, "late": false, "you": false,
-                     "firstToFinish": false, "fastestClean": false}
+                    {"rank": 1, "displayName": "Alice", "profileId": null, "elapsedMs": 200000, "mistakes": 1, "late": false, "you": false,
+                     "fastestClean": false},
+                    {"rank": 2, "displayName": "Bob", "profileId": null, "elapsedMs": 300000, "mistakes": 1, "late": false, "you": false,
+                     "fastestClean": false},
+                    {"rank": 3, "displayName": null, "profileId": null, "elapsedMs": 400000, "mistakes": 1, "late": false, "you": false,
+                     "fastestClean": false}
                   ],
                   "you": null,
-                  "firstToFinish": {"rank": 2, "displayName": "Bob", "elapsedMs": 300000, "mistakes": 1, "late": false,
-                                    "you": false, "firstToFinish": true, "fastestClean": false},
                   "fastestClean": null
                 }
                 """.formatted(today));
@@ -118,19 +115,6 @@ class LeaderboardControllerTest extends IntegrationTest {
         assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
             assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(780000, 900000));
             assertThat(json).extractingPath("$.entries[*].rank").isEqualTo(List.of(1, 2));
-        });
-    }
-
-    @Test
-    void highlightsWhoFinishedFirstLeavingOutLateSolves() {
-        solve("alice", hard, 200, 10, false);
-        solve("bob", hard, 300, 30, false);
-        // Claims to have finished even earlier, but sent it late.
-        solve("carol", hard, 250, 60, true);
-
-        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
-            assertThat(json).extractingPath("$.firstToFinish.elapsedMs").isEqualTo(300000);
-            assertThat(json).extractingPath("$.entries[*].firstToFinish").isEqualTo(List.of(false, false, true));
         });
     }
 
@@ -423,5 +407,34 @@ class LeaderboardControllerTest extends IntegrationTest {
     @Test
     void theSummaryIsNotCached() {
         assertThat(summary()).headers().hasValue("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
+    }
+
+    @Test
+    void entriesLinkOnlyToProfilesTheViewerMaySee() {
+        // Everyone's own, a public one, and friends' that are shown to friends; never a private one.
+        for (String uid : new String[]{"me", "pub", "friendly", "stranger", "hidden"}) {
+            addPlayer(uid, uid);
+        }
+        jdbc.update("UPDATE players SET profile_visibility = 'public' WHERE firebase_uid = 'pub'");
+        jdbc.update("UPDATE players SET profile_visibility = 'private' WHERE firebase_uid IN ('hidden', 'me')");
+        befriend("me", "friendly");
+        befriend("me", "hidden");
+        solve("me", 100);
+        solve("pub", 200);
+        solve("friendly", 300);
+        solve("stranger", 400);
+        solve("hidden", 500);
+
+        assertThat(leaderboardAs("me", "difficulty=hard")).hasStatusOk().bodyJson()
+                .extractingPath("$.entries[*].profileId")
+                .isEqualTo(java.util.Arrays.asList(idOf("me"), idOf("pub"), idOf("friendly"), null, null));
+        // Signed out, only public profiles.
+        assertThat(leaderboard("difficulty=hard")).hasStatusOk().bodyJson()
+                .extractingPath("$.entries[*].profileId")
+                .isEqualTo(java.util.Arrays.asList(null, idOf("pub"), null, null, null));
+    }
+
+    private Integer idOf(String uid) {
+        return jdbc.queryForObject("SELECT id FROM players WHERE firebase_uid = ?", Integer.class, uid);
     }
 }

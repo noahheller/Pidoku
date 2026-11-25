@@ -1,4 +1,4 @@
-import { CircleAlert, CloudOff, RotateCw, Target, UserPlus, Zap } from 'lucide-react';
+import { ChevronRight, CircleAlert, CloudOff, RotateCw, Target, UserPlus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { fetchLeaderboard, type Difficulty, type Leaderboard, type LeaderboardEntry } from '../api/client';
@@ -164,11 +164,10 @@ function Board({ board }: { board: Leaderboard }) {
   );
 }
 
-/** Who finished first and the fastest clean solve: a line under the list, with what the badges mean. */
+/** The fastest clean solve: a line under the list, with what its badge means. */
 function Highlights({ board }: { board: Leaderboard }) {
   const name = (e: LeaderboardEntry) => (e.you ? 'You' : (e.displayName ?? 'Anonymous'));
   const items: [string, ReactNode][] = [];
-  if (board.firstToFinish) items.push(['first', <><FirstIcon /> First to finish: {name(board.firstToFinish)}</>]);
   // On the clean board the fastest clean solve is simply first place.
   if (board.fastestClean && !board.cleanOnly) {
     items.push(['clean', <><CleanIcon /> Fastest clean: {name(board.fastestClean)} {formatTime(board.fastestClean.elapsedMs)}</>]);
@@ -185,10 +184,6 @@ function Highlights({ board }: { board: Leaderboard }) {
   );
 }
 
-function FirstIcon() {
-  return <Zap className="inline size-3.5 shrink-0 fill-warning text-warning" aria-hidden="true" />;
-}
-
 function CleanIcon() {
   return <Target className="inline size-3.5 shrink-0 text-success" aria-hidden="true" />;
 }
@@ -196,17 +191,25 @@ function CleanIcon() {
 function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photoFinish: boolean; showClean: boolean }) {
   const medal = entry.rank <= 3 ? ['bg-warning/25', 'bg-base-300', 'bg-orange-300/30'][entry.rank - 1] : 'bg-transparent';
   return (
-    <li className={`flex items-center gap-2 rounded-field px-2 py-1.5 sm:gap-3 ${entry.you ? 'bg-primary/10 ring-1 ring-primary/40' : ''}`}>
+    <li
+      className={`relative flex items-center gap-2 rounded-field px-2 py-1.5 sm:gap-3 ${entry.you ? 'bg-primary/10 ring-1 ring-primary/40' : ''} ${entry.profileId !== null ? 'transition hover:bg-base-200' : ''}`}
+    >
       <span className={`grid size-7 shrink-0 place-items-center rounded-full text-sm font-bold tabular-nums ${medal}`}>{entry.rank}</span>
-      <span className="min-w-0 flex-1 truncate">
-        {entry.displayName ?? <span className="text-base-content/60 italic">Anonymous</span>}
-        {entry.you && <span className="ml-2 badge badge-primary badge-xs align-middle">you</span>}
-        {entry.firstToFinish && (
-          <span className="ml-1.5 inline-flex align-middle" title="First to finish">
-            <FirstIcon />
-            <span className="sr-only">First to finish</span>
-          </span>
+      {/* w-0: the name takes only the room left over. Without it, its full unwrapped width (badges
+          and all) counts toward the page's minimum width, and long rows made phones zoom out. */}
+      <span className="w-0 min-w-0 flex-1 truncate">
+        {entry.profileId !== null ? (
+          <Link
+            to={`/players/${entry.profileId}`}
+            className="after:absolute after:inset-0 after:rounded-field after:content-[''] focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-primary"
+            aria-label={`${entry.you ? 'Your' : `${entry.displayName ?? 'Anonymous'}'s`} profile`}
+          >
+            <Name entry={entry} />
+          </Link>
+        ) : (
+          <Name entry={entry} />
         )}
+        {entry.you && <span className="ml-2 badge badge-primary badge-xs align-middle">you</span>}
         {showClean && entry.fastestClean && (
           <span className="ml-1.5 inline-flex align-middle" title="Fastest solve with no mistakes">
             <CleanIcon />
@@ -215,26 +218,32 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
         )}
         {photoFinish && <span className="ml-2 badge badge-ghost badge-xs align-middle whitespace-nowrap">photo finish</span>}
         {entry.you && entry.displayName === null && (
-          <Link to="/me" className="link link-primary ml-2 text-xs">
+          <Link to="/me" className="link link-primary relative z-10 ml-2 text-xs">
             Pick a name
           </Link>
         )}
       </span>
       {entry.late && (
-        <span className="text-base-content/50" title="Sent late (offline at the time): the time is partly what their device reported">
+        <span className="relative z-10 text-base-content/50" title="Sent late (offline at the time): the time is partly what their device reported">
           <CloudOff className="size-4" aria-hidden="true" />
           <span className="sr-only">Sent late</span>
         </span>
       )}
       <span
-        className={`w-8 text-right text-sm tabular-nums ${entry.mistakes === 0 ? 'text-success' : 'text-base-content/60'}`}
+        className={`relative z-10 w-8 text-right text-sm tabular-nums ${entry.mistakes === 0 ? 'text-success' : 'text-base-content/60'}`}
         title={entry.mistakes === 0 ? 'No mistakes' : `${entry.mistakes} mistake${entry.mistakes === 1 ? '' : 's'}`}
       >
         {entry.mistakes === 0 ? '✓' : `${entry.mistakes}✗`}
       </span>
       <span className="w-14 text-right font-semibold tabular-nums">{formatTime(entry.elapsedMs)}</span>
+      {/* Same width either way, so the times stay in one column. */}
+      <ChevronRight className={`size-4 shrink-0 ${entry.profileId !== null ? 'text-base-content/40' : 'invisible'}`} aria-hidden="true" />
     </li>
   );
+}
+
+function Name({ entry }: { entry: LeaderboardEntry }) {
+  return entry.displayName ?? <span className="text-base-content/60 italic">Anonymous</span>;
 }
 
 function Skeleton() {
