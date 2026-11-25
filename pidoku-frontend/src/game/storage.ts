@@ -1,3 +1,4 @@
+import type { Hint } from '../api/client';
 import type { SavedProgress } from './game';
 import type { PuzzleDef } from './puzzleFile';
 
@@ -5,6 +6,7 @@ const PROGRESS_PREFIX = 'pidoku:progress:';
 const CUSTOM_PUZZLES_KEY = 'pidoku:custom-puzzles';
 const PENDING_COMPLETIONS_KEY = 'pidoku:pending-completions';
 const RESULT_PREFIX = 'pidoku:result:';
+const HINT_PREFIX = 'pidoku:hint:';
 const STREAK_KEY = 'pidoku:streak';
 const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
@@ -99,6 +101,29 @@ export function saveResult(puzzleId: string, result: RecordedResult): void {
 export function clearResult(puzzleId: string): void {
   try {
     localStorage.removeItem(RESULT_PREFIX + puzzleId);
+  } catch {
+    // Storage disabled: there was nothing saved to clear.
+  }
+}
+
+/** The hint on screen and the board it was given for, kept so it's still there after leaving the puzzle. */
+export interface SavedHint {
+  values: number[];
+  hint: Hint;
+}
+
+export function loadHint(puzzleId: string): SavedHint | null {
+  return read<SavedHint>(HINT_PREFIX + puzzleId);
+}
+
+/** Saves the hint on screen, or forgets it (null). */
+export function saveHint(puzzleId: string, hint: SavedHint | null): void {
+  if (hint) {
+    write(HINT_PREFIX + puzzleId, hint);
+    return;
+  }
+  try {
+    localStorage.removeItem(HINT_PREFIX + puzzleId);
   } catch {
     // Storage disabled: there was nothing saved to clear.
   }

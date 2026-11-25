@@ -21,8 +21,22 @@ public record DailySummary(LocalDate date, List<Daily> dailies) {
      *                        viewer); null when signed out
      * @param friendsFastest  the fastest solve by the viewer or one of their friends; null when
      *                        signed out or none of them has solved it
+     * @param yours           the viewer's own first solve, so a device they haven't played it on
+     *                        shows it solved; null when signed out or they haven't solved it
      */
-    public record Daily(Difficulty difficulty, int solved, Time fastest, Integer friendsSolved, Time friendsFastest) {
+    public record Daily(Difficulty difficulty, int solved, Time fastest, Integer friendsSolved, Time friendsFastest,
+                        YourSolve yours) {
+    }
+
+    /**
+     * The viewer's first solve of a daily, as the game's result shows it.
+     *
+     * @param elapsedMs     the game's timer (the server's for solves without one), penalties not included
+     * @param hintPenaltyMs the time added for hints
+     * @param late          the solve was sent some time after it was made
+     */
+    public record YourSolve(long elapsedMs, int mistakes, int hintsUsed, long hintPenaltyMs, boolean autoNotesUsed,
+                            boolean late) {
     }
 
     /**

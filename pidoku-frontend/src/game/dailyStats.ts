@@ -1,5 +1,7 @@
-import type { DailyStats, SummaryTime } from '../api/client';
+import type { DailyStats, SummaryTime, YourSolve } from '../api/client';
 import { formatTime } from './format';
+import type { SavedProgress } from './game';
+import type { PuzzleDef } from './puzzleFile';
 
 /** What a daily's card says about who has solved it. */
 export interface CardStats {
@@ -25,4 +27,25 @@ export function cardStats(stats: DailyStats): CardStats {
 function describe(time: SummaryTime | null): CardStats['fastest'] {
   if (!time) return null;
   return { name: time.you ? 'You' : (time.displayName ?? 'Anonymous'), time: formatTime(time.elapsedMs) };
+}
+
+/**
+ * A daily the player solved on another device, as this browser would have saved it: the solved
+ * board with the solve's time, mistakes and hints, so the card says Solved and opening it shows the
+ * result rather than the start screen. Null when there's nothing to add: not solved, already solved
+ * here, or a puzzle without a solution to fill the board with.
+ */
+export function solvedElsewhere(puzzle: PuzzleDef, yours: YourSolve | null | undefined, local: SavedProgress | null, now: number = Date.now()): SavedProgress | null {
+  if (!yours || local?.completed || !puzzle.solution) return null;
+  return {
+    values: [...puzzle.solution],
+    notes: new Array<number>(puzzle.solution.length).fill(0),
+    mistakes: yours.mistakes,
+    elapsedMs: yours.elapsedMs,
+    completed: true,
+    autoNotesUsed: yours.autoNotesUsed,
+    hintsUsed: yours.hintsUsed,
+    hintPenaltyMs: yours.hintPenaltyMs,
+    savedAt: now,
+  };
 }
