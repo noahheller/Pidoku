@@ -1,11 +1,13 @@
-import { ArrowLeft, CalendarDays, CircleX, Info, Pause, Play, Timer, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleX, Info, Lightbulb, Pause, Play, Timer, X } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type RefObject } from 'react';
-import { saveProgress as uploadProgress, startAttempt, type Attempt } from '../api/client';
+import { ApiError, fetchHint, saveProgress as uploadProgress, startAttempt, type Attempt, type Hint } from '../api/client';
 import { recordCompletion } from '../api/completions';
 import { flushEvents, recordEvent } from '../api/events';
 import { dailyNumber } from '../game/daily';
-import { countClues, formatDate, formatTime } from '../game/format';
-import { gameReducer, newGame, toSaved, type GameAction, type GameState, type SavedProgress } from '../game/game';
+import { countClues, formatDate, formatPenalty, formatTime } from '../game/format';
+import { gameReducer, isMistake, newGame, toSaved, type GameAction, type GameState, type SavedProgress } from '../game/game';
+import { hintHighlight, hintText, hintUsed } from '../game/hints';
+import { HINT_STEP_PENALTY_MS, penaltyMs } from '../game/penalties';
 import { actionForKey } from '../game/keys';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { EMPTY, PI_DIGITS, type Rules } from '../game/rules';
@@ -38,7 +40,7 @@ export function Game(props: GameProps) {
 
 function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps) {
   const [state, dispatch] = useReducer(gameReducer, puzzle, (p) => newGame(p, loadProgress(p.id)));
-  const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, rules } = state;
+  const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, hintsUsed, hintPenaltyMs, rules } = state;
   // When the board (not just the clock) last changed here, to tell this browser's copy from a newer
   // one saved on another device. 0 for a board never touched in this browser.
   const boardChangedAt = useRef<number>(loadProgress(puzzle.id)?.savedAt ?? 0);
@@ -62,8 +64,8 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
 
   useEffect(() => {
     // Nothing saved before Start, or the start screen would be skipped next time.
-    if (ready) saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, savedAt: boardChangedAt.current });
-  }, [ready, puzzle.id, values, notes, mistakes, elapsedMs, completed, autoNotesUsed]);
+    if (ready) saveProgress(puzzle.id, { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, hintsUsed, hintPenaltyMs, savedAt: boardChangedAt.current });
+  }, [ready, puzzle.id, values, notes, mistakes, elapsedMs, completed, autoNotesUsed, hintsUsed, hintPenaltyMs]);
 
   // Records the game on the server, for puzzles that came from the API. The attempt starts when
   // the puzzle is opened unsolved, or for a daily when Start is pressed (the API hands back the
@@ -98,6 +100,10 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
       void attempt.current.then((started) => {
         if (!started || !live.current) return;
         attemptId.current = started.id;
+        // The server counts hints, also ones taken on another device.
+        if (started.hintPenaltyMs !== undefined) {
+          dispatch({ type: 'hinted', hintsUsed: started.hintsUsed, hintPenaltyMs: started.hintPenaltyMs });
+        }
         // Signed in now, so any analytics waiting for an account can go.
         void flushEvents();
         // Played on another device since this browser last saved: carry on from there.
@@ -213,18 +219,69 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
 
   const onSelect = useCallback((index: number) => dispatch({ type: 'select', index }), []);
 
+  // The hint on screen, if any (see askForHint below).
+  const [hint, setHint] = useState<HintView | null>(null);
+  // Why a tap on Hint gave nothing (wrong digits, no connection). Kept apart from the hint, so the
+  // hint the player was following survives it.
+  const [hintNotice, setHintNotice] = useState<{ values: number[]; message: string } | null>(null);
+  const [hintBusy, setHintBusy] = useState(false);
+
   // Restarting resets the timer on screen, so the server's clock for the attempt starts again too.
   const { apiId } = puzzle;
   const act = useCallback(
     (action: GameAction) => {
-      if (action.type === 'restart' && apiId !== undefined) {
-        attempt.current = startAttempt(apiId, true).catch(() => null);
-        setSynced(false);
+      if (action.type === 'restart') {
+        // The board is wiped, so the hint goes too; the next one starts at step 1.
+        setHint(null);
+        setHintNotice(null);
+        if (apiId !== undefined) {
+          attempt.current = startAttempt(apiId, true).catch(() => null);
+          setSynced(false);
+        }
       }
       play(action);
     },
     [apiId, play],
   );
+
+  // Hints, for puzzles from the API: the server works out the next move and charges each step.
+  // A hint is about the board it was asked for, so it's only shown while the board is unchanged.
+  const askForHint = useCallback(() => {
+    const current = stateRef.current;
+    if (current.completed) return;
+    if (current.values.some((_, i) => isMistake(current, i))) {
+      setHintNotice({ values: current.values, message: 'Fix the red digits first: a hint works from what’s on the board.' });
+      return;
+    }
+    setHintBusy(true);
+    // Waits for the latest start: the attempt may still be starting (Hint pressed straight after
+    // opening the puzzle), or a restart still on its way, which the server must see first.
+    const started = (attempt.current ?? Promise.resolve(null)).then((a) => a?.id ?? attemptId.current);
+    started
+      .then((id) => {
+        if (id === null) throw new ApiError('Hints need the Pidoku server, which couldn’t be reached when this puzzle started.', null);
+        return fetchHint(id, { values: current.values, notes: current.notes });
+      })
+      .then((received) => {
+        dispatch({ type: 'hinted', hintsUsed: received.hintsUsed, hintPenaltyMs: received.hintPenaltyMs });
+        setHint({ values: current.values, hint: received });
+        setHintNotice(null);
+      })
+      .catch((e: unknown) => setHintNotice({ values: current.values, message: e instanceof ApiError ? e.message : 'Couldn’t get a hint. Try again in a moment.' }))
+      .finally(() => setHintBusy(false));
+  }, []);
+  // A hint stays up until a correct digit goes into the cells it points at. A wrong digit hides it
+  // until it's fixed. A notice goes as soon as the board changes.
+  const boardHasMistake = values.some((_, i) => isMistake(state, i));
+  const acted = hint?.hint !== undefined && puzzle.solution !== null && hintUsed(rules, hint.hint, hint.values, values, puzzle.solution);
+  useEffect(() => {
+    if (acted) setHint(null);
+  }, [acted]);
+  const shownNotice = hintNotice && hintNotice.values === values && !completed ? hintNotice : null;
+  const shownHint = !hint || completed || acted || boardHasMistake ? null : hint;
+  const highlight = shownHint ? hintHighlight(rules, shownHint.hint) : null;
+  // What the leaderboards add to the time; only puzzles from the API are ranked.
+  const penalty = apiId !== undefined ? penaltyMs(mistakes, hintPenaltyMs) : 0;
 
   return (
     <main className="mx-auto grid max-w-[1040px] gap-3 px-2 pt-2 pb-6 sm:gap-4 sm:px-4 sm:pt-4 sm:pb-8">
@@ -246,6 +303,12 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
           <span className="flex items-center gap-1" title="Time">
             <Timer className="size-4 shrink-0" aria-hidden="true" /> {formatTime(elapsedMs)}
           </span>
+          {penalty > 0 && (
+            <span className="-ml-3 text-warning" title="Penalty">
+              {formatPenalty(penalty)}
+              <span className="sr-only"> added on the leaderboard for mistakes and hints</span>
+            </span>
+          )}
           {puzzle.solution && (
             <span className="flex items-center gap-1" title="Mistakes">
               <CircleX className="size-4 shrink-0" aria-hidden="true" /> {mistakes}
@@ -259,13 +322,29 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
 
       {!ready && <StartScreen puzzle={puzzle} onStart={() => setReady(true)} />}
 
-      {completed && <Result puzzle={puzzle} elapsedMs={elapsedMs} mistakes={mistakes} autoNotesUsed={autoNotesUsed} recorded={recorded} onExit={onExit} />}
+      {completed && (
+        <Result
+          puzzle={puzzle}
+          elapsedMs={elapsedMs}
+          mistakes={mistakes}
+          autoNotesUsed={autoNotesUsed}
+          hintsUsed={hintsUsed}
+          penaltyMs={penalty}
+          recorded={recorded}
+          onExit={onExit}
+        />
+      )}
 
       {ready && <div className="flex flex-wrap items-start justify-center gap-6">
-        <Board state={state} onSelect={onSelect} />
+        <Board state={state} onSelect={onSelect} highlight={highlight} />
         <div className="grid w-full gap-4 sm:w-[min(100%,360px)]">
+          {shownNotice ? (
+            <HintPanel key="notice" message={shownNotice.message} hintPenaltyMs={hintPenaltyMs} onClose={() => setHintNotice(null)} />
+          ) : (
+            shownHint && <HintPanel key={shownHint.hint.hintsUsed} hint={shownHint.hint} hintPenaltyMs={hintPenaltyMs} onClose={() => setHint(null)} />
+          )}
           <NumberPad state={state} dispatch={play} />
-          <Controls state={state} dispatch={act} />
+          <Controls state={state} dispatch={act} onHint={apiId !== undefined ? askForHint : undefined} hintBusy={hintBusy} />
           {running && (
             <p className="flex items-center gap-1.5 text-sm text-base-content/60">
               <Pause className="size-4 shrink-0" aria-hidden="true" /> Going back to Puzzles or switching away pauses your clock.
@@ -276,6 +355,59 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
       </div>}
       {ready && !completed && <Shortcuts />}
     </main>
+  );
+}
+
+/** A hint (or why there isn't one) for the board it was asked for. */
+/** A hint, and the board it was asked for. */
+type HintView = { values: number[]; hint: Hint };
+
+const STEP_NAMES = ['where to look', 'what to look for', 'the answer'] as const;
+
+/** The hint being shown: its sentence, and from step 2 the technique's name with "What's this?". */
+function HintPanel({ hint, message, hintPenaltyMs, onClose }: { hint?: Hint; message?: string; hintPenaltyMs: number; onClose: () => void }) {
+  const [explained, setExplained] = useState(false);
+  const shown = hint ? hintText(hint) : null;
+  let footer: string | null = null;
+  if (hint) {
+    // The step a tap on Hint would reveal next, as an index.
+    const next = hint.step as 1 | 2;
+    footer =
+      hint.step < 3
+        ? `Tap Hint again for ${STEP_NAMES[next]} (+${HINT_STEP_PENALTY_MS[next] / 1000}s).`
+        : hint.cell === undefined
+          ? 'This clears candidates; update your notes, then tap Hint for the next move.'
+          : 'Fill it in to carry on.';
+  }
+  return (
+    <section role="status" aria-label="Hint" className="grid gap-2 rounded-box border border-warning/40 bg-warning/10 p-3 text-sm">
+      <div className="flex items-start gap-1.5">
+        <Lightbulb className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+        <p className="flex-1">
+          {hint && <span className="font-semibold">Step {hint.step} of 3:</span>}{hint && ' '}
+          {shown ? shown.text : message}
+        </p>
+        <button type="button" className="btn btn-ghost btn-xs btn-circle" aria-label="Close hint" onClick={onClose}>
+          <X className="size-4" aria-hidden="true" />
+        </button>
+      </div>
+      {shown?.name && (
+        <div className="flex flex-wrap items-center gap-2 pl-5.5">
+          <span className="badge badge-sm badge-outline">{shown.name}</span>
+          {shown.explanation && (
+            <button type="button" className="link text-xs" aria-expanded={explained} onClick={() => setExplained((e) => !e)}>
+              What's this?
+            </button>
+          )}
+        </div>
+      )}
+      {explained && shown?.explanation && <p className="pl-5.5 text-base-content/80">{shown.explanation}</p>}
+      {footer && (
+        <p className="pl-5.5 text-xs text-base-content/60">
+          {footer} Hints so far: {formatPenalty(hintPenaltyMs)} on the leaderboard.
+        </p>
+      )}
+    </section>
   );
 }
 

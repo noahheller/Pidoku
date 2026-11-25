@@ -1,8 +1,8 @@
-import { ChevronRight, CircleAlert, CloudOff, RotateCw, Target, UserPlus } from 'lucide-react';
+import { ChevronRight, CircleAlert, CloudOff, Lightbulb, RotateCw, Target, UserPlus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { fetchLeaderboard, type Difficulty, type Leaderboard, type LeaderboardEntry } from '../api/client';
-import { formatTime } from '../game/format';
+import { formatPenalty, formatTime } from '../game/format';
 import { gapLine, photoFinishes, standing } from '../game/leaderboardStats';
 import {
   loadLeaderboardRanking,
@@ -24,7 +24,8 @@ interface LeaderboardViewProps {
 
 /**
  * One daily's leaderboard. Two switches, both remembered: whose times (everyone or friends), and
- * how they're ranked (fastest overall, mistakes or not, or clean: only solves with no mistakes).
+ * how they're ranked (fastest overall, with 10 s added per mistake and time for hints, or clean: only
+ * solves with no mistakes and no hints).
  * Each player's first solve counts, timed by the game's clock (which pauses while they're away).
  */
 export function LeaderboardView({ date, difficulty, title }: LeaderboardViewProps) {
@@ -76,7 +77,7 @@ export function LeaderboardView({ date, difficulty, title }: LeaderboardViewProp
         />
       </div>
       <p className="text-xs text-base-content/60">
-        {ranking === 'clean' ? 'Only solves with no mistakes, fastest first.' : 'Fastest time, whatever the mistakes.'}
+        {ranking === 'clean' ? 'Only solves with no mistakes and no hints, fastest first.' : 'Fastest time, plus penalties: 5 s for one mistake, 20 s for two, 45 s for three…, and up to 90 s per hint.'}
       </p>
 
       {current.status === 'loading' && <Skeleton />}
@@ -108,7 +109,7 @@ function Switch<T extends string>({ label, options, value, onChange }: { label: 
 
 function Board({ board }: { board: Leaderboard }) {
   if (board.total === 0) {
-    const what = board.cleanOnly ? ' without a mistake' : '';
+    const what = board.cleanOnly ? ' without a mistake or a hint' : '';
     return board.friendsOnly ? (
       <p className="text-sm text-base-content/60">
         None of your friends has solved this one{what} yet.{' '}
@@ -150,7 +151,7 @@ function Board({ board }: { board: Leaderboard }) {
       )}
       <Highlights board={board} />
       <p className="text-xs text-base-content/60">
-        {board.total} {board.total === 1 ? 'player has' : 'players have'} solved it{board.cleanOnly ? ' without a mistake' : ''}. Each player's first solve counts. Times are time spent on the puzzle: the clock pauses while a player is away.
+        {board.total} {board.total === 1 ? 'player has' : 'players have'} solved it{board.cleanOnly ? ' without a mistake or a hint' : ''}. Each player's first solve counts. Times are time spent on the puzzle: the clock pauses while a player is away.
       </p>
       {board.friendsOnly && board.total === 1 && board.you && (
         <p className="text-sm text-base-content/60">
@@ -211,7 +212,7 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
         )}
         {entry.you && <span className="ml-2 badge badge-primary badge-xs align-middle">you</span>}
         {showClean && entry.fastestClean && (
-          <span className="ml-1.5 inline-flex align-middle" title="Fastest solve with no mistakes">
+          <span className="ml-1.5 inline-flex align-middle" title="Fastest solve with no mistakes or hints">
             <CleanIcon />
             <span className="sr-only">Fastest clean solve</span>
           </span>
@@ -235,7 +236,17 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
       >
         {entry.mistakes === 0 ? '✓' : `${entry.mistakes}✗`}
       </span>
+      {entry.hintsUsed > 0 && (
+        <span className="relative z-10 text-warning" title={`${entry.hintsUsed} hint step${entry.hintsUsed === 1 ? '' : 's'}`}>
+          <Lightbulb className="size-4" aria-hidden="true" />
+          <span className="sr-only">Used hints</span>
+        </span>
+      )}
       <span className="w-14 text-right font-semibold tabular-nums">{formatTime(entry.elapsedMs)}</span>
+      {/* Always there, so the times line up; ranked by the time plus this. */}
+      <span className="w-10 text-xs text-warning tabular-nums" title={entry.penaltyMs > 0 ? 'Added for mistakes and hints' : undefined}>
+        {formatPenalty(entry.penaltyMs ?? 0)}
+      </span>
       {/* Same width either way, so the times stay in one column. */}
       <ChevronRight className={`size-4 shrink-0 ${entry.profileId !== null ? 'text-base-content/40' : 'invisible'}`} aria-hidden="true" />
     </li>

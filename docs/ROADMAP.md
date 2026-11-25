@@ -66,14 +66,29 @@ own difficulty and the puzzle has to be generated on demand.
    move", the tutorial, auto notes on Expert and Fiendish, Playwright end-to-end tests, progress
    sync between devices, and Recent in place of "Your puzzles".
 
-6. Hints (reusing the "explain a move" layer).
+   Order revised 2026-11-25:
 
-   Then, before milestone 7: leaderboards for any shared puzzle (challenge links), a player stats
-   page, and opt-in streak reminders.
+   - First, decide how assisted solves rank (hints, mistakes, auto notes) in one go; see "Open
+     items". Hints and the stats page both depend on it.
+   - Leaderboards for any shared puzzle (challenge links). This comes before hints because it's
+     cheaper and more social.
+
+6. Hints (reusing the "explain a move" layer), with time penalties on the leaderboards for
+   hints and mistakes. **Done** (2026-11-25, not yet deployed; see section 6).
+
+   Then the player stats page, built after hints so assisted solves can be filtered from the
+   start. Streak reminders are postponed until analytics show streaks breaking because people
+   forget.
+
+   Before milestone 7, engine work: Pidoku-only techniques (the twin X-Wing; see "Engine
+   follow-ups"), the shared-candidate speedup and the Trivial tune.
 
 7. Custom generation: players build their own difficulty.
 8. Campaign mode, end to end.
-9. Calibrate difficulty once real data exists. (Collecting the data starts in milestone 4.)
+9. Calibrate difficulty once real data exists. (Collecting the data started in milestone 4.)
+   **Done before milestone 8**, so campaign target times can use the calibrated model. Check the
+   data monthly. It can jump ahead of anything above once there are a few hundred solves across
+   a few dozen puzzles.
 
 Why this order: the daily puzzles with a leaderboard, a streak and a share line are what bring
 a group of friends back every day, and with attempts recorded (milestone 3) they're the
@@ -190,6 +205,7 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/puzzles/daily/{date}/summary` | For the home screen's cards: how many have solved each of the date's dailies and the fastest time; signed in, also how many friends have and the fastest among them. Counted like the leaderboards | after v1 (done) |
 | `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device. Handed back by `POST /api/attempts`; cleared on restart and on the solve | after v1 (done) |
 | `GET /api/players/me/recent` | The player's last 10 puzzles, unfinished first, for Recent | after v1 (done) |
+| `POST /api/attempts/{id}/hint` | The board in, the next hint step out (where, what to look for, the answer), charged to the attempt | 6 (done) |
 | `POST /api/events` | Up to 50 analytics events (share, share_arrival, abandoned, tutorial_completed, tutorial_skipped) | after v1 (done) |
 | `GET /api/players/me/stats?source=all\|daily\|random&today=…` | The player's stats page: solves, average and best times per difficulty, clean rate, streaks | after 6 |
 | `GET /api/puzzles/{shareCode}/leaderboard` | Fastest times for any puzzle, not just dailies (challenge links) | after 6 |
@@ -629,6 +645,35 @@ Streaks are the reason to come back, but nothing reminds a player that today's i
 
 ## 6. Hints
 
+**Status: done (2026-11-25), not yet deployed.** As built:
+- `POST /api/attempts/{id}/hint` with the board's digits (and notes). It lives under attempts
+  because a hint is charged to one. Each call reveals the next step of the same move. The move is
+  remembered in `attempts.last_hint` (migration V12), and a step is only charged the first time
+  it's shown. The server sends only what the step reveals, so the answer can't be read from the
+  network. Step 2 leaves the target out of the pattern (for a single, the pattern *is* the target).
+- A board with wrong digits gets no hint: the client says "Fix the red digits first", and the
+  server answers 422 with `wrongCells`.
+- An elimination (X-Wing and the like) places no digit, so the server remembers the candidates
+  of eliminations shown in full and applies them before looking for the next move. It also skips
+  eliminations the player's notes already show. A test solves a whole puzzle by following hints.
+- Penalties (`attempt/Penalties.java`, `game/penalties.ts`): mistakes escalate, 5 s x mistakes²
+  (5 s, 20 s, 45 s, 1:20…), so one slip is cheap but guessing isn't; hint steps 10, 20 and 60 s.
+  `attempts.penalty_ms` is a generated column (5 s x mistakes² + `hint_penalty_ms`).
+  Leaderboards, the daily cards' fastest times and profile best times rank the game's time plus
+  it. The mistake part applies to past solves too. "Clean" now means no mistakes and no hints.
+  Shown as "4:12 +40s" in the game header, on the result screen, on leaderboard rows (with a
+  bulb icon for hinted solves), in the share line ("(2 hints)") and in a profile's recent solves.
+- Hints are only offered on puzzles from the API. Restarting a non-daily clears them; a daily
+  keeps them, as it keeps its time.
+- A hint stays on screen until the player places a correct digit anywhere in the cells it points
+  at. A wrong digit hides it until it's fixed. While the hinted move can still be made, the server
+  keeps hinting it, even if a correct digit elsewhere made another move easier, so the next tap
+  carries on to the next step instead of starting over.
+- Recent shows the penalty in yellow next to each time: for an unfinished puzzle, its mistakes so
+  far plus its hints.
+
+The plan, as written before building it:
+
 - The Hints button calls `POST /api/puzzles/{id}/hint` with the current grid. The server runs
   the human solver and returns the easiest next move: the strategy name ("Hidden single
   (box)") and the cell to highlight, or "this cell is wrong" if the grid has a mistake. The
@@ -845,7 +890,12 @@ are done before v1 is called done.
 - The new strategy names have only been checked on the puzzle cards, not in the game screen.
 - ~~A daily can be a puzzle someone has already played.~~ Fixed: dailies are generated fresh
   (milestone 4). Today's and tomorrow's dailies on the day V5 runs may still be old pool puzzles.
-- **Hints and leaderboards** (decide in milestone 6). Options:
+- ~~**Hints and leaderboards**~~ and ~~**mistakes on dailies**~~: decided and built 2026-11-25
+  (milestone 6). Time penalties on the Fastest board: 5 s x mistakes² (escalating, chosen over a
+  flat 10 s that still made guessing pay on hard puzzles), and hint steps 1 / 2 / 3
+  at +10 / +20 / +60 s. Every solve still ranks and keeps the streak. Auto notes stays a marker
+  only. The options that were weighed:
+- **Hints and leaderboards** (was: decide in milestone 6). Options:
   - a time penalty per hint step on the Fastest board (e.g. +30 s, shown like "4:12 +30s");
   - the solve still counts for the streak but is left off the leaderboard;
   - no hints on dailies at all (hints only on random, shared and custom puzzles);

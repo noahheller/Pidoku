@@ -17,6 +17,10 @@ export interface GameState {
   completed: boolean;
   /** Auto notes was pressed on this board (it changes solve times, so it's recorded). */
   autoNotesUsed: boolean;
+  /** Hint steps revealed, as the server counted them. */
+  hintsUsed: number;
+  /** Time the server added for hints. */
+  hintPenaltyMs: number;
 }
 
 interface Snapshot {
@@ -33,6 +37,9 @@ export interface SavedProgress {
   completed: boolean;
   /** Missing from games saved before auto notes existed. */
   autoNotesUsed?: boolean;
+  /** Missing from games saved before hints existed. */
+  hintsUsed?: number;
+  hintPenaltyMs?: number;
   /** When it was saved (Date.now()), to tell it from a newer copy saved on another device. Missing from older saves. */
   savedAt?: number;
 }
@@ -50,7 +57,9 @@ export type GameAction =
   /** Pencils every candidate into the empty cells (Expert and Fiendish only, see `canAutoNote`). */
   | { type: 'autoNotes' }
   /** Replaces the board with one saved on another device. */
-  | { type: 'load'; progress: SavedProgress };
+  | { type: 'load'; progress: SavedProgress }
+  /** The server's hint totals for the attempt: after a hint, or when the attempt starts. */
+  | { type: 'hinted'; hintsUsed: number; hintPenaltyMs: number };
 
 /** Auto notes is only offered on the hardest puzzles; easier ones are meant to be solved without it. */
 export function canAutoNote(puzzle: PuzzleDef): boolean {
@@ -77,12 +86,14 @@ export function newGame(puzzle: PuzzleDef, saved?: SavedProgress | null): GameSt
     elapsedMs: restored?.elapsedMs ?? 0,
     completed: restored?.completed ?? false,
     autoNotesUsed: restored?.autoNotesUsed ?? false,
+    hintsUsed: restored?.hintsUsed ?? 0,
+    hintPenaltyMs: restored?.hintPenaltyMs ?? 0,
   };
 }
 
 export function toSaved(state: GameState, now: number = Date.now()): SavedProgress {
-  const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed } = state;
-  return { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, savedAt: now };
+  const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, hintsUsed, hintPenaltyMs } = state;
+  return { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, hintsUsed, hintPenaltyMs, savedAt: now };
 }
 
 export function isGiven(state: GameState, index: number): boolean {
@@ -168,17 +179,29 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...fillCandidates(state), autoNotesUsed: true };
 
     case 'load': {
-      // A save that doesn't fit this puzzle leaves the board as it is.
+      // A save that doesn't fit this puzzle leaves the board as it is. Hints are the server's
+      // count, which the progress from another device doesn't carry, so they stay.
       if (!isCompatible(state.puzzle, action.progress)) return state;
-      return { ...newGame(state.puzzle, action.progress), selected: state.selected, notesMode: state.notesMode };
+      return {
+        ...newGame(state.puzzle, action.progress),
+        selected: state.selected,
+        notesMode: state.notesMode,
+        hintsUsed: state.hintsUsed,
+        hintPenaltyMs: state.hintPenaltyMs,
+      };
     }
+
+    case 'hinted':
+      return state.completed ? state : { ...state, hintsUsed: action.hintsUsed, hintPenaltyMs: action.hintPenaltyMs };
 
     case 'restart':
     {
-      // A daily is ranked, so restarting one only clears the board: its time and mistakes carry on
-      // (the server keeps its clock running too).
+      // A daily is ranked, so restarting one only clears the board: its time, mistakes and hints
+      // carry on (the server keeps its clock running too).
       const fresh = { ...newGame(state.puzzle), selected: state.selected };
-      return state.puzzle.dailyDate ? { ...fresh, elapsedMs: state.elapsedMs, mistakes: state.mistakes } : fresh;
+      return state.puzzle.dailyDate
+        ? { ...fresh, elapsedMs: state.elapsedMs, mistakes: state.mistakes, hintsUsed: state.hintsUsed, hintPenaltyMs: state.hintPenaltyMs }
+        : fresh;
     }
   }
 }

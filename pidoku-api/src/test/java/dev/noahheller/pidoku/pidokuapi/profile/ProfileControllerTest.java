@@ -98,6 +98,27 @@ class ProfileControllerTest extends IntegrationTest {
     }
 
     @Test
+    void bestTimesIncludeThePenaltiesAndHintedSolvesArentClean() {
+        LocalDate today = dailyPuzzleService.today();
+        name("alice", "Alice");
+        // 50 s with 3 mistakes ranks as 95 s, behind a clean 70 s.
+        solveAt("alice", today.minusDays(1), Difficulty.EASY, 50, 3, 1);
+        solveAt("alice", today, Difficulty.EASY, 70, 0, 2);
+        solveAt("alice", today, Difficulty.HARD, 100, 0, 3);
+        jdbc.update("""
+                UPDATE attempts SET hints_used = 2, hint_penalty_ms = 30000
+                WHERE puzzle_id = (SELECT puzzle_id FROM daily_puzzles WHERE puzzle_date = ? AND difficulty = 'HARD')
+                """, today);
+
+        assertThat(profile("alice", "alice")).hasStatusOk().bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.bestTimes").isEqualTo(Map.of("easy", 70000, "hard", 130000));
+            assertThat(json).extractingPath("$.cleanSolves").isEqualTo(1);
+            assertThat(json).extractingPath("$.recent[*].penaltyMs").isEqualTo(List.of(0, 30000, 45000));
+            assertThat(json).extractingPath("$.recent[*].hintsUsed").isEqualTo(List.of(0, 2, 0));
+        });
+    }
+
+    @Test
     void everyoneCanSeeTheirOwnProfileEvenWhenPrivate() {
         name("alice", "Alice");
         visibility("alice", "private");

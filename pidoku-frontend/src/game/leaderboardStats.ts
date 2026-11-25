@@ -6,6 +6,11 @@ import { formatTime } from './format';
  * they cost no extra database work.
  */
 
+/** The time an entry is ranked by: the game's time plus its penalties. */
+export function rankedMs(entry: Pick<LeaderboardEntry, 'elapsedMs' | 'penaltyMs'>): number {
+  return entry.elapsedMs + (entry.penaltyMs ?? 0);
+}
+
 /** Two solves this close are a photo finish. */
 export const PHOTO_FINISH_MS = 1000;
 
@@ -41,8 +46,8 @@ export function gaps(entries: LeaderboardEntry[]): Gaps | null {
   const faster = entries[i - 1];
   const slower = entries[i + 1];
   return {
-    behind: faster ? { name: faster.displayName, ms: you.elapsedMs - faster.elapsedMs } : null,
-    ahead: slower ? { name: slower.displayName, ms: slower.elapsedMs - you.elapsedMs } : null,
+    behind: faster ? { name: faster.displayName, ms: rankedMs(you) - rankedMs(faster) } : null,
+    ahead: slower ? { name: slower.displayName, ms: rankedMs(slower) - rankedMs(you) } : null,
   };
 }
 
@@ -50,7 +55,7 @@ export function gaps(entries: LeaderboardEntry[]): Gaps | null {
 export function photoFinishes(entries: LeaderboardEntry[]): Set<number> {
   const close = new Set<number>();
   for (let i = 1; i < entries.length; i++) {
-    if (entries[i].elapsedMs - entries[i - 1].elapsedMs < PHOTO_FINISH_MS) {
+    if (rankedMs(entries[i]) - rankedMs(entries[i - 1]) < PHOTO_FINISH_MS) {
       close.add(i - 1);
       close.add(i);
     }
