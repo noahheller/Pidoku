@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { DailyStats } from '../api/client';
-import { cardStats } from './dailyStats';
+import type { DailyStats, YourSolve } from '../api/client';
+import { cardStats, solvedElsewhere } from './dailyStats';
+import type { PuzzleDef } from './puzzleFile';
 
 const stats = (overrides: Partial<DailyStats> = {}): DailyStats => ({
   difficulty: 'hard',
@@ -41,5 +42,36 @@ describe('cardStats', () => {
 
   it('names a player without a display name Anonymous', () => {
     expect(cardStats(stats({ fastest: { displayName: null, elapsedMs: 60_000, you: false } })).fastest?.name).toBe('Anonymous');
+  });
+});
+
+describe('solvedElsewhere', () => {
+  const puzzle: PuzzleDef = { id: 'api-7', name: 'Daily Hard', size: 3, givens: [3, 0, 0, 0, 0, 0, 0, 0, 0], solution: [3, 1, 4, 1, 5, 9, 2, 6, 5], difficulty: 'Hard', apiId: 7, dailyDate: '2026-11-25' } as PuzzleDef;
+  const yours: YourSolve = { elapsedMs: 200_000, mistakes: 2, hintsUsed: 1, hintPenaltyMs: 10_000, autoNotesUsed: false, late: false };
+
+  it('saves a solve from another device as the solved board', () => {
+    expect(solvedElsewhere(puzzle, yours, null, 123)).toEqual({
+      values: [3, 1, 4, 1, 5, 9, 2, 6, 5],
+      notes: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+      mistakes: 2,
+      elapsedMs: 200_000,
+      completed: true,
+      autoNotesUsed: false,
+      hintsUsed: 1,
+      hintPenaltyMs: 10_000,
+      savedAt: 123,
+    });
+  });
+
+  it('replaces an unfinished board here, since it was finished elsewhere', () => {
+    const unfinished = { values: puzzle.givens, notes: [], mistakes: 0, elapsedMs: 5_000, completed: false };
+    expect(solvedElsewhere(puzzle, yours, unfinished)?.completed).toBe(true);
+  });
+
+  it('leaves alone a puzzle not solved, or already solved here', () => {
+    expect(solvedElsewhere(puzzle, null, null)).toBeNull();
+    expect(solvedElsewhere(puzzle, undefined, null)).toBeNull();
+    const solved = { values: puzzle.solution!, notes: [], mistakes: 0, elapsedMs: 90_000, completed: true };
+    expect(solvedElsewhere(puzzle, yours, solved)).toBeNull();
   });
 });
