@@ -31,7 +31,7 @@ done
 # --- Checks before starting anything ---
 if [[ ! -f "$ROOT/pidoku-api/.env" ]]; then
   echo "pidoku-api/.env is missing. Create it with the Neon dev branch's connection details;" >&2
-  echo "see \"Neon dev branch\" in README.md." >&2
+  echo "see \"Neon dev branch\" in docs/DEVELOPMENT.md." >&2
   exit 1
 fi
 for port in "$API_PORT" "$WEB_PORT"; do

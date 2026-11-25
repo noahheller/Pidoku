@@ -1,4 +1,4 @@
-import { ArrowRight, Check, CircleAlert, CircleX, CloudOff, Copy, Flame, Share2, ShieldCheck, Timer, Trophy } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, CircleX, CloudOff, Copy, Flame, PencilLine, Share2, ShieldCheck, Sparkles, Timer, Trophy } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { currentAccount } from '../api/auth';
@@ -6,6 +6,7 @@ import { recordEvent } from '../api/events';
 import { ApiError, DAILY_DIFFICULTIES, fetchDailyOn, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
 import { dailyNumber, nextUnsolved, shareLine, shareUrl } from '../game/daily';
 import { formatTime } from '../game/format';
+import { canAutoNote } from '../game/game';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, loadProgress, saveStreak } from '../game/storage';
 import { LeaderboardView } from './Leaderboard';
@@ -34,6 +35,8 @@ interface ResultProps {
   /** The game's own timer, shown when the server's time isn't known. */
   elapsedMs: number;
   mistakes: number;
+  /** Auto notes was used (only offered on Expert and Fiendish, where the result says either way). */
+  autoNotesUsed: boolean;
   recorded: Recorded;
   onExit: () => void;
 }
@@ -44,7 +47,7 @@ interface ResultProps {
  * share with friends. The first time a solve is recorded, it also asks for the name friends will
  * see; once there's a streak worth keeping, it suggests signing in with Google.
  */
-export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: ResultProps) {
+export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, recorded, onExit }: ResultProps) {
   const isRecorded = recorded.status === 'recorded';
   const streak = useStreak(isRecorded && puzzle.dailyDate !== undefined);
   const dailyDifficulty = DAILY_DIFFICULTIES.find((d) => d === puzzle.difficulty?.toLowerCase());
@@ -55,6 +58,7 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
     dailyDate: puzzle.dailyDate ?? null,
     elapsedMs: time,
     mistakes: puzzle.solution ? mistakes : null,
+    autoNotesUsed,
   };
   const share = shareLine({ ...shareDetails, url });
   // Share taps are counted (analytics), to see whether sharing is what brings players.
@@ -78,6 +82,14 @@ export function Result({ puzzle, elapsedMs, mistakes, recorded, onExit }: Result
         <dl className="flex flex-wrap gap-x-8 gap-y-3">
           <Stat icon={<Timer className="size-4" aria-hidden="true" />} label="Time" value={formatTime(time)} note={timeNote(recorded)} />
           {puzzle.solution && <Stat icon={<CircleX className="size-4" aria-hidden="true" />} label="Mistakes" value={String(mistakes)} />}
+          {canAutoNote(puzzle) && (
+            <Stat
+              icon={autoNotesUsed ? <Sparkles className="size-4" aria-hidden="true" /> : <PencilLine className="size-4" aria-hidden="true" />}
+              label="Notes"
+              value={autoNotesUsed ? 'Auto' : 'By hand'}
+              note={autoNotesUsed ? 'Used auto notes' : 'No auto notes'}
+            />
+          )}
           {puzzle.dailyDate && streak && <StreakStat streak={streak} />}
         </dl>
 

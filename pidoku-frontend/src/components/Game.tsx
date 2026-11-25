@@ -259,7 +259,7 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
 
       {!ready && <StartScreen puzzle={puzzle} onStart={() => setReady(true)} />}
 
-      {completed && <Result puzzle={puzzle} elapsedMs={elapsedMs} mistakes={mistakes} recorded={recorded} onExit={onExit} />}
+      {completed && <Result puzzle={puzzle} elapsedMs={elapsedMs} mistakes={mistakes} autoNotesUsed={autoNotesUsed} recorded={recorded} onExit={onExit} />}
 
       {ready && <div className="flex flex-wrap items-start justify-center gap-6">
         <Board state={state} onSelect={onSelect} />
