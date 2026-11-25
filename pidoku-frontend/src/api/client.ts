@@ -308,6 +308,8 @@ export interface RecentPuzzle {
   /** The solve's time, or the timer as last saved for an unfinished one; null if unknown. */
   timeMs: number | null;
   mistakes: number;
+  /** Auto notes was used on the attempt shown. Missing from older API versions. */
+  autoNotesUsed?: boolean;
   /** ISO timestamp. */
   lastPlayedAt: string;
 }

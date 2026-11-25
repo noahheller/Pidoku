@@ -52,11 +52,15 @@ log "Starting a throwaway Postgres for the training run"
 docker network create "$network" >/dev/null
 docker run -d --name "$db" --network "$network" \
     -e POSTGRES_DB=pidoku -e POSTGRES_PASSWORD=pidoku postgres:17-alpine >/dev/null
+# Checked over TCP: on first boot the image runs its init scripts on a temporary server that only
+# listens on the Unix socket, then restarts. A socket check passes on that temporary server, and the
+# next command lands in the restart.
+pg_ready() { docker exec "$db" pg_isready -h 127.0.0.1 -U postgres -d pidoku >/dev/null 2>&1; }
 for _ in $(seq 60); do
-    docker exec "$db" pg_isready -U postgres -d pidoku >/dev/null 2>&1 && break
+    pg_ready && break
     sleep 1
 done
-docker exec "$db" pg_isready -U postgres -d pidoku >/dev/null
+pg_ready || { docker logs "$db"; echo "The training Postgres didn't start" >&2; exit 1; }
 
 db_env=(
     -e "DATABASE_URL=jdbc:postgresql://$db:5432/pidoku"

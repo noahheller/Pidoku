@@ -25,6 +25,10 @@ describe('shareLine', () => {
     expect(shareLine({ ...daily, mistakes: 2 })).toBe('Pidoku #3 Hard 4:12 2✗\nhttps://pidoku.web.app/p/89TU533C');
   });
 
+  it('says when auto notes was used', () => {
+    expect(shareLine({ difficulty: 'Expert', dailyDate: null, elapsedMs: 600_000, mistakes: 0, autoNotesUsed: true, url: null })).toBe('Pidoku Expert 10:00 ✓ (auto notes)');
+  });
+
   it('leaves out what a puzzle does not have', () => {
     expect(shareLine({ difficulty: 'Easy', dailyDate: null, elapsedMs: 65_000, mistakes: null, url: null })).toBe('Pidoku Easy 1:05');
   });
