@@ -1,6 +1,10 @@
 package dev.noahheller.pidoku.pidokuapi.friend;
 
+import dev.noahheller.pidoku.pidokuapi.player.FirebaseTokens;
+import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.player.PlayerService;
+import dev.noahheller.pidoku.pidokuapi.profile.PlayerProfile;
+import dev.noahheller.pidoku.pidokuapi.profile.ProfileService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,10 +29,12 @@ public class FriendController {
 
     private final FriendService friendService;
     private final PlayerService playerService;
+    private final ProfileService profileService;
 
-    public FriendController(FriendService friendService, PlayerService playerService) {
+    public FriendController(FriendService friendService, PlayerService playerService, ProfileService profileService) {
         this.friendService = friendService;
         this.playerService = playerService;
+        this.profileService = profileService;
     }
 
     /**
@@ -42,14 +48,19 @@ public class FriendController {
     }
 
     /**
-     * One friend's profile, e.g. {@code GET /api/friends/12?today=2026-11-17}: streaks, totals, best
-     * times and their last week of dailies. {@code today} is the viewer's local date. 404 if they
-     * aren't friends.
+     * One friend's profile, e.g. {@code GET /api/friends/12?today=2026-11-17}. Kept for app
+     * versions from before {@code GET /api/players/{id}/profile}, which replaces it. 404 if they
+     * aren't friends, or their profile is private.
      */
     @GetMapping("/{friendId}")
-    public FriendProfile profile(@AuthenticationPrincipal Jwt token, @PathVariable long friendId,
+    public PlayerProfile profile(@AuthenticationPrincipal Jwt token, @PathVariable long friendId,
                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today) {
-        return friendService.profile(playerService.forToken(token), friendId, today);
+        Player viewer = playerService.forToken(token);
+        PlayerProfile profile = profileService.profile(viewer, FirebaseTokens.isGoogle(token), friendId, today);
+        if (profile.friendsSince() == null) {
+            throw new FriendNotFoundException(friendId);
+        }
+        return profile;
     }
 
     /** @param friendCode the other player's code, from {@code GET /api/players/me} */

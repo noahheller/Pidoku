@@ -89,6 +89,16 @@ export function isGiven(state: GameState, index: number): boolean {
   return state.puzzle.givens[index] !== EMPTY;
 }
 
+/**
+ * A cell the player can't change: a given, or a digit that matches the solution. Correct digits
+ * stay put so a slip can't undo progress (Undo can still take one back). Puzzles without a
+ * solution can't tell, so only their givens are locked.
+ */
+export function isLocked(state: GameState, index: number): boolean {
+  const { solution } = state.puzzle;
+  return isGiven(state, index) || (solution !== null && state.values[index] !== EMPTY && state.values[index] === solution[index]);
+}
+
 export function isMistake(state: GameState, index: number): boolean {
   const { solution } = state.puzzle;
   const v = state.values[index];
@@ -116,14 +126,14 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'input': {
       const i = state.selected;
-      if (i === null || state.completed || isGiven(state, i) || !isPlayable(state.rules, action.digit)) return state;
+      if (i === null || state.completed || isLocked(state, i) || !isPlayable(state.rules, action.digit)) return state;
       const asNote = action.asNote ?? state.notesMode;
       return asNote ? toggleNote(state, i, action.digit) : placeDigit(state, i, action.digit);
     }
 
     case 'erase': {
       const i = state.selected;
-      if (i === null || state.completed || isGiven(state, i)) return state;
+      if (i === null || state.completed || isLocked(state, i)) return state;
       // A filled cell may still hold notes hidden under a wrong digit: the first erase removes
       // just the digit so they reappear, and a second erase clears the notes.
       if (state.values[i] !== EMPTY) return commit(state, replaceAt(state.values, i, EMPTY), state.notes);

@@ -1,4 +1,4 @@
-import { CircleAlert, Flame, GraduationCap, Puzzle, RotateCw, Shuffle, Trophy, Users, Zap } from 'lucide-react';
+import { CircleAlert, Flame, GraduationCap, Puzzle, RotateCw, Shuffle, Timer, Trophy, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { DIFFICULTIES, fetchDailySummary, fetchRecent, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
@@ -52,7 +52,7 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
       </header>
 
       <section aria-labelledby="today-title">
-        <div className="mb-3 flex flex-wrap items-baseline gap-x-3">
+        <div className="mb-3 flex flex-wrap items-center gap-x-3">
           <h2 id="today-title" className="text-lg font-semibold">
             Today
           </h2>
@@ -172,7 +172,7 @@ function PuzzleList({ puzzles, onPlay, summary }: PuzzleListProps) {
             onClick={() => onPlay(puzzle)}
           >
             <span className="text-lg font-semibold">{puzzle.name}</span>
-            <Technique strategy={puzzle.hardestStrategy} />
+            {!puzzle.dailyDate && <Technique strategy={puzzle.hardestStrategy} />}
             {summary && <SolvedBy summary={summary} difficulty={puzzle.difficulty} />}
             <ProgressBadge id={puzzle.id} />
           </button>
@@ -182,7 +182,10 @@ function PuzzleList({ puzzles, onPlay, summary }: PuzzleListProps) {
   );
 }
 
-/** The hardest technique the engine needed, e.g. "Hardest step: Hidden pair". */
+/**
+ * The hardest technique the engine needed, e.g. "Hardest step: Hidden pair". Not shown for
+ * dailies: most players don't know the technique names, and the difficulty already says enough.
+ */
 function Technique({ strategy }: { strategy: string | null }) {
   const name = strategyName(strategy);
   if (!name) return null;
@@ -208,8 +211,8 @@ function SolvedBy({ summary, difficulty }: { summary: Summary; difficulty: strin
         <Users className="size-3.5 shrink-0" aria-hidden="true" /> {solved}
       </span>
       {fastest && (
-        <span className="flex items-center gap-1">
-          <Zap className="size-3.5 shrink-0 fill-warning text-warning" aria-hidden="true" />
+        <span className="flex items-center gap-1" title="Fastest time">
+          <Timer className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
           <span className="sr-only">Fastest:</span>
           <span className="max-w-32 truncate">{fastest.name}</span>
           <span className="font-semibold tabular-nums text-base-content">{fastest.time}</span>
@@ -365,7 +368,7 @@ function Recent({ local, onPlay }: { local: PuzzleDef[]; onPlay: (p: PuzzleDef) 
             >
               <span className="text-lg font-semibold">{puzzle.name}</span>
               {puzzle.dailyDate && <span className="text-sm text-base-content/60">{formatDate(puzzle.dailyDate)}</span>}
-              <Technique strategy={puzzle.hardestStrategy} />
+              {!puzzle.dailyDate && <Technique strategy={puzzle.hardestStrategy} />}
               {completed ? (
                 <span className="text-xs font-semibold text-success">Solved{timeMs !== null && ` · ${formatTime(timeMs)}`}</span>
               ) : (

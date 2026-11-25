@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Getter;
 
 import java.time.Instant;
@@ -13,7 +14,7 @@ import java.time.Instant;
 /**
  * One Firebase account (table {@code players}, created in V3). Rows are inserted by
  * {@link PlayerRepository#insertIfAbsent}, never through JPA; afterwards JPA only changes the
- * display name.
+ * display name and profile visibility.
  */
 @Getter
 @Entity
@@ -39,6 +40,11 @@ public class Player {
     @Column(name = "friend_code", insertable = false, updatable = false, unique = true, length = 8)
     private String friendCode;
 
+    /** Who can see the player's profile, by {@link ProfileVisibility#id()}; 'friends' until changed (V11). */
+    @Getter(AccessLevel.NONE)
+    @Column(name = "profile_visibility", nullable = false, insertable = false, length = 10)
+    private String profileVisibility;
+
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
@@ -48,5 +54,13 @@ public class Player {
 
     public void rename(DisplayName displayName) {
         this.displayName = displayName.value();
+    }
+
+    public ProfileVisibility getProfileVisibility() {
+        return ProfileVisibility.fromId(profileVisibility);
+    }
+
+    public void setProfileVisibility(ProfileVisibility visibility) {
+        this.profileVisibility = visibility.id();
     }
 }

@@ -75,8 +75,13 @@ export interface Player {
   displayName: string | null;
   /** What friends enter (or open as /f/{code}) to add this player. */
   friendCode: string;
+  /** Who can see their profile. */
+  profileVisibility: ProfileVisibility;
   createdAt: string;
 }
+
+/** Who can see a player's profile: any player, only their friends, or no one else. */
+export type ProfileVisibility = 'public' | 'friends' | 'private';
 
 /** One of the player's friends (pidoku-api's Friend). */
 export interface Friend {
@@ -95,6 +100,8 @@ export interface LeaderboardEntry {
   /** 1 for the fastest; equal times share a rank. */
   rank: number;
   displayName: string | null;
+  /** Their player id, if the player may open their profile; null otherwise. */
+  profileId: number | null;
   /** The server-measured solve time. */
   elapsedMs: number;
   mistakes: number;
@@ -102,8 +109,6 @@ export interface LeaderboardEntry {
   late: boolean;
   /** The signed-in player's own solve. */
   you: boolean;
-  /** Solved earliest of everyone on this board (late solves can't be). */
-  firstToFinish: boolean;
   /** The fastest solve with no mistakes on this board. */
   fastestClean: boolean;
 }
@@ -121,8 +126,6 @@ export interface Leaderboard {
   entries: LeaderboardEntry[];
   /** The player's own entry, also when it's beyond `entries`; null if they haven't solved it. */
   you: LeaderboardEntry | null;
-  /** Whoever solved it earliest, also when beyond `entries`; null if no one has. */
-  firstToFinish: LeaderboardEntry | null;
   /** The fastest solve with no mistakes, also when beyond `entries`; null if there's none. */
   fastestClean: LeaderboardEntry | null;
 }
@@ -359,6 +362,11 @@ export async function updateDisplayName(displayName: string): Promise<Player> {
   return request<Player>('/api/players/me', { method: 'PATCH', body: { displayName }, token: await requireToken() }, BUSY);
 }
 
+/** Sets who can see the player's profile. */
+export async function updateProfileVisibility(profileVisibility: ProfileVisibility): Promise<Player> {
+  return request<Player>('/api/players/me', { method: 'PATCH', body: { profileVisibility }, token: await requireToken() }, BUSY);
+}
+
 /**
  * Deletes the signed-in player and everything the server keeps about them (attempts, friendships,
  * name). Use `deleteAccount` in auth.ts, which also deletes the sign-in.
@@ -377,12 +385,16 @@ export async function fetchFriends(signal?: AbortSignal, now: Date = new Date())
   return request<Friend[]>(`/api/friends?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
 }
 
-/** One friend's stats (pidoku-api's FriendProfile), from their first solve of each daily. */
-export interface FriendProfile {
+/** A player's stats (pidoku-api's PlayerProfile), from their first solve of each daily. */
+export interface PlayerProfile {
   id: number;
   displayName: string | null;
-  /** When you became friends (ISO timestamp). */
-  friendsSince: string;
+  /** This is the signed-in player's own profile. */
+  you: boolean;
+  /** Who can see this profile. */
+  visibility: ProfileVisibility;
+  /** When you became friends (ISO timestamp); null if you aren't. */
+  friendsSince: string | null;
   currentStreak: number;
   bestStreak: number;
   dailiesSolved: number;
@@ -395,12 +407,12 @@ export interface FriendProfile {
 }
 
 /**
- * One friend's profile, as of the player's own date.
+ * A player's profile (or the player's own), as of the player's own date.
  *
- * @throws ApiError 404 if they aren't friends (any more)
+ * @throws ApiError 404 if there's no such player, or their profile isn't shown to this player
  */
-export async function fetchFriendProfile(friendId: number, signal?: AbortSignal, now: Date = new Date()): Promise<FriendProfile> {
-  return request<FriendProfile>(`/api/friends/${friendId}?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
+export async function fetchProfile(playerId: number, signal?: AbortSignal, now: Date = new Date()): Promise<PlayerProfile> {
+  return request<PlayerProfile>(`/api/players/${playerId}/profile?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
 }
 
 /**

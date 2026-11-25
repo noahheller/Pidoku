@@ -28,13 +28,37 @@ public class PlayerService {
         this.jdbc = jdbc;
     }
 
-    /** The player a token belongs to, created on their first request. */
+    /**
+     * The player a token belongs to, created on their first request. A player signed in with
+     * Google who hasn't picked a display name gets their Google account's name (see
+     * {@link #nameFromGoogle}).
+     */
     @Transactional
     public Player forToken(Jwt token) {
         String uid = token.getSubject();
-        return players.findByFirebaseUid(uid).orElseGet(() -> {
+        Player player = players.findByFirebaseUid(uid).orElseGet(() -> {
             players.insertIfAbsent(uid);
             return players.findByFirebaseUid(uid).orElseThrow();
+        });
+        if (player.getDisplayName() == null) {
+            nameFromGoogle(token).ifPresent(player::rename);
+        }
+        return player;
+    }
+
+    /**
+     * The Google account's name as a display name: cut to {@value DisplayName#MAX_LENGTH}
+     * characters if longer, and none if it still isn't allowed. Empty for anonymous accounts.
+     */
+    static Optional<DisplayName> nameFromGoogle(Jwt token) {
+        return FirebaseTokens.googleName(token).flatMap(name -> {
+            String stripped = name.strip();
+            int max = Math.min(stripped.codePointCount(0, stripped.length()), DisplayName.MAX_LENGTH);
+            try {
+                return Optional.of(DisplayName.of(stripped.substring(0, stripped.offsetByCodePoints(0, max))));
+            } catch (InvalidDisplayNameException e) {
+                return Optional.empty();
+            }
         });
     }
 
@@ -66,15 +90,24 @@ public class PlayerService {
     }
 
     /**
-     * Sets the display name of the player a token belongs to, creating the player if needed.
+     * Changes the display name and/or profile visibility of the player a token belongs to, creating
+     * the player if needed. Null leaves that one as it is; with both null, the missing name is
+     * refused. Both are checked before either changes.
      *
-     * @throws InvalidDisplayNameException if the name isn't allowed (see {@link DisplayName})
+     * @throws InvalidDisplayNameException       if the name isn't allowed (see {@link DisplayName})
+     * @throws InvalidProfileVisibilityException if the visibility isn't a {@link ProfileVisibility} id
      */
     @Transactional
-    public Player rename(Jwt token, String displayName) {
-        DisplayName name = DisplayName.of(displayName);
+    public Player update(Jwt token, String displayName, String profileVisibility) {
+        DisplayName name = displayName != null || profileVisibility == null ? DisplayName.of(displayName) : null;
+        ProfileVisibility visibility = profileVisibility == null ? null : ProfileVisibility.fromId(profileVisibility);
         Player player = me(token);
-        player.rename(name);
+        if (name != null) {
+            player.rename(name);
+        }
+        if (visibility != null) {
+            player.setProfileVisibility(visibility);
+        }
         return player;
     }
 
