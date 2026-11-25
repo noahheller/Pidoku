@@ -95,16 +95,30 @@ public class LeaderboardService {
                             FROM solves
                             WHERE you OR friend
                             ORDER BY puzzle_id, elapsed_ms, completed_at, player_id
+                        ),
+                        -- The viewer's own first solve, even one started before the date began.
+                        mine AS (
+                            SELECT DISTINCT ON (a.puzzle_id)
+                                   a.puzzle_id, COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.mistakes,
+                                   a.hints_used, a.hint_penalty_ms, a.auto_notes_used, a.late
+                            FROM attempts a
+                            JOIN dailies d ON d.puzzle_id = a.puzzle_id
+                            WHERE a.player_id = :viewerId AND a.completed_at IS NOT NULL
+                            ORDER BY a.puzzle_id, a.completed_at, a.id
                         )
                         SELECT d.difficulty,
                                (SELECT COUNT(*) FROM solves s WHERE s.puzzle_id = d.puzzle_id) AS solved,
                                (SELECT COUNT(*) FROM solves s WHERE s.puzzle_id = d.puzzle_id AND s.friend) AS friends_solved,
                                f.display_name AS fastest_name, f.elapsed_ms AS fastest_ms, f.you AS fastest_you,
                                ff.display_name AS friends_fastest_name, ff.elapsed_ms AS friends_fastest_ms,
-                               ff.you AS friends_fastest_you
+                               ff.you AS friends_fastest_you,
+                               m.elapsed_ms AS your_ms, m.mistakes AS your_mistakes, m.hints_used AS your_hints_used,
+                               m.hint_penalty_ms AS your_hint_penalty_ms, m.auto_notes_used AS your_auto_notes_used,
+                               m.late AS your_late
                         FROM dailies d
                         LEFT JOIN fastest f ON f.puzzle_id = d.puzzle_id
                         LEFT JOIN friends_fastest ff ON ff.puzzle_id = d.puzzle_id
+                        LEFT JOIN mine m ON m.puzzle_id = d.puzzle_id
                         """)
                 .param("date", date)
                 .param("opensAt", OffsetDateTime.ofInstant(DailyPuzzleService.opensAt(date), ZoneOffset.UTC))
@@ -125,15 +139,20 @@ public class LeaderboardService {
     /** One daily's row of the summary query. */
     record SummaryRow(String difficulty, long solved, long friendsSolved,
                       String fastestName, Long fastestMs, Boolean fastestYou,
-                      String friendsFastestName, Long friendsFastestMs, Boolean friendsFastestYou) {
+                      String friendsFastestName, Long friendsFastestMs, Boolean friendsFastestYou,
+                      Long yourMs, Integer yourMistakes, Integer yourHintsUsed, Long yourHintPenaltyMs,
+                      Boolean yourAutoNotesUsed, Boolean yourLate) {
 
         DailySummary.Daily toDaily(boolean signedIn) {
             DailySummary.Time fastest = fastestMs == null ? null
                     : new DailySummary.Time(fastestName, fastestMs, Boolean.TRUE.equals(fastestYou));
             DailySummary.Time friendsFastest = !signedIn || friendsFastestMs == null ? null
                     : new DailySummary.Time(friendsFastestName, friendsFastestMs, Boolean.TRUE.equals(friendsFastestYou));
+            DailySummary.YourSolve yours = !signedIn || yourMs == null ? null
+                    : new DailySummary.YourSolve(yourMs, yourMistakes, yourHintsUsed, yourHintPenaltyMs,
+                            Boolean.TRUE.equals(yourAutoNotesUsed), Boolean.TRUE.equals(yourLate));
             return new DailySummary.Daily(Difficulty.valueOf(difficulty), (int) solved, fastest,
-                    signedIn ? (int) friendsSolved : null, friendsFastest);
+                    signedIn ? (int) friendsSolved : null, friendsFastest, yours);
         }
     }
 

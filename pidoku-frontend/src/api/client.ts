@@ -224,6 +224,19 @@ export interface DailyStats {
   friendsSolved: number | null;
   /** The fastest solve by the player or a friend; null when signed out or none of them has. */
   friendsFastest: SummaryTime | null;
+  /** The player's own first solve, from any device; null when signed out or not solved. Missing from older API versions. */
+  yours?: YourSolve | null;
+}
+
+/** The player's own solve of a daily (pidoku-api's DailySummary.YourSolve). */
+export interface YourSolve {
+  /** The game's timer, penalties not included. */
+  elapsedMs: number;
+  mistakes: number;
+  hintsUsed: number;
+  hintPenaltyMs: number;
+  autoNotesUsed: boolean;
+  late: boolean;
 }
 
 /**
