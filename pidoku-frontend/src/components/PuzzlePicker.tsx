@@ -8,6 +8,7 @@ import { cardStats } from '../game/dailyStats';
 import { formatDate, formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { localEntries, recentList, serverEntries, type RecentEntry } from '../game/recent';
+import { canAutoNote } from '../game/game';
 import { PI_DIGITS } from '../game/rules';
 import { clearProgress, clearResult, loadProgress, loadStreak, saveStreak, type CachedStreak } from '../game/storage';
 import { strategyName } from '../game/strategies';
@@ -359,7 +360,7 @@ function Recent({ local, onPlay }: { local: PuzzleDef[]; onPlay: (p: PuzzleDef) 
         Recent
       </h2>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
-        {entries.map(({ puzzle, completed, timeMs }) => (
+        {entries.map(({ puzzle, completed, timeMs, autoNotesUsed }) => (
           <li key={puzzle.id}>
             <button
               type="button"
@@ -370,7 +371,10 @@ function Recent({ local, onPlay }: { local: PuzzleDef[]; onPlay: (p: PuzzleDef) 
               {puzzle.dailyDate && <span className="text-sm text-base-content/60">{formatDate(puzzle.dailyDate)}</span>}
               {!puzzle.dailyDate && <Technique strategy={puzzle.hardestStrategy} />}
               {completed ? (
-                <span className="text-xs font-semibold text-success">Solved{timeMs !== null && ` · ${formatTime(timeMs)}`}</span>
+                <span className="text-xs font-semibold text-success">
+                  Solved{timeMs !== null && ` · ${formatTime(timeMs)}`}
+                  {canAutoNote(puzzle) && <span className="font-normal text-base-content/60">{autoNotesUsed ? ' · Auto notes' : ' · No auto notes'}</span>}
+                </span>
               ) : (
                 <span className="text-xs font-semibold text-primary">Continue{timeMs !== null && timeMs > 0 && ` · ${formatTime(timeMs)}`}</span>
               )}

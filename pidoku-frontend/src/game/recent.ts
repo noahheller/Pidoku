@@ -16,6 +16,8 @@ export interface RecentEntry {
   completed: boolean;
   /** The solve's time, or the timer so far; null if unknown. */
   timeMs: number | null;
+  /** Auto notes was used (only offered on Expert and Fiendish). */
+  autoNotesUsed: boolean;
   /** When it was last played (ms since 1970); 0 if unknown. */
   lastPlayedAt: number;
 }
@@ -36,13 +38,13 @@ export function localEntries(list: readonly PuzzleDef[]): RecentEntry[] {
     const progress = loadProgress(puzzle.id);
     if (!progress) return [];
     const result = progress.completed ? loadResult(puzzle.id) : null;
-    return [{ puzzle, completed: progress.completed, timeMs: result?.elapsedMs ?? progress.elapsedMs, lastPlayedAt: progress.savedAt ?? 0 }];
+    return [{ puzzle, completed: progress.completed, timeMs: result?.elapsedMs ?? progress.elapsedMs, autoNotesUsed: progress.autoNotesUsed ?? false, lastPlayedAt: progress.savedAt ?? 0 }];
   });
 }
 
 /** The server's list as entries. */
 export function serverEntries(recent: readonly RecentPuzzle[]): RecentEntry[] {
-  return recent.map((r) => ({ puzzle: r.puzzle, completed: r.completed, timeMs: r.timeMs, lastPlayedAt: Date.parse(r.lastPlayedAt) || 0 }));
+  return recent.map((r) => ({ puzzle: r.puzzle, completed: r.completed, timeMs: r.timeMs, autoNotesUsed: r.autoNotesUsed ?? false, lastPlayedAt: Date.parse(r.lastPlayedAt) || 0 }));
 }
 
 /**
