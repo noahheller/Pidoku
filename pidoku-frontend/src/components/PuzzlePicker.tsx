@@ -95,10 +95,14 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
 
       <Recent local={recent} onPlay={onPlay} />
 
-      <footer className="flex justify-center text-sm text-base-content/50">
+      <footer className="flex justify-center gap-2 text-sm text-base-content/50">
         <Link to="/privacy" className="link link-hover">
           Privacy
         </Link>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/noahheller/Pidoku" target="_blank" rel="noopener noreferrer" className="link link-hover">
+          GitHub
+        </a>
       </footer>
     </main>
   );
