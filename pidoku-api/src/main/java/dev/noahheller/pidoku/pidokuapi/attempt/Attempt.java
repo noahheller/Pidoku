@@ -119,22 +119,39 @@ public class Attempt {
      * first step of a new one. Each step is charged once; asking again for a move already shown
      * in full charges nothing.
      *
-     * @param key          identifies the move
-     * @param eliminations the candidates the move clears ({@code [cell, digit]}), empty for a
-     *                     placement. Once its last step is shown they're remembered, so later
-     *                     hints build on them (see {@link LastHint}).
+     * <p>A move that only clears candidates is shown in full on its first tap, at the first step's
+     * price, and the digit it leads to then starts at step 2: the elimination has already said where
+     * to look. So an elimination and the placement after it take three taps, like any other hint.
+     *
+     * @param key              identifies the move
+     * @param eliminations     the candidates the move clears ({@code [cell, digit]}), empty for a
+     *                         placement. Once its last step is shown they're remembered, so later
+     *                         hints build on them (see {@link LastHint}).
+     * @param afterElimination the move hinted last time only cleared candidates
      * @return the step now revealed, 1 to {@link Penalties#HINT_STEPS}
      * @throws IllegalStateException if the attempt is already complete
      */
-    public int revealHint(String key, List<int[]> eliminations) {
+    public int revealHint(String key, List<int[]> eliminations, boolean afterElimination) {
         if (isCompleted()) {
             throw new IllegalStateException("attempt " + id + " is already complete");
         }
         boolean sameMove = lastHint != null && lastHint.key().equals(key);
-        int step = sameMove ? Math.min(lastHint.step() + 1, Penalties.HINT_STEPS) : 1;
-        if (!sameMove || step > lastHint.step()) {
+        boolean placement = eliminations.isEmpty();
+        int step;
+        long charge;
+        if (sameMove) {
+            step = Math.min(lastHint.step() + 1, Penalties.HINT_STEPS);
+            charge = step > lastHint.step() ? Penalties.hintStep(step) : 0;
+        } else if (!placement) {
+            step = Penalties.HINT_STEPS;
+            charge = Penalties.hintStep(1);
+        } else {
+            step = afterElimination ? 2 : 1;
+            charge = Penalties.hintStep(step);
+        }
+        if (charge > 0) {
             hintsUsed++;
-            hintPenaltyMs += Penalties.hintStep(step);
+            hintPenaltyMs += charge;
         }
         List<int[]> shown = new ArrayList<>(shownEliminations());
         if (step == Penalties.HINT_STEPS && !(sameMove && lastHint.step() == step)) {
