@@ -633,11 +633,22 @@ Streaks are the reason to come back, but nothing reminds a player that today's i
   the human solver and returns the easiest next move: the strategy name ("Hidden single
   (box)") and the cell to highlight, or "this cell is wrong" if the grid has a mistake. The
   wording and highlighting come from "Explain a move" (After v1), built for the tutorial first.
-- Consider hints in steps: first "look at row 4", then the technique, then the exact cell. Each
-  step gives away less of the puzzle, and the steps show the engine off better than jumping
-  straight to the answer.
-- The server increments `attempts.hints_used`. To decide: whether a solve with hints ranks on
-  the leaderboard, is marked there, or is left off.
+- **Hints come in three steps (preferred, 2026-11-24).** Each tap gives away a little more:
+  1. *Where*: "Look at row 4." The unit is shaded.
+  2. *What to look for*: the technique described in plain words, with its name as a small label
+     ("In this row, a digit has only one cell left where it can go." · *Hidden single*). The
+     pattern and the blockers are highlighted, but not the target.
+  3. *The answer*: the target cell and the full "Explain a move" sentence.
+  Players who don't know the names still get a useful step 2, and seeing the same name next to the
+  same idea teaches it. Tapping the label opens a "What's this?" card with the longer
+  explanation. The wording is in `pidoku-frontend/src/game/strategies.ts` (`strategyInfo`: name,
+  `lookFor`, `explanation`, done 2026-11-24). A test checks it covers every `StrategyEnum`
+  constant and that `lookFor` never names the technique. The highlighting is what
+  `Explanation` already returns, split across the steps.
+- Each step counts in `attempts.hints_used`, so "told me the row" and "showed me the answer"
+  aren't the same thing to calibration or the leaderboard.
+- The server increments `attempts.hints_used`. How hints affect leaderboards is an open item
+  (see "Open items").
 - This shows the engine off better than anything else in the UI, since it explains moves the
   way the difficulty rating counts them.
 
@@ -834,7 +845,13 @@ are done before v1 is called done.
 - The new strategy names have only been checked on the puzzle cards, not in the game screen.
 - ~~A daily can be a puzzle someone has already played.~~ Fixed: dailies are generated fresh
   (milestone 4). Today's and tomorrow's dailies on the day V5 runs may still be old pool puzzles.
-- Whether a solve that used hints ranks on the leaderboard (decide in milestone 6).
+- **Hints and leaderboards** (decide in milestone 6). Options:
+  - a time penalty per hint step on the Fastest board (e.g. +30 s, shown like "4:12 +30s");
+  - the solve still counts for the streak but is left off the leaderboard;
+  - no hints on dailies at all (hints only on random, shared and custom puzzles);
+  - something else (e.g. ranked but marked with a hint icon, or a penalty for step 3 only).
+  Decide it with the mistakes question below: both are about how assisted solves rank, along with
+  auto notes (`auto_notes_used`).
 - **Mistakes on dailies.** Wrong digits always show in red and the Fastest board ignores
   mistakes, so tapping digits until one isn't red beats working a cell out. Decide between a
   time penalty per mistake on the Fastest board (e.g. +10 s, shown as "4:12 +20s") and a limit
