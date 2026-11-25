@@ -11,7 +11,7 @@ import { HINT_STEP_PENALTY_MS, penaltyMs } from '../game/penalties';
 import { actionForKey } from '../game/keys';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { EMPTY, PI_DIGITS, type Rules } from '../game/rules';
-import { isTutorialSeen, loadProgress, loadResult, saveProgress, saveResult } from '../game/storage';
+import { isTutorialSeen, loadHint, loadProgress, loadResult, saveHint, saveProgress, saveResult } from '../game/storage';
 import { boardChanged, newerOnServer, SYNC_INTERVAL_MS } from '../game/sync';
 import { Board } from './Board';
 import { Controls } from './Controls';
@@ -219,8 +219,12 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
 
   const onSelect = useCallback((index: number) => dispatch({ type: 'select', index }), []);
 
-  // The hint on screen, if any (see askForHint below).
-  const [hint, setHint] = useState<HintView | null>(null);
+  // The hint on screen, if any (see askForHint below). Kept in this browser, so leaving the puzzle
+  // and coming back doesn't lose it.
+  const [hint, setHint] = useState<HintView | null>(() => loadHint(puzzle.id));
+  useEffect(() => {
+    saveHint(puzzle.id, completed ? null : hint);
+  }, [puzzle.id, hint, completed]);
   // Why a tap on Hint gave nothing (wrong digits, no connection). Kept apart from the hint, so the
   // hint the player was following survives it.
   const [hintNotice, setHintNotice] = useState<{ values: number[]; message: string } | null>(null);

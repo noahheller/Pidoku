@@ -4,13 +4,13 @@ import { Link } from 'react-router';
 import { DIFFICULTIES, fetchDailySummary, fetchRecent, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
 import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
-import { cardStats } from '../game/dailyStats';
+import { cardStats, solvedElsewhere } from '../game/dailyStats';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { localEntries, recentList, serverEntries, type RecentEntry } from '../game/recent';
 import { canAutoNote } from '../game/game';
 import { PI_DIGITS } from '../game/rules';
-import { clearProgress, clearResult, loadProgress, loadStreak, saveStreak, type CachedStreak } from '../game/storage';
+import { clearProgress, clearResult, loadProgress, loadStreak, saveProgress, saveResult, saveStreak, type CachedStreak } from '../game/storage';
 import { strategyName } from '../game/strategies';
 
 /** How to open a puzzle (see App's routes). */
@@ -167,6 +167,18 @@ interface PuzzleListProps {
 }
 
 function PuzzleList({ puzzles, onPlay, summary }: PuzzleListProps) {
+  // Dailies solved on another device: saved here as solved, so opening one shows its result.
+  useEffect(() => {
+    if (summary?.status !== 'loaded') return;
+    for (const puzzle of puzzles) {
+      const yours = statsFor(summary, puzzle.difficulty)?.yours;
+      const progress = solvedElsewhere(puzzle, yours, loadProgress(puzzle.id));
+      if (!progress || !yours) continue;
+      saveProgress(puzzle.id, progress);
+      saveResult(puzzle.id, { elapsedMs: yours.elapsedMs, late: yours.late });
+    }
+  }, [puzzles, summary]);
+
   return (
     <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
       {puzzles.map((puzzle) => (
@@ -179,7 +191,7 @@ function PuzzleList({ puzzles, onPlay, summary }: PuzzleListProps) {
             <span className="text-lg font-semibold">{puzzle.name}</span>
             {!puzzle.dailyDate && <Technique strategy={puzzle.hardestStrategy} />}
             {summary && <SolvedBy summary={summary} difficulty={puzzle.difficulty} />}
-            <ProgressBadge id={puzzle.id} />
+            <ProgressBadge id={puzzle.id} solvedMs={summary && statsFor(summary, puzzle.difficulty)?.yours?.elapsedMs} />
           </button>
         </li>
       ))}
@@ -204,10 +216,14 @@ function Technique({ strategy }: { strategy: string | null }) {
   );
 }
 
+function statsFor(summary: Summary, difficulty: string | null): DailyStats | undefined {
+  return summary.status === 'loaded' && difficulty ? summary.byDifficulty.get(difficulty.toLowerCase()) : undefined;
+}
+
 /** "3 friends solved · Fastest Alex 3:12", or everyone's numbers when no friend has solved it. */
 function SolvedBy({ summary, difficulty }: { summary: Summary; difficulty: string | null }) {
   if (summary.status === 'loading') return <span className="skeleton h-4 w-44" aria-hidden="true" />;
-  const stats = summary.status === 'loaded' && difficulty ? summary.byDifficulty.get(difficulty.toLowerCase()) : undefined;
+  const stats = statsFor(summary, difficulty);
   if (!stats) return null;
   const { solved, fastest } = cardStats(stats);
   return (
@@ -330,8 +346,10 @@ function StreakBadge() {
   );
 }
 
-function ProgressBadge({ id }: { id: string }) {
+/** @param solvedMs for a daily solved on any device, the solve's time (see DailyStats.yours) */
+function ProgressBadge({ id, solvedMs }: { id: string; solvedMs?: number }) {
   const progress = loadProgress(id);
+  if (!progress?.completed && solvedMs !== undefined) return <span className="text-xs font-semibold text-success">Solved · {formatTime(solvedMs)}</span>;
   if (!progress) return <span className="text-xs font-semibold text-base-content/60">New</span>;
   if (progress.completed) return <span className="text-xs font-semibold text-success">Solved · {formatTime(progress.elapsedMs)}</span>;
   return <span className="text-xs font-semibold text-primary">In progress · {formatTime(progress.elapsedMs)}</span>;

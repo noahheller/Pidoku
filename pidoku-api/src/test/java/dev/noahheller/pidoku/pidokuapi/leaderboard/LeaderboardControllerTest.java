@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 import static dev.noahheller.pidoku.pidokuapi.support.TestTokens.player;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -367,9 +368,9 @@ class LeaderboardControllerTest extends IntegrationTest {
                   "date": "%s",
                   "dailies": [
                     {"difficulty": "easy", "solved": 1, "fastest": {"displayName": "Alice", "elapsedMs": 95000, "you": false},
-                     "friendsSolved": null, "friendsFastest": null},
+                     "friendsSolved": null, "friendsFastest": null, "yours": null},
                     {"difficulty": "hard", "solved": 2, "fastest": {"displayName": "Alice", "elapsedMs": 205000, "you": false},
-                     "friendsSolved": null, "friendsFastest": null}
+                     "friendsSolved": null, "friendsFastest": null, "yours": null}
                   ]
                 }
                 """.formatted(today));
@@ -431,6 +432,20 @@ class LeaderboardControllerTest extends IntegrationTest {
         });
         assertThat(summaryAs("bob")).bodyJson()
                 .extractingPath("$.dailies[0].friendsFastest.you").isEqualTo(true);
+    }
+
+    @Test
+    void signedInTheSummaryHasTheViewersOwnFirstSolve() {
+        // On another device the daily shows solved, with the time the result showed.
+        solve("alice", hard, 200, 30, false, 2);
+        solve("alice", hard, 50, 10, false, 0);
+        addPlayer("bob", "Bob");
+
+        assertThat(summaryAs("alice")).bodyJson().extractingPath("$.dailies[0].yours").isEqualTo(Map.of(
+                "elapsedMs", 200000, "mistakes", 2, "hintsUsed", 0, "hintPenaltyMs", 0,
+                "autoNotesUsed", false, "late", false));
+        assertThat(summaryAs("bob")).bodyJson().extractingPath("$.dailies[0].yours").isNull();
+        assertThat(summary()).bodyJson().extractingPath("$.dailies[0].yours").isNull();
     }
 
     @Test
