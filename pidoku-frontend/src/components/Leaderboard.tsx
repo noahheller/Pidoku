@@ -24,7 +24,7 @@ interface LeaderboardViewProps {
 
 /**
  * One daily's leaderboard. Two switches, both remembered: whose times (everyone or friends), and
- * how they're ranked (fastest overall, with 10 s added per mistake and time for hints, or clean: only
+ * how they're ranked (fastest overall, with time added for mistakes and hints, or clean: only
  * solves with no mistakes and no hints).
  * Each player's first solve counts, timed by the game's clock (which pauses while they're away).
  */

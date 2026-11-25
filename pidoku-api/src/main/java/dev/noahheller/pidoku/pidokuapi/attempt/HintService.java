@@ -30,6 +30,9 @@ import java.util.stream.Collectors;
  * elimination they've clearly already made (every cell it clears has notes without that digit),
  * and eliminations from hints already shown in full are remembered on the attempt. Otherwise an
  * X-Wing, which places no digit, would be hinted again and again.
+ *
+ * <p>An elimination is shown in full in one tap, and the placement it leads to picks up at step 2
+ * (see {@link Attempt#revealHint}), so the player isn't charged a whole hint for each.
  */
 @Service
 public class HintService {
@@ -94,7 +97,7 @@ public class HintService {
                 : next.move().getEliminations().stream()
                         .map(c -> new int[]{index(c.position(), size), c.value()})
                         .toList();
-        int step = attempt.revealHint(key(next, size), eliminations);
+        int step = attempt.revealHint(key(next, size), eliminations, isElimination(attempt.getLastHint()));
         return response(explanation, step, size, attempt);
     }
 
@@ -135,6 +138,11 @@ public class HintService {
             if (cellNotes == 0 || (cellNotes & (1 << candidate.value())) != 0) return false;
         }
         return true;
+    }
+
+    /** The hint was for a move that only clears candidates (its key has no {@code cell=digit}). */
+    private static boolean isElimination(LastHint last) {
+        return last != null && !last.key().contains("=");
     }
 
     /** Identifies a move, so asking again for the same one reveals its next step. */
