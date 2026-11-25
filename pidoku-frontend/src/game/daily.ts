@@ -31,6 +31,8 @@ export interface ShareDetails {
   elapsedMs: number;
   /** Null for a puzzle without a solution, where mistakes aren't counted. */
   mistakes: number | null;
+  /** Auto notes was used, which makes for a faster time, so the line says so. */
+  autoNotesUsed?: boolean;
   /** A link to the puzzle, or null if it has none (a puzzle loaded from a file). */
   url: string | null;
 }
@@ -39,12 +41,13 @@ export interface ShareDetails {
  * What the player pastes to friends, e.g. "Pidoku #123 Hard 4:12 ✓" and a link on the next line.
  * ✓ is a solve without mistakes; otherwise it says how many, e.g. "2✗".
  */
-export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, url }: ShareDetails): string {
+export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, autoNotesUsed, url }: ShareDetails): string {
   const parts = ['Pidoku'];
   if (dailyDate) parts.push(`#${dailyNumber(dailyDate)}`);
   if (difficulty) parts.push(difficulty);
   parts.push(formatTime(elapsedMs));
   if (mistakes !== null) parts.push(mistakes === 0 ? '✓' : `${mistakes}✗`);
+  if (autoNotesUsed) parts.push('(auto notes)');
   const line = parts.join(' ');
   return url ? `${line}\n${url}` : line;
 }

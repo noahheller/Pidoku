@@ -76,6 +76,20 @@ class RecentControllerTest extends IntegrationTest {
     }
 
     @Test
+    void saysWhetherAutoNotesWasUsed() {
+        Puzzle withAutoNotes = pool(1);
+        Puzzle without = pool(2);
+        attempt("alice", withAutoNotes, 10, 100_000L);
+        attempt("alice", without, 5, 100_000L);
+        jdbc.update("UPDATE attempts SET auto_notes_used = true WHERE puzzle_id = ?", withAutoNotes.getId());
+
+        var json = assertThat(mvc.get().uri("/api/players/me/recent").with(player("alice"))).hasStatusOk().bodyJson();
+
+        json.extractingPath("$[0].autoNotesUsed").isEqualTo(false);
+        json.extractingPath("$[1].autoNotesUsed").isEqualTo(true);
+    }
+
+    @Test
     void anUnfinishedPuzzleShowsItsSavedTime() {
         Puzzle puzzle = pool(1);
         attempt("alice", puzzle, 5, null);

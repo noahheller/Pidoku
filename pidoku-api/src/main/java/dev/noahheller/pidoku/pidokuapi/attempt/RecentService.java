@@ -33,7 +33,8 @@ public class RecentService {
         this.puzzles = puzzles;
     }
 
-    private record Row(long puzzleId, boolean completed, Long timeMs, int mistakes, OffsetDateTime lastPlayedAt) {
+    private record Row(long puzzleId, boolean completed, Long timeMs, int mistakes, boolean autoNotesUsed,
+                       OffsetDateTime lastPlayedAt) {
     }
 
     /**
@@ -56,6 +57,7 @@ public class RecentService {
                                         ELSE (progress ->> 'activeMs')::bigint END AS time_ms,
                                    CASE WHEN completed_at IS NOT NULL THEN mistakes
                                         ELSE COALESCE((progress ->> 'mistakes')::int, 0) END AS mistakes,
+                                   auto_notes_used,
                                    max(last_played) OVER (PARTITION BY puzzle_id) AS last_played
                             FROM played
                             ORDER BY puzzle_id, completed_at IS NULL DESC, last_played DESC, id DESC
@@ -65,7 +67,7 @@ public class RecentService {
                 .param("player", player.getId())
                 .param("limit", LIMIT)
                 .query((rs, n) -> new Row(rs.getLong("puzzle_id"), rs.getBoolean("completed"),
-                        rs.getObject("time_ms", Long.class), rs.getInt("mistakes"),
+                        rs.getObject("time_ms", Long.class), rs.getInt("mistakes"), rs.getBoolean("auto_notes_used"),
                         rs.getObject("last_played", OffsetDateTime.class)))
                 .list();
         if (rows.isEmpty()) return List.of();
@@ -81,7 +83,7 @@ public class RecentService {
                 .sorted(Comparator.comparing(Row::completed)) // unfinished first; the sort is stable
                 .map(row -> new RecentPuzzle(
                         PuzzleResponse.from(byId.get(row.puzzleId()), dailyDates.get(row.puzzleId())),
-                        row.completed(), row.timeMs(), row.mistakes(), row.lastPlayedAt().toInstant()))
+                        row.completed(), row.timeMs(), row.mistakes(), row.autoNotesUsed(), row.lastPlayedAt().toInstant()))
                 .toList();
     }
 }
