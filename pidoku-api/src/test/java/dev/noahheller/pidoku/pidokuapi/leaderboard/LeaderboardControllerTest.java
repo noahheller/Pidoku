@@ -91,11 +91,11 @@ class LeaderboardControllerTest extends IntegrationTest {
                 {
                   "date": "%s", "difficulty": "hard", "friendsOnly": false, "cleanOnly": false, "total": 3,
                   "entries": [
-                    {"rank": 1, "displayName": "Alice", "profileId": null, "elapsedMs": 200000, "mistakes": 1, "late": false, "you": false,
+                    {"rank": 1, "displayName": "Alice", "profileId": null, "elapsedMs": 200000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
                      "fastestClean": false},
-                    {"rank": 2, "displayName": "Bob", "profileId": null, "elapsedMs": 300000, "mistakes": 1, "late": false, "you": false,
+                    {"rank": 2, "displayName": "Bob", "profileId": null, "elapsedMs": 300000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
                      "fastestClean": false},
-                    {"rank": 3, "displayName": null, "profileId": null, "elapsedMs": 400000, "mistakes": 1, "late": false, "you": false,
+                    {"rank": 3, "displayName": null, "profileId": null, "elapsedMs": 400000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
                      "fastestClean": false}
                   ],
                   "you": null,
@@ -115,6 +115,40 @@ class LeaderboardControllerTest extends IntegrationTest {
         assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
             assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(780000, 900000));
             assertThat(json).extractingPath("$.entries[*].rank").isEqualTo(List.of(1, 2));
+        });
+    }
+
+    @Test
+    void addsTheMistakeAndHintPenalties() {
+        // Alice is fastest but guessed: 3 mistakes (+45 s) lose to Bob's clean solve 20 s slower.
+        solve("alice", hard, 200, 10, false, 3);
+        solve("bob", hard, 220, 10, false, 0);
+        // Carol needed the answer to a hint (+90 s).
+        solve("carol", hard, 160, 10, false, 0);
+        // Dan's single slip costs only 5 s, so he stays ahead of Bob.
+        solve("dan", hard, 210, 10, false, 1);
+        jdbc.update("""
+                UPDATE attempts SET hints_used = 3, hint_penalty_ms = 90000
+                WHERE player_id = (SELECT id FROM players WHERE firebase_uid = 'carol')
+                """);
+
+        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(210000, 220000, 200000, 160000));
+            assertThat(json).extractingPath("$.entries[*].penaltyMs").isEqualTo(List.of(5000, 0, 45000, 90000));
+            assertThat(json).extractingPath("$.entries[*].hintsUsed").isEqualTo(List.of(0, 0, 0, 3));
+            assertThat(json).extractingPath("$.entries[*].rank").isEqualTo(List.of(1, 2, 3, 4));
+        });
+    }
+
+    @Test
+    void aSolveWithHintsIsntClean() {
+        solve("alice", hard, 100, 10, false, 0);
+        jdbc.update("UPDATE attempts SET hints_used = 1, hint_penalty_ms = 10000");
+        solve("bob", hard, 300, 10, false, 0);
+
+        assertThat(leaderboard("difficulty=hard&clean=true")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(300000));
+            assertThat(json).extractingPath("$.fastestClean.elapsedMs").isEqualTo(300000);
         });
     }
 
@@ -145,7 +179,7 @@ class LeaderboardControllerTest extends IntegrationTest {
 
     @Test
     void theCleanBoardRanksOnlySolvesWithNoMistakes() {
-        solve("alice", hard, 100, 10, false, 5);
+        solve("alice", hard, 100, 10, false, 2);
         solve("bob", hard, 300, 10, false, 0);
         solve("carol", hard, 200, 10, false, 0);
 
@@ -155,7 +189,7 @@ class LeaderboardControllerTest extends IntegrationTest {
             assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(200000, 300000));
             assertThat(json).extractingPath("$.entries[*].rank").isEqualTo(List.of(1, 2));
         });
-        // The overall board still has the fastest time first, mistakes or not.
+        // The overall board still ranks her first: 100 s plus 20 s for two mistakes beats 200 s.
         assertThat(leaderboard("difficulty=hard")).bodyJson().extractingPath("$.entries[0].elapsedMs").isEqualTo(100000);
     }
 
@@ -327,13 +361,14 @@ class LeaderboardControllerTest extends IntegrationTest {
         solve("alice", 200);
         solve("alice", easy, 90, 10, false);
 
+        // The ranked times: each solve's one mistake adds 5 s.
         assertThat(summary()).hasStatusOk().bodyJson().isStrictlyEqualTo("""
                 {
                   "date": "%s",
                   "dailies": [
-                    {"difficulty": "easy", "solved": 1, "fastest": {"displayName": "Alice", "elapsedMs": 90000, "you": false},
+                    {"difficulty": "easy", "solved": 1, "fastest": {"displayName": "Alice", "elapsedMs": 95000, "you": false},
                      "friendsSolved": null, "friendsFastest": null},
-                    {"difficulty": "hard", "solved": 2, "fastest": {"displayName": "Alice", "elapsedMs": 200000, "you": false},
+                    {"difficulty": "hard", "solved": 2, "fastest": {"displayName": "Alice", "elapsedMs": 205000, "you": false},
                      "friendsSolved": null, "friendsFastest": null}
                   ]
                 }
@@ -362,8 +397,18 @@ class LeaderboardControllerTest extends IntegrationTest {
 
         assertThat(summary()).bodyJson().satisfies(json -> {
             assertThat(json).extractingPath("$.dailies[0].solved").isEqualTo(1);
-            assertThat(json).extractingPath("$.dailies[0].fastest.elapsedMs").isEqualTo(200000);
+            // 200 s plus 5 s for the solve's one mistake.
+            assertThat(json).extractingPath("$.dailies[0].fastest.elapsedMs").isEqualTo(205000);
         });
+    }
+
+    @Test
+    void summaryRanksWithThePenalties() {
+        solve("alice", hard, 200, 10, false, 3);
+        solve("bob", hard, 220, 10, false, 0);
+
+        assertThat(summary()).bodyJson()
+                .extractingPath("$.dailies[0].fastest.elapsedMs").isEqualTo(220000);
     }
 
     @Test

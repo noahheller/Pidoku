@@ -34,7 +34,7 @@ export function PrivacyPage() {
         <Item name="The name you pick">Optional. Until you pick one you show as Anonymous.</Item>
         <Item name="Your friends">Your friend code and who you're friends with.</Item>
         <Item name="Your solves">
-          Which puzzles you start and finish, when, how long they took, and how many mistakes you made. These make your streak and the leaderboards.
+          Which puzzles you start and finish, when, how long they took, how many mistakes you made and how many hints you used. These make your streak and the leaderboards.
         </Item>
         <Item name="Game events">
           A few things that happen in the game, tied to your account ID: tapping Share or Copy on a result, opening a share link (and whether you were new), leaving a puzzle

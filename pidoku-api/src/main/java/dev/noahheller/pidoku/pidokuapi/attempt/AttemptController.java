@@ -24,10 +24,12 @@ import java.util.List;
 public class AttemptController {
 
     private final AttemptService attemptService;
+    private final HintService hintService;
     private final PlayerService playerService;
 
-    public AttemptController(AttemptService attemptService, PlayerService playerService) {
+    public AttemptController(AttemptService attemptService, HintService hintService, PlayerService playerService) {
         this.attemptService = attemptService;
+        this.hintService = hintService;
         this.playerService = playerService;
     }
 
@@ -67,6 +69,23 @@ public class AttemptController {
     }
 
     /**
+     * The board a hint is asked for.
+     *
+     * @param notes each cell's notes as a bitmask; may be left out
+     */
+    public record HintRequest(@NotNull @Size(max = 625) List<@NotNull Integer> values,
+                              @Size(max = 625) List<@NotNull Integer> notes) {
+
+        int[] valueArray() {
+            return values.stream().mapToInt(Integer::intValue).toArray();
+        }
+
+        int[] noteArray() {
+            return notes == null ? null : notes.stream().mapToInt(Integer::intValue).toArray();
+        }
+    }
+
+    /**
      * Starts the clock on a puzzle: the frontend calls this when the player opens it (for a daily,
      * when they press Start). Returns the
      * player's unfinished attempt at the puzzle, creating it if there isn't one, so opening the
@@ -90,6 +109,18 @@ public class AttemptController {
         return AttemptResponse.from(
                 attemptService.complete(playerService.forToken(token), id, grid, request.mistakes(),
                         request.activeMs(), request.lateByMs(), Boolean.TRUE.equals(request.autoNotesUsed())));
+    }
+
+    /**
+     * A hint for the board: each call reveals the next step of the solver's next move (where, what
+     * to look for, the answer) and adds its penalty to the attempt; asking again once the answer is
+     * shown costs nothing. 422 with {@code wrongCells} if the board has wrong digits, 409 if the
+     * attempt is complete or there's no next step, 400 if the board doesn't fit the puzzle.
+     */
+    @PostMapping("/{id}/hint")
+    public HintResponse hint(@AuthenticationPrincipal Jwt token, @PathVariable long id,
+                             @Valid @RequestBody HintRequest request) {
+        return hintService.hint(playerService.forToken(token), id, request.valueArray(), request.noteArray());
     }
 
     /**
