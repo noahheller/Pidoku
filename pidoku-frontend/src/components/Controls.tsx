@@ -69,7 +69,7 @@ export function Controls({ state, dispatch, restart = true, onHint, hintBusy = f
         className={`${BUTTON} ${span}`}
         onClick={onHint}
         disabled={locked || hintBusy}
-        title="A hint for the next move, a step at a time. Each step adds time on the leaderboard: 10 s for where to look, 20 s for what to look for, 60 s for the answer."
+        title="A hint for the next move, a step at a time. Each step adds time on the leaderboard: 10 s for where to look, 20 s for what to look for, 60 s for the answer. A step that only clears candidates comes in full for 10 s, and the digit it leads to starts at what to look for."
       >
         {hintBusy ? <span className="loading loading-spinner loading-xs" aria-hidden="true" /> : <Lightbulb className="size-4 shrink-0" aria-hidden="true" />} Hint
       </button>

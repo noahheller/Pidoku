@@ -165,6 +165,38 @@ class HintControllerTest extends IntegrationTest {
     }
 
     @Test
+    void anEliminationTakesOneTapAndItsDigitStartsAtStepTwo() throws Exception {
+        long id = started("alice", puzzle.getId());
+        int[] board = GIVENS.clone();
+        long penalty = 0;
+        boolean afterElimination = false;
+        int eliminations = 0;
+        while (!Arrays.equals(board, SOLUTION)) {
+            JsonNode hint = body(hint("alice", id, board));
+            int step = hint.get("step").asInt();
+            long cost = hint.get("hintPenaltyMs").asLong() - penalty;
+            penalty = hint.get("hintPenaltyMs").asLong();
+            if (step == 3 && !hint.has("cell")) {
+                // In full straight away, for the first step's price.
+                assertThat(cost).isEqualTo(10_000);
+                assertThat(hint.get("text").asString()).isNotEmpty();
+                afterElimination = true;
+                eliminations++;
+                continue;
+            }
+            if (afterElimination) {
+                assertThat(step).as("the digit after an elimination").isEqualTo(2);
+                assertThat(cost).isEqualTo(20_000);
+                afterElimination = false;
+            }
+            if (step == 3) {
+                board[hint.get("cell").asInt()] = hint.get("digit").asInt();
+            }
+        }
+        assertThat(eliminations).as("the puzzle needs an elimination").isPositive();
+    }
+
+    @Test
     void aBoardWithWrongDigitsGetsNoHint() throws Exception {
         long id = started("alice", puzzle.getId());
         int[] board = GIVENS.clone();

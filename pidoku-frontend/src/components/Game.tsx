@@ -373,6 +373,9 @@ function HintPanel({ hint, message, hintPenaltyMs, onClose }: { hint?: Hint; mes
   const [explained, setExplained] = useState(false);
   const shown = hint ? hintText(hint) : null;
   let footer: string | null = null;
+  // A move that only clears candidates comes in full in one tap, and the digit it leads to picks
+  // up at step 2, so it's the first of the three.
+  const clearsOnly = hint !== undefined && hint.step === 3 && hint.cell === undefined;
   if (hint) {
     // The step a tap on Hint would reveal next, as an index.
     const next = hint.step as 1 | 2;
@@ -380,7 +383,7 @@ function HintPanel({ hint, message, hintPenaltyMs, onClose }: { hint?: Hint; mes
       hint.step < 3
         ? `Tap Hint again for ${STEP_NAMES[next]} (+${HINT_STEP_PENALTY_MS[next] / 1000}s).`
         : hint.cell === undefined
-          ? 'This clears candidates; update your notes, then tap Hint for the next move.'
+          ? 'This clears candidates; update your notes, then tap Hint again for the digit it leads to.'
           : 'Fill it in to carry on.';
   }
   return (
@@ -388,7 +391,7 @@ function HintPanel({ hint, message, hintPenaltyMs, onClose }: { hint?: Hint; mes
       <div className="flex items-start gap-1.5">
         <Lightbulb className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
         <p className="flex-1">
-          {hint && <span className="font-semibold">Step {hint.step} of 3:</span>}{hint && ' '}
+          {hint && <span className="font-semibold">Step {clearsOnly ? 1 : hint.step} of 3:</span>}{hint && ' '}
           {shown ? shown.text : message}
         </p>
         <button type="button" className="btn btn-ghost btn-xs btn-circle" aria-label="Close hint" onClick={onClose}>

@@ -656,8 +656,22 @@ Streaks are the reason to come back, but nothing reminds a player that today's i
 - An elimination (X-Wing and the like) places no digit, so the server remembers the candidates
   of eliminations shown in full and applies them before looking for the next move. It also skips
   eliminations the player's notes already show. A test solves a whole puzzle by following hints.
+  An elimination is shown in full in one tap (at step 1's price), and the digit it leads to starts
+  at step 2, so the pair still takes three taps instead of six.
 - Penalties (`attempt/Penalties.java`, `game/penalties.ts`): mistakes escalate, 5 s x mistakes²
   (5 s, 20 s, 45 s, 1:20…), so one slip is cheap but guessing isn't; hint steps 10, 20 and 60 s.
+  Hint cost (changed 2026-11-25, branch `hint-fix`), charged once per step revealed:
+
+  | Hint | Taps | Cost |
+  |---|---|---|
+  | A digit (any single, hidden or naked) | where, what, answer | 10 + 20 + 60 = 90 s |
+  | An elimination (X-Wing, W-Wing, pointing pair…) | 1, shown in full | 10 s |
+  | The digit right after an elimination | what, answer | 20 + 60 = 80 s |
+  | k eliminations in a row, then a digit | k + 2 | 10k + 80 s |
+  | A step already shown, or an elimination the notes already show | 0 | 0 s |
+
+  So an elimination and the digit it leads to cost 90 s, the same as any other hint, where before
+  they were charged as two full hints (180 s).
   `attempts.penalty_ms` is a generated column (5 s x mistakes² + `hint_penalty_ms`).
   Leaderboards, the daily cards' fastest times and profile best times rank the game's time plus
   it. The mistake part applies to past solves too. "Clean" now means no mistakes and no hints.
