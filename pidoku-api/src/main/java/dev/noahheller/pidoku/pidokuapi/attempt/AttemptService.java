@@ -52,6 +52,9 @@ public class AttemptService {
                 .map(open -> {
                     if (restartClock) {
                         open.restart(clock.instant());
+                    } else if (restart) {
+                        // A daily's board was wiped: its penalties stay, but hints start over.
+                        open.forgetHint();
                     }
                     return open;
                 })

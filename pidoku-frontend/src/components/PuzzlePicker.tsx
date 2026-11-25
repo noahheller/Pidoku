@@ -5,7 +5,7 @@ import { DIFFICULTIES, fetchDailySummary, fetchRecent, fetchStreak, localDate, t
 import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
 import { cardStats } from '../game/dailyStats';
-import { formatDate, formatTime } from '../game/format';
+import { formatDate, formatPenalty, formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { localEntries, recentList, serverEntries, type RecentEntry } from '../game/recent';
 import { canAutoNote } from '../game/game';
@@ -364,7 +364,7 @@ function Recent({ local, onPlay }: { local: PuzzleDef[]; onPlay: (p: PuzzleDef) 
         Recent
       </h2>
       <ul className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] gap-3">
-        {entries.map(({ puzzle, completed, timeMs, autoNotesUsed }) => (
+        {entries.map(({ puzzle, completed, timeMs, penaltyMs, autoNotesUsed }) => (
           <li key={puzzle.id}>
             <button
               type="button"
@@ -377,10 +377,14 @@ function Recent({ local, onPlay }: { local: PuzzleDef[]; onPlay: (p: PuzzleDef) 
               {completed ? (
                 <span className="text-xs font-semibold text-success">
                   Solved{timeMs !== null && ` · ${formatTime(timeMs)}`}
+                  {timeMs !== null && penaltyMs > 0 && <span className="text-warning"> {formatPenalty(penaltyMs)}</span>}
                   {canAutoNote(puzzle) && <span className="font-normal text-base-content/60">{autoNotesUsed ? ' · Auto notes' : ' · No auto notes'}</span>}
                 </span>
               ) : (
-                <span className="text-xs font-semibold text-primary">Continue{timeMs !== null && timeMs > 0 && ` · ${formatTime(timeMs)}`}</span>
+                <span className="text-xs font-semibold text-primary">
+                  Continue{timeMs !== null && timeMs > 0 && ` · ${formatTime(timeMs)}`}
+                  {timeMs !== null && timeMs > 0 && penaltyMs > 0 && <span className="text-warning"> {formatPenalty(penaltyMs)}</span>}
+                </span>
               )}
             </button>
           </li>

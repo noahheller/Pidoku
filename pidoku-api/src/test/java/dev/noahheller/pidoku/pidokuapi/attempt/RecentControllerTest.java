@@ -73,6 +73,17 @@ class RecentControllerTest extends IntegrationTest {
         json.extractingPath("$[1].completed").isEqualTo(true);
         json.extractingPath("$[1].timeMs").asNumber().isEqualTo(200_000);
         json.extractingPath("$[1].mistakes").asNumber().isEqualTo(1);
+        json.extractingPath("$[1].penaltyMs").asNumber().isEqualTo(5_000);
+    }
+
+    @Test
+    void aSolvesPenaltyIncludesItsHints() {
+        Puzzle puzzle = pool(1);
+        attempt("alice", puzzle, 10, 100_000L);
+        jdbc.update("UPDATE attempts SET hints_used = 2, hint_penalty_ms = 30000");
+
+        assertThat(mvc.get().uri("/api/players/me/recent").with(player("alice"))).hasStatusOk()
+                .bodyJson().extractingPath("$[0].penaltyMs").asNumber().isEqualTo(35_000);
     }
 
     @Test
@@ -101,6 +112,8 @@ class RecentControllerTest extends IntegrationTest {
 
         json.extractingPath("$[0].timeMs").asNumber().isEqualTo(42000);
         json.extractingPath("$[0].mistakes").asNumber().isEqualTo(3);
+        // The mistakes so far, as it would rank if solved now: 5 s x 3².
+        json.extractingPath("$[0].penaltyMs").asNumber().isEqualTo(45_000);
     }
 
     @Test

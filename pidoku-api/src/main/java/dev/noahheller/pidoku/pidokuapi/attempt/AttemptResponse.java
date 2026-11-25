@@ -13,6 +13,9 @@ import java.time.Instant;
  *                  {@code progressUpdatedAt}, when the server got it, a device can tell whether
  *                  its own copy is newer
  * @param autoNotesUsed the player used Auto notes during the attempt
+ * @param hintPenaltyMs time added for hints so far
+ * @param penaltyMs     what the leaderboards add to the time: 5 s x recorded mistakes² plus
+ *                      {@code hintPenaltyMs} (mistakes are only recorded on completion)
  */
 public record AttemptResponse(
         long id,
@@ -26,7 +29,9 @@ public record AttemptResponse(
         boolean late,
         AttemptProgress progress,
         Instant progressUpdatedAt,
-        boolean autoNotesUsed
+        boolean autoNotesUsed,
+        long hintPenaltyMs,
+        long penaltyMs
 ) {
 
     public static AttemptResponse from(Attempt attempt) {
@@ -42,6 +47,8 @@ public record AttemptResponse(
                 attempt.isLate(),
                 attempt.getProgress(),
                 attempt.getProgressUpdatedAt(),
-                attempt.isAutoNotesUsed());
+                attempt.isAutoNotesUsed(),
+                attempt.getHintPenaltyMs(),
+                attempt.getPenaltyMs());
     }
 }

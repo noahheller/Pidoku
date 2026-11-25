@@ -1,5 +1,6 @@
 import type { BoardHighlight } from '../components/Board';
 import type { GameState } from '../game/game';
+import { cellsOfUnits } from '../game/hints';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { candidateMask, EMPTY, PI_DIGITS, rulesFor } from '../game/rules';
 import tutorial from './tutorial.json';
@@ -44,12 +45,7 @@ const rules = rulesFor(tutorialPuzzle.size);
 
 /** Every cell of the units a step reasons about. */
 export function unitCells(step: Pick<ExplainedStep, 'units'>): number[] {
-  const cells = new Set<number>();
-  for (const unit of step.units) {
-    const list = unit.type === 'row' ? rules.units[unit.index] : unit.type === 'column' ? rules.units[rules.size + unit.index] : rules.units[2 * rules.size + unit.index];
-    for (const i of list) cells.add(i);
-  }
-  return [...cells];
+  return cellsOfUnits(rules, step.units);
 }
 
 /** What the board points at for a step. */

@@ -1,4 +1,4 @@
-import { formatTime } from './format';
+import { formatPenalty, formatTime } from './format';
 
 /**
  * The first day of daily puzzles: "Pidoku #1". Fixed for good once shared, since every share
@@ -33,20 +33,26 @@ export interface ShareDetails {
   mistakes: number | null;
   /** Auto notes was used, which makes for a faster time, so the line says so. */
   autoNotesUsed?: boolean;
+  /** Added to the time on the leaderboards for mistakes and hints; shown after it when there is some. */
+  penaltyMs?: number;
+  /** Hint steps revealed. */
+  hintsUsed?: number;
   /** A link to the puzzle, or null if it has none (a puzzle loaded from a file). */
   url: string | null;
 }
 
 /**
  * What the player pastes to friends, e.g. "Pidoku #123 Hard 4:12 ✓" and a link on the next line.
- * ✓ is a solve without mistakes; otherwise it says how many, e.g. "2✗".
+ * ✓ is a solve without mistakes; otherwise it says how many, e.g. "4:12 +20s 2✗".
  */
-export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, autoNotesUsed, url }: ShareDetails): string {
+export function shareLine({ difficulty, dailyDate, elapsedMs, mistakes, autoNotesUsed, penaltyMs = 0, hintsUsed = 0, url }: ShareDetails): string {
   const parts = ['Pidoku'];
   if (dailyDate) parts.push(`#${dailyNumber(dailyDate)}`);
   if (difficulty) parts.push(difficulty);
   parts.push(formatTime(elapsedMs));
+  if (penaltyMs > 0) parts.push(formatPenalty(penaltyMs));
   if (mistakes !== null) parts.push(mistakes === 0 ? '✓' : `${mistakes}✗`);
+  if (hintsUsed > 0) parts.push(`(${hintsUsed} ${hintsUsed === 1 ? 'hint' : 'hints'})`);
   if (autoNotesUsed) parts.push('(auto notes)');
   const line = parts.join(' ');
   return url ? `${line}\n${url}` : line;

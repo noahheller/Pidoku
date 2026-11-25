@@ -3,7 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ApiError, DAILY_DIFFICULTIES, fetchProfile, type PlayerProfile } from '../api/client';
 import { dailyLabel } from '../game/daily';
-import { formatDate, formatTime } from '../game/format';
+import { formatDate, formatPenalty, formatTime } from '../game/format';
 import { clearPlayerCaches } from '../game/storage';
 import { GoogleButton } from './Profile';
 import { VISIBILITY } from './visibility';
@@ -150,7 +150,7 @@ function Profile({ profile }: { profile: PlayerProfile }) {
         <Tile icon={<Flame className="size-4 text-warning" aria-hidden="true" />} label="Streak" value={`${profile.currentStreak}`} note={profile.currentStreak === 1 ? 'day' : 'days'} />
         <Tile icon={<Trophy className="size-4 text-warning" aria-hidden="true" />} label="Best streak" value={`${profile.bestStreak}`} note={profile.bestStreak === 1 ? 'day' : 'days'} />
         <Tile label="Dailies solved" value={`${profile.dailiesSolved}`} />
-        <Tile icon={<Target className="size-4 text-success" aria-hidden="true" />} label="Clean" value={cleanPercent === null ? '–' : `${cleanPercent}%`} note="no mistakes" />
+        <Tile icon={<Target className="size-4 text-success" aria-hidden="true" />} label="Clean" value={cleanPercent === null ? '–' : `${cleanPercent}%`} note="no mistakes or hints" />
       </dl>
 
       {bests.length > 0 && (
@@ -189,7 +189,10 @@ function Profile({ profile }: { profile: PlayerProfile }) {
                     {solves.map((s) => (
                       <li key={s.difficulty} className="flex items-center gap-2 rounded-field bg-base-200 px-2.5 py-1 text-sm">
                         <span className="capitalize">{s.difficulty}</span>
-                        <span className="font-semibold tabular-nums">{formatTime(s.elapsedMs)}</span>
+                        <span className="font-semibold tabular-nums">
+                          {formatTime(s.elapsedMs)}
+                          {(s.penaltyMs ?? 0) > 0 && <span className="ml-1 text-xs font-normal text-warning">{formatPenalty(s.penaltyMs)}</span>}
+                        </span>
                         <span className={s.mistakes === 0 ? 'text-success' : 'text-base-content/60'}>{s.mistakes === 0 ? '✓' : `${s.mistakes}✗`}</span>
                         {s.late && <CloudOff className="size-3.5 text-base-content/50" aria-label="Sent late" />}
                       </li>

@@ -8,6 +8,14 @@ export function formatTime(ms: number): string {
   return hours > 0 ? `${hours}:${mm}:${ss}` : `${mm}:${ss}`;
 }
 
+/**
+ * Time added to a solve for mistakes and hints, as shown after it: "+40s", "+1:30". Empty for none.
+ */
+export function formatPenalty(ms: number): string {
+  if (ms <= 0) return '';
+  return ms < 60_000 ? `+${Math.floor(ms / 1000)}s` : `+${formatTime(ms)}`;
+}
+
 export function countClues(givens: readonly number[]): number {
   return givens.filter((v) => v !== 0).length;
 }

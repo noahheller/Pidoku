@@ -24,13 +24,14 @@ import java.util.Optional;
  *
  * <p>Each player is ranked by their first finished attempt at the daily, timed by the game's own
  * clock ({@code active_ms}, paused while the tab is hidden), or by the server's wall-clock
- * {@code elapsed_ms} for solves recorded without one; replays are recorded but don't rank. Late solves rank too, marked as late.
+ * {@code elapsed_ms} for solves recorded without one, plus {@code penalty_ms}: 5 s x mistakes²
+ * and the hints' penalties (see {@code Penalties}); replays are recorded but don't rank. Late solves rank too, marked as late.
  * A player who started the puzzle before its date began anywhere (it was a pool puzzle before
  * migration V5) isn't ranked, since they could have seen it in advance. Solving an old daily later,
  * through a share link, does rank: the board is about the puzzle, not the day (unlike streaks).
  *
- * <p>Two rankings: fastest overall, where mistakes don't matter, and clean, which ranks only
- * solves with no mistakes.
+ * <p>Two rankings: fastest overall, with the penalties added, and clean, which ranks only solves
+ * with no mistakes and no hints.
  */
 @Service
 public class LeaderboardService {
@@ -69,7 +70,8 @@ public class LeaderboardService {
                         firsts AS (
                             SELECT DISTINCT ON (a.puzzle_id, a.player_id)
                                    a.puzzle_id, a.player_id, a.started_at, a.completed_at,
-                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms
+                                   -- The ranked time, penalties included (see forDaily).
+                                   COALESCE(a.active_ms, a.elapsed_ms) + a.penalty_ms AS elapsed_ms
                             FROM attempts a
                             JOIN dailies d ON d.puzzle_id = a.puzzle_id
                             WHERE a.completed_at IS NOT NULL
@@ -138,7 +140,7 @@ public class LeaderboardService {
     /**
      * @param viewer      the signed-in player, whose own entry is marked; empty when signed out
      * @param friendsOnly rank only the viewer and their friends (needs a viewer)
-     * @param cleanOnly   rank only solves with no mistakes. Still each player's first solve: a
+     * @param cleanOnly   rank only solves with no mistakes and no hints. Still each player's first solve: a
      *                    clean replay after a solve with mistakes doesn't count.
      * @throws PuzzleNotFoundException if the slot has no daily, or its date hasn't begun anywhere
      */
@@ -152,25 +154,29 @@ public class LeaderboardService {
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.player_id)
                                    a.player_id, a.started_at, a.completed_at,
-                                   -- The ranked time; it goes out as elapsedMs.
-                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.mistakes, a.late
+                                   -- The game's time (it goes out as elapsedMs) and what's added to it.
+                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.penalty_ms,
+                                   COALESCE(a.active_ms, a.elapsed_ms) + a.penalty_ms AS ranked_ms,
+                                   a.mistakes, a.hints_used, a.late
                             FROM attempts a
                             WHERE a.puzzle_id = :puzzleId AND a.completed_at IS NOT NULL
                             ORDER BY a.player_id, a.completed_at, a.id
                         ),
                         ranked AS (
-                            SELECT f.player_id, p.display_name, p.profile_visibility, f.elapsed_ms, f.mistakes, f.late,
+                            SELECT f.player_id, p.display_name, p.profile_visibility, f.elapsed_ms, f.penalty_ms,
+                                   f.mistakes, f.hints_used, f.late,
                                    f.player_id IN (SELECT friend_id FROM friendships WHERE player_id = :viewerId) AS friend,
-                                   COALESCE(f.mistakes = 0 AND f.elapsed_ms
-                                            = MIN(f.elapsed_ms) FILTER (WHERE f.mistakes = 0) OVER (), false) AS fastest_clean,
-                                   RANK() OVER (ORDER BY f.elapsed_ms) AS rank,
-                                   ROW_NUMBER() OVER (ORDER BY f.elapsed_ms, f.completed_at, f.player_id) AS position,
+                                   COALESCE(f.mistakes = 0 AND f.hints_used = 0 AND f.ranked_ms
+                                            = MIN(f.ranked_ms) FILTER (WHERE f.mistakes = 0 AND f.hints_used = 0) OVER (),
+                                            false) AS fastest_clean,
+                                   RANK() OVER (ORDER BY f.ranked_ms) AS rank,
+                                   ROW_NUMBER() OVER (ORDER BY f.ranked_ms, f.completed_at, f.player_id) AS position,
                                    COUNT(*) OVER () AS total
                             FROM firsts f
                             JOIN players p ON p.id = f.player_id
                             WHERE f.started_at >= :opensAt
                         """ + (cleanOnly ? """
-                              AND f.mistakes = 0
+                              AND f.mistakes = 0 AND f.hints_used = 0
                         """ : "") + (friendsOnly ? """
                               AND (f.player_id = :viewerId
                                    OR f.player_id IN (SELECT friend_id FROM friendships WHERE player_id = :viewerId))
@@ -203,15 +209,16 @@ public class LeaderboardService {
     }
 
     /** One row of the ranking query; JdbcClient maps the snake_case columns onto it. */
-    record Row(long playerId, String displayName, String profileVisibility, long elapsedMs, int mistakes, boolean late,
-               boolean friend, boolean fastestClean, long rank, long position, long total) {
+    record Row(long playerId, String displayName, String profileVisibility, long elapsedMs, long penaltyMs,
+               int mistakes, int hintsUsed, boolean late, boolean friend, boolean fastestClean, long rank, long position,
+               long total) {
 
         Leaderboard.Entry toEntry(long viewerId) {
             boolean you = playerId == viewerId;
             // Only the ids of profiles the viewer may open, so private players' ids don't leak.
             Long profileId = ProfileVisibility.fromId(profileVisibility).visibleTo(you, friend) ? playerId : null;
-            return new Leaderboard.Entry((int) rank, displayName, profileId, elapsedMs, mistakes, late, you,
-                    fastestClean);
+            return new Leaderboard.Entry((int) rank, displayName, profileId, elapsedMs, penaltyMs, mistakes, hintsUsed,
+                    late, you, fastestClean);
         }
     }
 }

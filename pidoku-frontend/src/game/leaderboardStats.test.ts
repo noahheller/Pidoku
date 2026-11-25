@@ -7,7 +7,9 @@ const entry = (rank: number, displayName: string | null, seconds: number, you = 
   displayName,
   profileId: null,
   elapsedMs: seconds * 1000,
+  penaltyMs: 0,
   mistakes: 0,
+  hintsUsed: 0,
   late: false,
   you,
   fastestClean: false,
@@ -66,6 +68,14 @@ describe('gaps', () => {
 
   it('is null when you are not on the list', () => {
     expect(gaps([entry(1, 'Ada', 100)])).toBeNull();
+  });
+
+  it('measures the ranked times, penalties included', () => {
+    const you = { ...entry(2, 'You', 100, true), penaltyMs: 20_000 };
+    expect(gaps([entry(1, 'Ada', 110), you, entry(3, 'Bob', 125)])).toEqual({
+      behind: { name: 'Ada', ms: 10000 },
+      ahead: { name: 'Bob', ms: 5000 },
+    });
   });
 });
 
