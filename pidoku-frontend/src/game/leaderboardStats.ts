@@ -98,3 +98,30 @@ export function formatGap(ms: number): string {
   if (ms < 60_000) return `${Math.floor(ms / 1000)}s`;
   return formatTime(ms);
 }
+
+/** The solve a challenge link puts up to beat: who, and their ranked time. */
+export interface TimeToBeat {
+  /** Null if the player hasn't picked a display name. */
+  name: string | null;
+  /** The game's time. */
+  elapsedMs: number;
+  /** Added for mistakes and hints; `elapsedMs` plus this is what ranks. */
+  penaltyMs: number;
+  /** Whether the solve is a friend's (from the friends board). */
+  friend: boolean;
+}
+
+/**
+ * The time to beat on a shared puzzle: the fastest friend's solve if any friend has solved it,
+ * otherwise the fastest overall. The player's own solve never counts (they can't challenge
+ * themselves). Null when no one else has solved it.
+ *
+ * @param friends the friends-only board, or null when signed out (or it couldn't be fetched)
+ */
+export function timeToBeat(everyone: Leaderboard | null, friends: Leaderboard | null): TimeToBeat | null {
+  const pick = (board: Leaderboard | null, friend: boolean): TimeToBeat | null => {
+    const top = board?.entries.find((e) => !e.you);
+    return top ? { name: top.displayName, elapsedMs: top.elapsedMs, penaltyMs: top.penaltyMs ?? 0, friend } : null;
+  };
+  return pick(friends, true) ?? pick(everyone, false);
+}

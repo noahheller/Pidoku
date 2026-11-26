@@ -100,7 +100,7 @@ export interface Friend {
 /** The difficulties each day has a daily of, easiest first (`pidoku.daily.difficulties` in the API). */
 export const DAILY_DIFFICULTIES = ['easy', 'medium', 'hard'] as const satisfies readonly Difficulty[];
 
-/** One player's ranked solve of a daily (pidoku-api's Leaderboard.Entry). */
+/** One player's ranked solve of a puzzle (pidoku-api's Leaderboard.Entry). */
 export interface LeaderboardEntry {
   /** 1 for the fastest; equal times share a rank. */
   rank: number;
@@ -122,10 +122,13 @@ export interface LeaderboardEntry {
   fastestClean: boolean;
 }
 
-/** The fastest solves of one daily (pidoku-api's Leaderboard). */
+/** The fastest solves of one puzzle, a daily or any other (pidoku-api's Leaderboard). */
 export interface Leaderboard {
-  date: string;
+  /** The date the puzzle is the daily for; null if it isn't a daily. */
+  date: string | null;
   difficulty: Difficulty;
+  /** The puzzle's share code. Missing from older API versions. */
+  shareCode?: string;
   friendsOnly: boolean;
   /** Only solves with no mistakes and no hints are ranked. */
   cleanOnly: boolean;
@@ -490,8 +493,21 @@ export async function removeFriend(friendId: number): Promise<void> {
  * The fastest solves of one daily: overall, or only those with no mistakes. Sign-in is optional
  * for everyone's times (signed in, the player's own entry is marked), and needed for friends only.
  */
-export async function fetchLeaderboard(date: string, difficulty: Difficulty, { friendsOnly, cleanOnly }: LeaderboardFilter, signal?: AbortSignal): Promise<Leaderboard> {
-  const url = `/api/puzzles/daily/${encodeURIComponent(date)}/leaderboard?difficulty=${encodeURIComponent(difficulty)}${friendsOnly ? '&friends=true' : ''}${cleanOnly ? '&clean=true' : ''}`;
+export async function fetchLeaderboard(date: string, difficulty: Difficulty, filter: LeaderboardFilter, signal?: AbortSignal): Promise<Leaderboard> {
+  return leaderboardAt(`/api/puzzles/daily/${encodeURIComponent(date)}/leaderboard`, [`difficulty=${encodeURIComponent(difficulty)}`], filter, signal);
+}
+
+/**
+ * The fastest solves of any puzzle, by its share code: the board a challenge link shows. Ranked
+ * and signed in like {@link fetchLeaderboard}.
+ */
+export async function fetchPuzzleLeaderboard(shareCode: string, filter: LeaderboardFilter, signal?: AbortSignal): Promise<Leaderboard> {
+  return leaderboardAt(`/api/puzzles/${encodeURIComponent(shareCode)}/leaderboard`, [], filter, signal);
+}
+
+async function leaderboardAt(path: string, params: string[], { friendsOnly, cleanOnly }: LeaderboardFilter, signal?: AbortSignal): Promise<Leaderboard> {
+  const query = [...params, ...(friendsOnly ? ['friends=true'] : []), ...(cleanOnly ? ['clean=true'] : [])].join('&');
+  const url = query ? `${path}?${query}` : path;
   if (friendsOnly) return request<Leaderboard>(url, { token: await requireToken(), signal }, BUSY);
   const token = await idToken();
   try {

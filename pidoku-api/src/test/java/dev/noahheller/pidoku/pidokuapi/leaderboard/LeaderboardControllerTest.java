@@ -4,6 +4,8 @@ import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
 import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Puzzle;
+import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleService;
+import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleSource;
 import dev.noahheller.pidoku.pidokuapi.support.IntegrationTest;
 import dev.noahheller.pidoku.pidokuapi.support.TestPuzzles;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,6 +31,9 @@ class LeaderboardControllerTest extends IntegrationTest {
 
     @Autowired
     DailyPuzzleService dailyPuzzleService;
+
+    @Autowired
+    PuzzleService puzzleService;
 
     LocalDate today;
     Puzzle hard;
@@ -90,7 +95,7 @@ class LeaderboardControllerTest extends IntegrationTest {
 
         assertThat(leaderboard("difficulty=hard")).hasStatusOk().bodyJson().isStrictlyEqualTo("""
                 {
-                  "date": "%s", "difficulty": "hard", "friendsOnly": false, "cleanOnly": false, "total": 3,
+                  "date": "%s", "difficulty": "hard", "shareCode": "%s", "friendsOnly": false, "cleanOnly": false, "total": 3,
                   "entries": [
                     {"rank": 1, "displayName": "Alice", "profileId": null, "elapsedMs": 200000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
                      "fastestClean": false},
@@ -102,7 +107,7 @@ class LeaderboardControllerTest extends IntegrationTest {
                   "you": null,
                   "fastestClean": null
                 }
-                """.formatted(today));
+                """.formatted(today, hard.getShareCode()));
     }
 
     @Test
@@ -496,5 +501,91 @@ class LeaderboardControllerTest extends IntegrationTest {
 
     private Integer idOf(String uid) {
         return jdbc.queryForObject("SELECT id FROM players WHERE firebase_uid = ?", Integer.class, uid);
+    }
+
+    // Leaderboards for any puzzle, by share code (challenge links).
+
+    private MvcTestResult puzzleLeaderboard(String shareCode, String query) {
+        return mvc.get().uri("/api/puzzles/{code}/leaderboard?" + query, shareCode).exchange();
+    }
+
+    private MvcTestResult puzzleLeaderboardAs(String uid, String shareCode, String query) {
+        return mvc.get().uri("/api/puzzles/{code}/leaderboard?" + query, shareCode).with(player(uid)).exchange();
+    }
+
+    @Test
+    void aPoolPuzzleRanksEveryFirstSolveWithNoDate() {
+        Puzzle pool = puzzleService.store(TestPuzzles.generated(Difficulty.EXPERT, 11), PuzzleSource.POOL);
+        // No date rule: a solve from a week ago ranks.
+        solve("alice", pool, 500, 7 * 24 * 60, false, 0);
+        solve("bob", pool, 400, 10, false, 2);
+        // Only the first solve counts, as on the daily boards.
+        solve("bob", pool, 100, 5, false, 0);
+
+        assertThat(puzzleLeaderboard(pool.getShareCode(), "")).hasStatusOk().bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.date").isNull();
+            assertThat(json).extractingPath("$.difficulty").isEqualTo("expert");
+            assertThat(json).extractingPath("$.shareCode").isEqualTo(pool.getShareCode());
+            assertThat(json).extractingPath("$.total").isEqualTo(2);
+            // Bob's 400 s plus 20 s for two mistakes still beats Alice's 500 s.
+            assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(400000, 500000));
+            assertThat(json).extractingPath("$.fastestClean.elapsedMs").isEqualTo(500000);
+        });
+    }
+
+    @Test
+    void theShareCodeIsntCaseSensitive() {
+        Puzzle pool = puzzleService.store(TestPuzzles.generated(Difficulty.HARD, 12), PuzzleSource.POOL);
+        solve("alice", pool, 300, 10, false, 0);
+
+        assertThat(puzzleLeaderboard(pool.getShareCode().toLowerCase(), "")).hasStatusOk().bodyJson()
+                .extractingPath("$.total").isEqualTo(1);
+    }
+
+    @Test
+    void aDailyByShareCodeKeepsItsDateRule() {
+        solve("alice", hard, 200, 7 * 24 * 60, false);
+        solve("bob", 300);
+
+        assertThat(puzzleLeaderboard(hard.getShareCode(), "")).hasStatusOk().bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.date").isEqualTo(today.toString());
+            assertThat(json).extractingPath("$.total").isEqualTo(1);
+        });
+    }
+
+    @Test
+    void aPuzzleBoardHasTheSameSwitches() {
+        Puzzle pool = puzzleService.store(TestPuzzles.generated(Difficulty.HARD, 13), PuzzleSource.POOL);
+        solve("alice", pool, 200, 10, false, 1);
+        solve("bob", pool, 300, 10, false, 0);
+        solve("carol", pool, 100, 10, false, 0);
+        befriend("alice", "bob");
+
+        assertThat(puzzleLeaderboardAs("alice", pool.getShareCode(), "friends=true")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.total").isEqualTo(2);
+            assertThat(json).extractingPath("$.you.rank").isEqualTo(1);
+        });
+        assertThat(puzzleLeaderboard(pool.getShareCode(), "clean=true")).bodyJson()
+                .extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(100000, 300000));
+        assertThat(puzzleLeaderboard(pool.getShareCode(), "friends=true")).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void anUnknownShareCodeHasNoLeaderboard() {
+        assertThat(puzzleLeaderboard("NOSUCH", "")).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void aFutureDailyByShareCodeHasNoLeaderboard() {
+        Puzzle later = dailyPuzzleService.fillWithNew(new DailySlot(today.plusDays(3), Difficulty.HARD),
+                TestPuzzles.generated(Difficulty.HARD, 14)).getPuzzle();
+
+        assertThat(puzzleLeaderboard(later.getShareCode(), "")).hasStatus(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void aPuzzleBoardIsNotCached() {
+        assertThat(puzzleLeaderboard(hard.getShareCode(), "")).headers()
+                .hasValue("Cache-Control", "no-cache, no-store, max-age=0, must-revalidate");
     }
 }

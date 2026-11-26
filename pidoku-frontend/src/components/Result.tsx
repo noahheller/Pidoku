@@ -167,6 +167,13 @@ export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, hintsUsed, 
             </Link>
           </div>
         )}
+        {/* Any other puzzle from the API has a board too: sharing it is a challenge. */}
+        {!puzzle.dailyDate && puzzle.shareCode && recorded.status !== 'saving' && (
+          <div className="border-t border-base-300 pt-4">
+            <LeaderboardView shareCode={puzzle.shareCode} title="Leaderboard" />
+            <p className="mt-2 text-sm text-base-content/60">Share it to challenge your friends: they'll see the time to beat.</p>
+          </div>
+        )}
       </div>
     </section>
   );
