@@ -1,4 +1,4 @@
-import type { Hint } from '../api/client';
+import type { Hint, StatsSource } from '../api/client';
 import type { SavedProgress } from './game';
 import type { PuzzleDef } from './puzzleFile';
 
@@ -12,6 +12,8 @@ const NAME_PROMPT_DISMISSED_KEY = 'pidoku:name-prompt-dismissed';
 const GOOGLE_PROMPT_DISMISSED_KEY = 'pidoku:google-prompt-dismissed';
 const LEADERBOARD_SCOPE_KEY = 'pidoku:leaderboard-scope';
 const LEADERBOARD_RANKING_KEY = 'pidoku:leaderboard-ranking';
+const STATS_SOURCE_KEY = 'pidoku:stats-source';
+const STATS_ASSISTED_KEY = 'pidoku:stats-assisted';
 const HAS_ACCOUNT_KEY = 'pidoku:has-account';
 const TUTORIAL_SEEN_KEY = 'pidoku:tutorial-seen';
 
@@ -214,6 +216,25 @@ export function loadLeaderboardRanking(): LeaderboardRanking {
 
 export function saveLeaderboardRanking(ranking: LeaderboardRanking): void {
   write(LEADERBOARD_RANKING_KEY, ranking);
+}
+
+/** Which puzzles the stats page last counted. */
+export function loadStatsSource(): StatsSource {
+  const saved = read<StatsSource>(STATS_SOURCE_KEY);
+  return saved === 'daily' || saved === 'random' ? saved : 'all';
+}
+
+export function saveStatsSource(source: StatsSource): void {
+  write(STATS_SOURCE_KEY, source);
+}
+
+/** Whether the stats page last counted solves with hints or auto notes. Off unless turned on. */
+export function loadStatsIncludeAssisted(): boolean {
+  return read<boolean>(STATS_ASSISTED_KEY) === true;
+}
+
+export function saveStatsIncludeAssisted(include: boolean): void {
+  write(STATS_ASSISTED_KEY, include);
 }
 
 /** Forgets everything Pidoku keeps in this browser: progress, results, puzzles, settings. */

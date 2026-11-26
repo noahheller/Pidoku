@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { clearAllLocalData, loadHint, saveHint } from './storage';
+import { clearAllLocalData, loadHint, loadStatsIncludeAssisted, loadStatsSource, saveHint, saveStatsIncludeAssisted, saveStatsSource } from './storage';
 
 describe('clearAllLocalData', () => {
   let store: Map<string, string>;
@@ -25,6 +25,17 @@ describe('clearAllLocalData', () => {
     expect(loadHint('api-8')).toBeNull();
     saveHint('api-7', null);
     expect(loadHint('api-7')).toBeNull();
+  });
+
+  it("remembers the stats page's switches, counting all unassisted solves until changed", () => {
+    expect(loadStatsSource()).toBe('all');
+    expect(loadStatsIncludeAssisted()).toBe(false);
+    saveStatsSource('random');
+    saveStatsIncludeAssisted(true);
+    expect(loadStatsSource()).toBe('random');
+    expect(loadStatsIncludeAssisted()).toBe(true);
+    store.set('pidoku:stats-source', JSON.stringify('campaign'));
+    expect(loadStatsSource()).toBe('all');
   });
 
   it("removes every Pidoku key and leaves other sites' keys alone", () => {
