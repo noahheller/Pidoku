@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Leaderboard, LeaderboardEntry } from '../api/client';
-import { fasterThanPercent, formatGap, gapLine, gaps, ordinal, photoFinishes, standing } from './leaderboardStats';
+import { fasterThanPercent, formatGap, gapLine, gaps, ordinal, photoFinishes, standing, timeToBeat } from './leaderboardStats';
 
 const entry = (rank: number, displayName: string | null, seconds: number, you = false): LeaderboardEntry => ({
   rank,
@@ -126,5 +126,31 @@ describe('formatGap', () => {
     expect(formatGap(400)).toBe('0.4s');
     expect(formatGap(12_900)).toBe('12s');
     expect(formatGap(65_000)).toBe('1:05');
+  });
+});
+
+describe('timeToBeat', () => {
+  it("is the fastest friend's solve when a friend has solved it", () => {
+    const everyone = board([entry(1, 'Stranger', 300), entry(2, 'Alex', 400)]);
+    const friends = board([entry(1, 'Alex', 400)], { friendsOnly: true });
+    expect(timeToBeat(everyone, friends)).toEqual({ name: 'Alex', elapsedMs: 400_000, penaltyMs: 0, friend: true });
+  });
+
+  it("is the fastest overall when no friend has, or the player is signed out", () => {
+    const everyone = board([entry(1, 'Stranger', 300)]);
+    expect(timeToBeat(everyone, board([], { friendsOnly: true }))).toMatchObject({ name: 'Stranger', friend: false });
+    expect(timeToBeat(everyone, null)).toMatchObject({ name: 'Stranger', friend: false });
+  });
+
+  it("skips the player's own solve", () => {
+    const friends = board([entry(1, 'Me', 200, true), entry(2, 'Alex', 400)], { friendsOnly: true });
+    expect(timeToBeat(board([entry(1, 'Me', 200, true)]), friends)).toMatchObject({ name: 'Alex' });
+    expect(timeToBeat(board([entry(1, 'Me', 200, true)]), board([entry(1, 'Me', 200, true)]))).toBeNull();
+  });
+
+  it('keeps the penalty, and is null for a puzzle no one has solved', () => {
+    expect(timeToBeat(board([{ ...entry(1, null, 300), penaltyMs: 20_000 }]), null)).toEqual({ name: null, elapsedMs: 300_000, penaltyMs: 20_000, friend: false });
+    expect(timeToBeat(board([]), null)).toBeNull();
+    expect(timeToBeat(null, null)).toBeNull();
   });
 });

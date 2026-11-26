@@ -70,11 +70,11 @@ own difficulty and the puzzle has to be generated on demand.
 
    - First, decide how assisted solves rank (hints, mistakes, auto notes) in one go; see "Open
      items". Hints and the stats page both depend on it.
-   - Leaderboards for any shared puzzle (challenge links). This comes before hints because it's
-     cheaper and more social.
+   - ~~Leaderboards for any shared puzzle (challenge links).~~ Done 2026-11-26, after hints in the
+     end (see "After v1").
 
 6. Hints (reusing the "explain a move" layer), with time penalties on the leaderboards for
-   hints and mistakes. **Done** (2026-11-25, not yet deployed; see section 6).
+   hints and mistakes. **Done** and deployed (2026-11-25; see section 6).
 
    Then the player stats page, built after hints so assisted solves can be filtered from the
    start. Streak reminders are postponed until analytics show streaks breaking because people
@@ -205,6 +205,7 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/puzzles/daily/{date}/summary` | For the home screen's cards: how many have solved each of the date's dailies and the fastest time; signed in, also how many friends have and the fastest among them. Counted like the leaderboards | after v1 (done) |
 | `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device. Handed back by `POST /api/attempts`; cleared on restart and on the solve | after v1 (done) |
 | `GET /api/players/me/recent` | The player's last 10 puzzles, unfinished first, for Recent | after v1 (done) |
+| `GET /api/puzzles/{shareCode}/leaderboard?friends=true&clean=true` | Any puzzle's fastest times by share code (challenge links), ranked like a daily's. A daily keeps its date rule; any other puzzle ranks every first solve | after v1 (done) |
 | `POST /api/attempts/{id}/hint` | The board in, the next hint step out (where, what to look for, the answer), charged to the attempt | 6 (done) |
 | `POST /api/events` | Up to 50 analytics events (share, share_arrival, abandoned, tutorial_completed, tutorial_skipped) | after v1 (done) |
 | `GET /api/players/me/stats?source=all\|daily\|random&today=…` | The player's stats page: solves, average and best times per difficulty, clean rate, streaks | after 6 |
@@ -600,6 +601,15 @@ loaded) and the `VITE_E2E_AUTH=1` build (`dist-e2e/`, never deployed) under `vit
 - CI runs them on every pull request (the `e2e` job), and deploy waits for them.
 
 ### Leaderboards for any shared puzzle (challenge links)
+**Done 2026-11-26.** As built: `LeaderboardService.forPuzzle` shares the daily board's ranking
+query; the result screen of every API puzzle shows its board; a share link to a non-daily that
+someone else has solved opens on a start screen with the time to beat (the fastest friend if the
+browser is signed in and a friend has solved it, else the fastest overall) and the clock waits for
+Start, like a daily. With no one else's solve it opens straight to the board, as before. The e2e API
+now seeds a few easy pool puzzles for tests like this.
+
+The plan, as written before building it:
+
 Only dailies have leaderboards, and dailies stop at Hard, so Expert and Fiendish are played
 alone.
 - `GET /api/puzzles/{shareCode}/leaderboard`: the same ranking (each player's first solve, by the
@@ -645,7 +655,7 @@ Streaks are the reason to come back, but nothing reminds a player that today's i
 
 ## 6. Hints
 
-**Status: done (2026-11-25), not yet deployed.** As built:
+**Status: done and deployed (2026-11-25; CI's deploy ran migration V12 on Neon).** As built:
 - `POST /api/attempts/{id}/hint` with the board's digits (and notes). It lives under attempts
   because a hint is charged to one. Each call reveals the next step of the same move. The move is
   remembered in `attempts.last_hint` (migration V12), and a step is only charged the first time

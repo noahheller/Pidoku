@@ -45,12 +45,35 @@ public class LeaderboardController {
                                    @RequestParam(defaultValue = "false") boolean friends,
                                    @RequestParam(defaultValue = "false") boolean clean,
                                    @AuthenticationPrincipal Jwt token) {
+        Optional<Player> viewer = viewer(token, friends);
+        return leaderboardService.forDaily(new DailySlot(date, difficulty), viewer, friends, clean);
+    }
+
+    /**
+     * The fastest solves of any puzzle, by its share code, e.g.
+     * {@code GET /api/puzzles/K7QX2M/leaderboard?friends=true&clean=true}: the board a challenge
+     * link shows, for random, shared and (later) custom puzzles as well as dailies. Same switches
+     * and sign-in rules as the daily leaderboard. 404 for an unknown code, or a daily whose date
+     * hasn't begun anywhere.
+     *
+     * <p>Not cached: it changes with every solve.
+     */
+    @GetMapping("/api/puzzles/{shareCode}/leaderboard")
+    public Leaderboard puzzleLeaderboard(@PathVariable String shareCode,
+                                         @RequestParam(defaultValue = "false") boolean friends,
+                                         @RequestParam(defaultValue = "false") boolean clean,
+                                         @AuthenticationPrincipal Jwt token) {
+        Optional<Player> viewer = viewer(token, friends);
+        return leaderboardService.forPuzzle(shareCode, viewer, friends, clean);
+    }
+
+    /** The signed-in player, if any. A friends-only board needs one. */
+    private Optional<Player> viewer(Jwt token, boolean friends) {
         if (friends && token == null) {
             throw new ErrorResponseException(HttpStatus.UNAUTHORIZED,
                     ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Sign in to see your friends' times."), null);
         }
-        Optional<Player> viewer = playerService.find(token);
-        return leaderboardService.forDaily(new DailySlot(date, difficulty), viewer, friends, clean);
+        return playerService.find(token);
     }
 
     /**

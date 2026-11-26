@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existingIdToken, idToken } from './auth';
-import { addFriend, ApiError, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
@@ -267,6 +267,24 @@ describe('fetchLeaderboard', () => {
 
     signIn(null);
     await expect(fetchLeaderboard('2026-11-17', 'easy', { friendsOnly: true, cleanOnly: false })).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe('fetchPuzzleLeaderboard', () => {
+  const board: Leaderboard = { date: null, difficulty: 'fiendish', shareCode: 'K7QX2M', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, fastestClean: null };
+
+  it("asks for any puzzle's leaderboard by share code", async () => {
+    const fetchMock = respond(200, board);
+    await expect(fetchPuzzleLeaderboard('K7QX2M', { friendsOnly: false, cleanOnly: false })).resolves.toEqual(board);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/K7QX2M/leaderboard');
+  });
+
+  it('adds the switches', async () => {
+    signIn('token-1');
+    const fetchMock = respond(200, board);
+    await fetchPuzzleLeaderboard('K7QX2M', { friendsOnly: true, cleanOnly: true });
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/K7QX2M/leaderboard?friends=true&clean=true');
+    expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer token-1' });
   });
 });
 

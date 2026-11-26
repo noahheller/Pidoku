@@ -7,11 +7,15 @@ import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.player.ProfileVisibility;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
+import dev.noahheller.pidoku.pidokuapi.puzzle.Puzzle;
 import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleNotFoundException;
+import dev.noahheller.pidoku.pidokuapi.puzzle.PuzzleService;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.jdbc.core.simple.JdbcClient.StatementSpec;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -20,9 +24,10 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Daily leaderboards, computed from attempts on every request (like streaks, nothing is stored).
+ * Leaderboards, computed from attempts on every request (like streaks, nothing is stored): one per
+ * daily, and one for any puzzle by its share code (challenge links).
  *
- * <p>Each player is ranked by their first finished attempt at the daily, timed by the game's own
+ * <p>Each player is ranked by their first finished attempt at the puzzle, timed by the game's own
  * clock ({@code active_ms}, paused while the tab is hidden), or by the server's wall-clock
  * {@code elapsed_ms} for solves recorded without one, plus {@code penalty_ms}: 5 s x mistakes²
  * and the hints' penalties (see {@code Penalties}); replays are recorded but don't rank. Late solves rank too, marked as late.
@@ -41,11 +46,14 @@ public class LeaderboardService {
 
     private final JdbcClient jdbc;
     private final DailyPuzzleService dailyPuzzleService;
+    private final PuzzleService puzzleService;
     private final List<Difficulty> dailyDifficulties;
 
-    public LeaderboardService(JdbcClient jdbc, DailyPuzzleService dailyPuzzleService, DailyProperties dailyProperties) {
+    public LeaderboardService(JdbcClient jdbc, DailyPuzzleService dailyPuzzleService, PuzzleService puzzleService,
+                              DailyProperties dailyProperties) {
         this.jdbc = jdbc;
         this.dailyPuzzleService = dailyPuzzleService;
+        this.puzzleService = puzzleService;
         this.dailyDifficulties = dailyProperties.difficulties();
     }
 
@@ -168,8 +176,41 @@ public class LeaderboardService {
         DailyPuzzle daily = dailyPuzzleService.inSlot(slot)
                 .orElseThrow(() -> new PuzzleNotFoundException(
                         "There's no " + slot.difficulty().id() + " daily puzzle for " + slot.date() + "."));
+        Puzzle puzzle = daily.getPuzzle();
+        return rank(puzzle, slot.date(), DailyPuzzleService.opensAt(slot.date()), viewer, friendsOnly, cleanOnly);
+    }
+
+    /**
+     * The leaderboard of any puzzle, by its share code: what a challenge link shows. Ranked like
+     * {@link #forDaily}. A daily keeps its rule that solves started before its date began anywhere
+     * don't rank; any other puzzle has no date, so every first solve ranks (a player who saw it
+     * before sharing it is fine among friends).
+     *
+     * @throws PuzzleNotFoundException if no puzzle has the code, or it's a daily whose date hasn't
+     *                                 begun anywhere
+     */
+    @Transactional(readOnly = true)
+    public Leaderboard forPuzzle(String shareCode, Optional<Player> viewer, boolean friendsOnly, boolean cleanOnly) {
+        Puzzle puzzle = puzzleService.byShareCode(shareCode);
+        Optional<LocalDate> dailyDate = puzzleService.dailyDate(puzzle);
+        if (dailyDate.isPresent() && !dailyPuzzleService.hasBegunSomewhere(dailyDate.get())) {
+            throw PuzzleNotFoundException.forShareCode(shareCode);
+        }
+        return rank(puzzle, dailyDate.orElse(null), dailyDate.map(DailyPuzzleService::opensAt).orElse(null),
+                viewer, friendsOnly, cleanOnly);
+    }
+
+    /**
+     * Ranks one puzzle's solves: each player's first finished attempt, by the game's time plus the
+     * penalties.
+     *
+     * @param dailyDate the date it's the daily for, or null if it isn't a daily
+     * @param opensAt   solves started before this don't rank; null to rank them all
+     */
+    private Leaderboard rank(Puzzle puzzle, LocalDate dailyDate, Instant opensAt, Optional<Player> viewer,
+                             boolean friendsOnly, boolean cleanOnly) {
         long viewerId = viewer.map(Player::getId).orElse(-1L);
-        List<Row> rows = jdbc.sql("""
+        StatementSpec query = jdbc.sql("""
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.player_id)
                                    a.player_id, a.started_at, a.completed_at,
@@ -193,8 +234,10 @@ public class LeaderboardService {
                                    COUNT(*) OVER () AS total
                             FROM firsts f
                             JOIN players p ON p.id = f.player_id
-                            WHERE f.started_at >= :opensAt
-                        """ + (cleanOnly ? """
+                            WHERE true
+                        """ + (opensAt != null ? """
+                              AND f.started_at >= :opensAt
+                        """ : "") + (cleanOnly ? """
                               AND f.mistakes = 0 AND f.hints_used = 0
                         """ : "") + (friendsOnly ? """
                               AND (f.player_id = :viewerId
@@ -205,12 +248,13 @@ public class LeaderboardService {
                         WHERE position <= :top OR player_id = :viewerId OR fastest_clean
                         ORDER BY position
                         """)
-                .param("puzzleId", daily.getPuzzle().getId())
-                .param("opensAt", OffsetDateTime.ofInstant(DailyPuzzleService.opensAt(slot.date()), ZoneOffset.UTC))
+                .param("puzzleId", puzzle.getId())
                 .param("viewerId", viewerId)
-                .param("top", TOP)
-                .query(Row.class)
-                .list();
+                .param("top", TOP);
+        if (opensAt != null) {
+            query = query.param("opensAt", OffsetDateTime.ofInstant(opensAt, ZoneOffset.UTC));
+        }
+        List<Row> rows = query.query(Row.class).list();
 
         List<Leaderboard.Entry> entries = rows.stream()
                 .filter(row -> row.position() <= TOP)
@@ -224,7 +268,8 @@ public class LeaderboardService {
         Leaderboard.Entry fastestClean = rows.stream().filter(Row::fastestClean).findFirst()
                 .map(row -> row.toEntry(viewerId)).orElse(null);
         int total = rows.isEmpty() ? 0 : (int) rows.getFirst().total();
-        return new Leaderboard(slot.date(), slot.difficulty(), friendsOnly, cleanOnly, total, entries, you, fastestClean);
+        return new Leaderboard(dailyDate, puzzle.getDifficulty(), puzzle.getShareCode(), friendsOnly, cleanOnly, total,
+                entries, you, fastestClean);
     }
 
     /** One row of the ranking query; JdbcClient maps the snake_case columns onto it. */

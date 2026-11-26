@@ -6,8 +6,10 @@ import java.time.LocalDate;
 import java.util.List;
 
 /**
- * The fastest solves of one daily puzzle.
+ * The fastest solves of one puzzle: a daily, or any puzzle opened by its share code.
  *
+ * @param date        the date the puzzle is the daily for; null if it isn't a daily
+ * @param shareCode   the puzzle's share code, for its link
  * @param friendsOnly whether only the viewer and their friends are ranked
  * @param cleanOnly   whether only solves with no mistakes and no hints are ranked
  * @param total       how many players are ranked, including any beyond {@code entries}
@@ -17,7 +19,7 @@ import java.util.List;
  * @param fastestClean the fastest solve with no mistakes and no hints, also when beyond
  *                     {@code entries}; null if there's none
  */
-public record Leaderboard(LocalDate date, Difficulty difficulty, boolean friendsOnly, boolean cleanOnly, int total,
+public record Leaderboard(LocalDate date, Difficulty difficulty, String shareCode, boolean friendsOnly, boolean cleanOnly, int total,
                           List<Entry> entries, Entry you, Entry fastestClean) {
 
     /**
