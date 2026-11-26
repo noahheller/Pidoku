@@ -42,3 +42,22 @@ tasks.register('exportTutorial', JavaExec) {
     mainClass = 'dev.noahheller.pidokuengine.explain.TutorialExport'
     args rootProject.file('pidoku-frontend/src/tutorial/tutorial.json').absolutePath
 }
+
+// Rewrites the golden files GoldenTest compares the engine against. Only run it when a change is
+// meant to alter generation, scoring, strategies or explanations.
+tasks.register('updateGolden', JavaExec) {
+    group = 'pidoku'
+    description = 'Regenerates src/test/resources/golden from the current engine.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.noahheller.pidokuengine.golden.GoldenExport'
+    workingDir = projectDir
+}
+
+// Times generation, for before/after comparisons. Not part of build or CI.
+// ./gradlew :pidoku-engine:benchmark --args=10   (seeds per profile, default 5)
+tasks.register('benchmark', JavaExec) {
+    group = 'pidoku'
+    description = 'Times puzzle generation and its two solvers.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'dev.noahheller.pidokuengine.bench.GenerationBenchmark'
+}
