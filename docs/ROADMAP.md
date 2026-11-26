@@ -76,8 +76,8 @@ own difficulty and the puzzle has to be generated on demand.
 6. Hints (reusing the "explain a move" layer), with time penalties on the leaderboards for
    hints and mistakes. **Done** and deployed (2026-11-25; see section 6).
 
-   Then the player stats page, built after hints so assisted solves can be filtered from the
-   start. Streak reminders are postponed until analytics show streaks breaking because people
+   Then ~~the player stats page~~ (done 2026-11-26), built after hints so assisted solves can be
+   filtered from the start. Streak reminders are postponed until analytics show streaks breaking because people
    forget.
 
    Before milestone 7, engine work: Pidoku-only techniques (the twin X-Wing; see "Engine
@@ -206,6 +206,7 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `PUT /api/attempts/{id}/progress` | The board, notes, mistakes and timer of an unfinished attempt, so it continues on another device. Handed back by `POST /api/attempts`; cleared on restart and on the solve | after v1 (done) |
 | `GET /api/players/me/recent` | The player's last 10 puzzles, unfinished first, for Recent | after v1 (done) |
 | `GET /api/puzzles/{shareCode}/leaderboard?friends=true&clean=true` | Any puzzle's fastest times by share code (challenge links), ranked like a daily's. A daily keeps its date rule; any other puzzle ranks every first solve | after v1 (done) |
+| `GET /api/players/me/stats?today=…&source=all\|daily\|random&assisted=true` | The player's own stats per difficulty (solved, average, median, best, clean, mistakes, last 30 days), each puzzle's first solve, ranked times. Assisted solves (hints or auto notes) left out unless `assisted=true` | after v1 (done) |
 | `POST /api/attempts/{id}/hint` | The board in, the next hint step out (where, what to look for, the answer), charged to the attempt | 6 (done) |
 | `POST /api/events` | Up to 50 analytics events (share, share_arrival, abandoned, tutorial_completed, tutorial_skipped) | after v1 (done) |
 | `GET /api/players/me/stats?source=all\|daily\|random&today=…` | The player's stats page: solves, average and best times per difficulty, clean rate, streaks | after 6 |
@@ -621,6 +622,17 @@ alone.
   sharing it is fine among friends.
 
 ### Player stats page
+**Done 2026-11-26.** As built: `stats/StatsService` reads the player's first finished attempt per
+puzzle (a daily only if started once its date began, as on the leaderboards) and sums it up in
+Java: per difficulty, solves counted, assisted solves (always reported, so the page can say how
+many it left out), average, median, best (ranked times, penalties included), clean solves, average
+mistakes, and the last 30 days' count and average. "Random" means pool puzzles that never became a
+daily. The page (`/me/stats`, linked from You & friends and from the result screen) has a source
+switch and an "Include assisted solves" switch, off by default, both remembered in the browser. The
+trend line compares the last 30 days with all time and stays quiet when every solve is recent.
+
+The plan, as written before building it:
+
 The friend profile (milestone 5) shows a few numbers about a friend; players have nothing as
 detailed about themselves.
 - A **Stats** page (`/me/stats`, linked from You & friends and the result screen).

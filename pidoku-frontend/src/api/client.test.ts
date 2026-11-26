@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existingIdToken, idToken } from './auth';
-import { addFriend, ApiError, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, fetchStats, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
@@ -285,6 +285,21 @@ describe('fetchPuzzleLeaderboard', () => {
     await fetchPuzzleLeaderboard('K7QX2M', { friendsOnly: true, cleanOnly: true });
     expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/K7QX2M/leaderboard?friends=true&clean=true');
     expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer token-1' });
+  });
+});
+
+describe('fetchStats', () => {
+  it("asks for the player's stats as of their date, with the switches", async () => {
+    signIn('token-1');
+    const stats = { source: 'daily', includeAssisted: true, currentStreak: 0, bestStreak: 0, dailiesSolved: 0, difficulties: [] };
+    const fetchMock = respond(200, stats);
+    await expect(fetchStats('daily', true, undefined, new Date(2026, 10, 26, 9))).resolves.toEqual(stats);
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/players/me/stats?today=2026-11-26&source=daily&assisted=true');
+    expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({ Authorization: 'Bearer token-1' });
+
+    const again = respond(200, { ...stats, source: 'all', includeAssisted: false });
+    await fetchStats('all', false, undefined, new Date(2026, 10, 26, 9));
+    expect(again.mock.calls.at(-1)?.[0]).toBe('/api/players/me/stats?today=2026-11-26&source=all');
   });
 });
 

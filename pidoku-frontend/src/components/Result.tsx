@@ -120,6 +120,11 @@ export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, hintsUsed, 
           )}
           {puzzle.dailyDate && streak && <StreakStat streak={streak} />}
         </dl>
+        {isRecorded && (
+          <Link to="/me/stats" className="link link-primary w-fit text-sm">
+            How this compares with your other solves
+          </Link>
+        )}
 
         {recorded.status === 'unsent' && (
           <p className="flex items-center gap-2 text-sm text-warning">
