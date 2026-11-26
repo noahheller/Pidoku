@@ -156,6 +156,58 @@ The Firebase project is set up for this (to repeat it in another project):
 The API needs no credentials for this. It accepts tokens issued for the Firebase project in
 `pidoku.firebase.project-id` (`application.properties`).
 
+## Ko-fi supporters
+
+A tip on Ko-fi gives the player a supporter badge on leaderboards. The player asks the app for a
+single-use code (`/me` → Support Pidoku) and pastes it into the tip's message; Ko-fi's webhook
+calls the API, which matches the code (`supporter/SupporterService`). Nothing Ko-fi knows about the
+payer is stored: `kofi_payments` holds the transaction id and, once linked, the player.
+
+Setting it up (once):
+
+1. Set `KOFI_URL` in `pidoku-frontend/src/support.ts` to the Ko-fi page. While it's `null` the
+   Support card stays hidden.
+2. Ko-fi → Settings → API → Webhooks: set the URL to `https://<site>/api/kofi/webhook` (Firebase
+   Hosting passes `/api/**` to Cloud Run) and copy the verification token.
+3. Store the token and attach it to the service (CI leaves service secrets as they are):
+
+   ```bash
+   printf '%s' '<token>' | gcloud secrets create kofi-verification-token --project pidoku --data-file=-
+   gcloud secrets add-iam-policy-binding kofi-verification-token --project pidoku \
+       --member="serviceAccount:<the service's account>" --role=roles/secretmanager.secretAccessor
+   gcloud run services update pidoku-api-service --project pidoku --region us-east4 \
+       --update-secrets KOFI_VERIFICATION_TOKEN=kofi-verification-token:latest
+   ```
+
+   Until the variable is set the webhook answers 404, so this can come after the deploy.
+4. Use **Send Test** in Ko-fi's webhook settings and check the service's logs for
+   `Ko-fi payment ...: UNMATCHED` (the test has no code).
+
+5. To require a minimum tip for the badge, set it on Ko-fi. The webhook accepts any amount that
+   arrives and never reads or stores it.
+
+Locally, `bootTestRun` accepts the token `test-kofi-token`:
+
+```bash
+curl -X POST localhost:8181/api/kofi/webhook --data-urlencode \
+  'data={"verification_token":"test-kofi-token","kofi_transaction_id":"tx-local-1","message":"PI-XXXXXXXX"}'
+```
+
+A tip without a valid code (none in the message, or expired) is kept with `player_id` null. To link
+it by hand, take the transaction id from the Ko-fi dashboard and the player's id from their profile
+link (`/players/{id}`), then on the database:
+
+```sql
+BEGIN;
+UPDATE kofi_payments SET player_id = <id> WHERE transaction_id = '<transaction id>' AND player_id IS NULL;
+UPDATE players SET supporter_since = COALESCE(supporter_since, now()), supporter_until = NULL WHERE id = <id>;
+COMMIT;
+```
+
+If the token ever leaks (in a log, a screenshot), regenerate it in Ko-fi and add a new secret
+version; the next revision picks it up. A leaked token can only hand out badges, which never
+affect the ranking: unwanted ones can be cleared with `supporter_since = NULL`.
+
 ## Deploying by hand
 
 CI/CD normally does this: GitHub Actions (`.github/workflows/ci.yml`) tests every pull request

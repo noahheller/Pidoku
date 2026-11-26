@@ -36,8 +36,9 @@ public record Leaderboard(LocalDate date, Difficulty difficulty, String shareCod
      * @param late        the solve was sent late, so its time is partly the client's claim
      * @param you          this is the viewer's own solve
      * @param fastestClean the fastest solve with no mistakes and no hints on this board (ties all count)
+     * @param supporter    the player supports Pidoku on Ko-fi, for a badge by their name. Never affects the rank.
      */
     public record Entry(int rank, String displayName, Long profileId, long elapsedMs, long penaltyMs, int mistakes,
-                        int hintsUsed, boolean late, boolean you, boolean fastestClean) {
+                        int hintsUsed, boolean late, boolean you, boolean fastestClean, boolean supporter) {
     }
 }

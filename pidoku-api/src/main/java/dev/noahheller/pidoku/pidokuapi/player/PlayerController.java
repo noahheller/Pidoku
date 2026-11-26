@@ -50,7 +50,7 @@ public class PlayerController {
 
     /**
      * Deletes the signed-in player and everything kept about them: attempts, analytics events,
-     * friendships and the player row. 204 even if there was no player, so a retried delete succeeds.
+     * friendships, supporter code and Ko-fi payment records, and the player row. 204 even if there was no player, so a retried delete succeeds.
      */
     @DeleteMapping("/api/players/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)

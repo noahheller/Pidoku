@@ -17,7 +17,7 @@ import java.util.random.RandomGenerator;
 @Component
 public class ShareCodeGenerator {
 
-    static final String ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+    public static final String ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
     public static final int LENGTH = 8;
 
     private final RandomGenerator random;

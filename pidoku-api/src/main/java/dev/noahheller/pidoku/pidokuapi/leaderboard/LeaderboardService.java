@@ -225,6 +225,9 @@ public class LeaderboardService {
                         ranked AS (
                             SELECT f.player_id, p.display_name, p.profile_visibility, f.elapsed_ms, f.penalty_ms,
                                    f.mistakes, f.hints_used, f.late,
+                                   -- Matches Player.isSupporter.
+                                   (p.supporter_since IS NOT NULL
+                                    AND (p.supporter_until IS NULL OR p.supporter_until > now())) AS supporter,
                                    f.player_id IN (SELECT friend_id FROM friendships WHERE player_id = :viewerId) AS friend,
                                    COALESCE(f.mistakes = 0 AND f.hints_used = 0 AND f.ranked_ms
                                             = MIN(f.ranked_ms) FILTER (WHERE f.mistakes = 0 AND f.hints_used = 0) OVER (),
@@ -274,15 +277,15 @@ public class LeaderboardService {
 
     /** One row of the ranking query; JdbcClient maps the snake_case columns onto it. */
     record Row(long playerId, String displayName, String profileVisibility, long elapsedMs, long penaltyMs,
-               int mistakes, int hintsUsed, boolean late, boolean friend, boolean fastestClean, long rank, long position,
-               long total) {
+               int mistakes, int hintsUsed, boolean late, boolean supporter, boolean friend, boolean fastestClean, long rank,
+               long position, long total) {
 
         Leaderboard.Entry toEntry(long viewerId) {
             boolean you = playerId == viewerId;
             // Only the ids of profiles the viewer may open, so private players' ids don't leak.
             Long profileId = ProfileVisibility.fromId(profileVisibility).visibleTo(you, friend) ? playerId : null;
             return new Leaderboard.Entry((int) rank, displayName, profileId, elapsedMs, penaltyMs, mistakes, hintsUsed,
-                    late, you, fastestClean);
+                    late, you, fastestClean, supporter);
         }
     }
 }

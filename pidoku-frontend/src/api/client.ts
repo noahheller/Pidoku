@@ -83,6 +83,15 @@ export interface Player {
   /** Who can see their profile. */
   profileVisibility: ProfileVisibility;
   createdAt: string;
+  /** When they first supported Pidoku on Ko-fi (ISO timestamp); null if they don't have a supporter badge. */
+  supporterSince: string | null;
+}
+
+/** A single-use code to paste into a Ko-fi message (pidoku-api's SupporterCode). */
+export interface SupporterCode {
+  code: string;
+  /** When it stops working (ISO timestamp). */
+  expiresAt: string;
 }
 
 /** Who can see a player's profile: any player, only their friends, or no one else. */
@@ -120,6 +129,8 @@ export interface LeaderboardEntry {
   you: boolean;
   /** The fastest solve with no mistakes and no hints on this board. */
   fastestClean: boolean;
+  /** The player supports Pidoku on Ko-fi. Never affects the rank. */
+  supporter: boolean;
 }
 
 /** The fastest solves of one puzzle, a daily or any other (pidoku-api's Leaderboard). */
@@ -425,6 +436,14 @@ export async function updateDisplayName(displayName: string): Promise<Player> {
 /** Sets who can see the player's profile. */
 export async function updateProfileVisibility(profileVisibility: ProfileVisibility): Promise<Player> {
   return request<Player>('/api/players/me', { method: 'PATCH', body: { profileVisibility }, token: await requireToken() }, BUSY);
+}
+
+/**
+ * A new single-use code for the player to paste into their Ko-fi message, replacing any they had.
+ * The tip it comes with gives them a supporter badge.
+ */
+export async function createSupporterCode(): Promise<SupporterCode> {
+  return request<SupporterCode>('/api/players/me/supporter-code', { method: 'POST', token: await requireToken() }, BUSY);
 }
 
 /**

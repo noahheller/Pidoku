@@ -20,6 +20,6 @@ public abstract class IntegrationTest {
 
     @BeforeEach
     void emptyTables() {
-        jdbc.execute("TRUNCATE events, friendships, attempts, players, daily_puzzles, puzzles RESTART IDENTITY CASCADE");
+        jdbc.execute("TRUNCATE events, friendships, attempts, supporter_codes, kofi_payments, players, daily_puzzles, puzzles RESTART IDENTITY CASCADE");
     }
 }

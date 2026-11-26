@@ -821,20 +821,42 @@ rule is: don't add costs, or ads, before they're needed.
   `strategy_uses`) keeps it down; also add a per-player rate limit.
 
 ### Revenue by milestone
-- **Now to v1: nothing.** Ads would earn pennies at this scale and make the daily loop worse
+Principles, for every step below:
+- **Break even, not profit.** Monetise only when a cost is above the free tiers or one is coming.
+- **Never sell an advantage.** Paying never changes ranking, hints or penalties.
+- **Store the minimum.** No payer names, emails or amounts; supporting is opt-in, and deleting the
+  account deletes it.
+
+- **Now, before monetising:** the Google Cloud budget alert ($5 a month) and a monthly look at the
+  cost table above. Ads stay out: they'd earn pennies at this scale and make the daily loop worse
   for the friends it's meant for.
-- **v1: a tip jar.** A "Support Pidoku" link (Ko-fi, Buy Me a Coffee or GitHub Sponsors) on the
-  result screen or an about page. No payment code; a few supporters cover the domain and a
-  small bill.
+- **v1: a tip jar.** ~~Ko-fi one-off tips with a supporter badge~~ built 2026-11-26 (below). Link
+  it from `/me` and, once it's settled, the result screen. Ko-fi takes nothing from one-off tips
+  (only the card or PayPal fee). Measure: tips cover the domain and the yearly bill.
 - **Milestone 6 (hints): never sell an advantage.** Hints are free, and paying never changes the
   leaderboard. Hinted solves are marked or unranked (see the open item below).
 - **Milestone 7 (custom generation): supporter perk.** The feature that costs money is the one
   supporters fund: e.g. everyone gets a few custom puzzles a day, supporters get more or get
-  Fiendish. Stripe or Ko-fi memberships, with a `supporter` flag on `players`.
+  Fiendish, with a per-player rate limit for everyone. If monthly Ko-fi memberships come with it:
+  each payment sets `players.supporter_until` about 35 days ahead (Ko-fi says nothing on a
+  cancellation, so the badge just runs out). Renewals carry no code, so they'd be recognised by an
+  HMAC (server-side secret) of the Ko-fi email, never the email itself. Check Ko-fi's fee on
+  memberships first (believed 5% without Ko-fi Gold). If a perk ever becomes worth forging, move
+  to Stripe, whose webhooks are signed.
 - **Milestone 8 (campaign), only if still needed:** the first chapter free and later packs a
   small one-time purchase ($2–3), or one ad on the menu or result screen, never during play.
   Ads (very roughly $1–5 per 1,000 page views) only pay with thousands of regular players and
   bring a consent banner for EU and UK players and a privacy policy, so they're the last resort.
+- **Review:** three months after the tip jar goes live, and again before milestone 7 ships.
+
+**Supporter badge, as built (2026-11-26).** A player asks for a single-use code on `/me` (`PI-`
+plus 8 characters, 30 days) and pastes it into their Ko-fi tip's message. Ko-fi's webhook
+(`POST /api/kofi/webhook`) is checked against the verification token before anything else, and a
+live code makes its player a supporter for good (`players.supporter_since`; `supporter_until`
+stays null). The minimum tip is set on Ko-fi; the API never reads the amount. Only Ko-fi's transaction id is stored, which makes a resent webhook a no-op and lets
+a tip without a code be linked by hand (docs/DEVELOPMENT.md, "Ko-fi supporters"). Friend codes
+weren't used for this: they add friends with nothing to accept, and Ko-fi can show messages
+publicly. Ko-fi doesn't sign its webhooks, so a leaked token could hand out badges, nothing more.
 
 ### Analytics
 Two layers:
