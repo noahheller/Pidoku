@@ -1,4 +1,4 @@
-import { ChevronRight, CircleAlert, CloudOff, Lightbulb, RotateCw, Target, UserPlus } from 'lucide-react';
+import { ChevronRight, CircleAlert, CloudOff, Coffee, Lightbulb, RotateCw, Target, UserPlus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { fetchLeaderboard, fetchPuzzleLeaderboard, type Difficulty, type Leaderboard, type LeaderboardEntry } from '../api/client';
@@ -214,6 +214,7 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
         ) : (
           <Name entry={entry} />
         )}
+        {entry.supporter && <SupporterBadge />}
         {entry.you && <span className="ml-2 badge badge-primary badge-xs align-middle">you</span>}
         {showClean && entry.fastestClean && (
           <span className="ml-1.5 inline-flex align-middle" title="Fastest solve with no mistakes or hints">
@@ -254,6 +255,16 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
       {/* Same width either way, so the times stay in one column. */}
       <ChevronRight className={`size-4 shrink-0 ${entry.profileId !== null ? 'text-base-content/40' : 'invisible'}`} aria-hidden="true" />
     </li>
+  );
+}
+
+/** A player who supports Pidoku on Ko-fi. Just a thank-you: it never changes the ranking. */
+function SupporterBadge() {
+  return (
+    <span className="ml-1.5 inline-flex align-middle" title="Supports Pidoku on Ko-fi">
+      <Coffee className="inline size-3.5 shrink-0 text-secondary" aria-hidden="true" />
+      <span className="sr-only">Pidoku supporter</span>
+    </span>
   );
 }
 

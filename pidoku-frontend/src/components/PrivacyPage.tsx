@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
 const CONTACT = 'pidoku@googlegroups.com';
-const UPDATED = '21 November 2026';
+const UPDATED = '26 November 2026';
 
 /** `/privacy`: what Pidoku keeps about players, who sees it, and how to delete it. */
 export function PrivacyPage() {
@@ -41,6 +41,10 @@ export function PrivacyPage() {
           unfinished (how far you got), and finishing or skipping the tutorial. They're counted to see which puzzles are too hard and whether sharing brings new players. They're
           kept in Pidoku's own database, not sent to any analytics company.
         </Item>
+        <Item name="Ko-fi tips, if you support Pidoku">
+          If you tip on Ko-fi with your supporter code, Pidoku keeps the date you first supported it and Ko-fi's transaction number for the tip, so the same tip isn't counted twice.
+          Ko-fi handles the payment; Pidoku doesn't keep your name, email, message or the amount from Ko-fi. Your code is deleted once it's used, or after 30 days.
+        </Item>
         <Item name="Games in progress">
           Once you've started a puzzle, its board is saved to your account every few seconds, so you can carry on on another device. It's cleared when you finish.
         </Item>
@@ -58,7 +62,7 @@ export function PrivacyPage() {
 
       <Section title="Who can see it">
         <ul className="list-disc ps-5">
-          <li>Everyone: the leaderboards show your name (or Anonymous) and your times on the daily puzzles.</li>
+          <li>Everyone: the leaderboards show your name (or Anonymous) and your times on the daily puzzles, and a supporter badge if you've tipped on Ko-fi.</li>
           <li>
             Your profile (your streak, best times and recent dailies): your friends by default. On <strong>You &amp; friends</strong> you can make it public, so any player can see
             it, or private, so only you can. Only players signed in with Google can see other players' profiles.
@@ -66,7 +70,7 @@ export function PrivacyPage() {
           <li>Nobody else sees your email, and no one but you sees your unfinished games.</li>
         </ul>
         <p>
-          The services that run Pidoku handle the data for it and nothing else: Google Firebase (sign-in and hosting), Google Cloud (the game server) and Neon (the database).
+          The services that run Pidoku handle the data for it and nothing else: Google Firebase (sign-in and hosting), Google Cloud (the game server) and Neon (the database). If you tip, Ko-fi handles the payment under its own privacy policy.
         </p>
       </Section>
 
@@ -77,7 +81,7 @@ export function PrivacyPage() {
             You &amp; friends
           </Link>
           , choose <strong>Delete my account</strong>. It deletes straight away and for good your name, friends, every solve and game in progress (so your times leave the leaderboards), your
-          game events, your sign-in, and
+          game events, your supporter code and tip records, your sign-in, and
           Pidoku's data in that browser. Database backups can hold a copy for a short while until they expire.
         </p>
         <p>

@@ -98,11 +98,11 @@ class LeaderboardControllerTest extends IntegrationTest {
                   "date": "%s", "difficulty": "hard", "shareCode": "%s", "friendsOnly": false, "cleanOnly": false, "total": 3,
                   "entries": [
                     {"rank": 1, "displayName": "Alice", "profileId": null, "elapsedMs": 200000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
-                     "fastestClean": false},
+                     "fastestClean": false, "supporter": false},
                     {"rank": 2, "displayName": "Bob", "profileId": null, "elapsedMs": 300000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
-                     "fastestClean": false},
+                     "fastestClean": false, "supporter": false},
                     {"rank": 3, "displayName": null, "profileId": null, "elapsedMs": 400000, "penaltyMs": 5000, "mistakes": 1, "hintsUsed": 0, "late": false, "you": false,
-                     "fastestClean": false}
+                     "fastestClean": false, "supporter": false}
                   ],
                   "you": null,
                   "fastestClean": null
@@ -568,6 +568,21 @@ class LeaderboardControllerTest extends IntegrationTest {
         assertThat(puzzleLeaderboard(pool.getShareCode(), "clean=true")).bodyJson()
                 .extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(100000, 300000));
         assertThat(puzzleLeaderboard(pool.getShareCode(), "friends=true")).hasStatus(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void marksSupportersWithoutChangingTheirRank() {
+        solve("alice", 200);
+        solve("bob", 300);
+        solve("carol", 400);
+        jdbc.update("UPDATE players SET supporter_since = now() - interval '1 day' WHERE firebase_uid = 'bob'");
+        // A badge that has run out (a membership, later) no longer shows.
+        jdbc.update("UPDATE players SET supporter_since = now() - interval '40 days', supporter_until = now() - interval '1 day' WHERE firebase_uid = 'carol'");
+
+        assertThat(leaderboard("difficulty=hard")).bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.entries[*].elapsedMs").isEqualTo(List.of(200000, 300000, 400000));
+            assertThat(json).extractingPath("$.entries[*].supporter").isEqualTo(List.of(false, true, false));
+        });
     }
 
     @Test

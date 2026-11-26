@@ -6,6 +6,8 @@ import { addFriend, ApiError, deletePlayer, fetchFriends, fetchPlayer, removeFri
 import { sendPendingCompletions } from '../api/completions';
 import { friendUrl } from '../game/daily';
 import { clearAllLocalData, clearPlayerCaches } from '../game/storage';
+import { KOFI_URL } from '../support';
+import { SupportSection } from './Support';
 import { VISIBILITY } from './visibility';
 
 type Loaded =
@@ -74,6 +76,11 @@ export function Profile() {
             <AddFriendForm onAdded={(friend) => setState({ ...state, friends: mergeFriend(state.friends, friend) })} />
             <FriendList friends={state.friends} onRemoved={(id) => setState({ ...state, friends: state.friends.filter((f) => f.id !== id) })} />
           </Card>
+          {(state.player.supporterSince !== null || KOFI_URL !== null) && (
+            <Card title="Support Pidoku">
+              <SupportSection player={state.player} account={state.account} />
+            </Card>
+          )}
           {state.account && (
             <Card title="Account">
               <AccountSection

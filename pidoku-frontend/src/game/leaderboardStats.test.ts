@@ -13,6 +13,7 @@ const entry = (rank: number, displayName: string | null, seconds: number, you = 
   late: false,
   you,
   fastestClean: false,
+  supporter: false,
 });
 
 const board = (entries: LeaderboardEntry[], overrides: Partial<Leaderboard> = {}): Leaderboard => ({

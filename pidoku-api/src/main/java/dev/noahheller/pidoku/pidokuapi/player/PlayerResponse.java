@@ -7,12 +7,15 @@ import java.time.Instant;
  *
  * @param friendCode        what friends enter to add this player
  * @param profileVisibility who can see their profile
+ * @param supporterSince    when they first supported Pidoku on Ko-fi; null if they don't have a
+ *                          supporter badge
  */
 public record PlayerResponse(long id, String displayName, String friendCode, ProfileVisibility profileVisibility,
-                             Instant createdAt) {
+                             Instant createdAt, Instant supporterSince) {
 
     public static PlayerResponse from(Player player) {
         return new PlayerResponse(player.getId(), player.getDisplayName(), player.getFriendCode(),
-                player.getProfileVisibility(), player.getCreatedAt());
+                player.getProfileVisibility(), player.getCreatedAt(),
+                player.isSupporter(Instant.now()) ? player.getSupporterSince() : null);
     }
 }
