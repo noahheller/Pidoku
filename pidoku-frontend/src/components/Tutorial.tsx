@@ -1,4 +1,4 @@
-import { ArrowRight, CircleAlert, GraduationCap, Lightbulb, Pencil, SkipForward, Trophy } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleAlert, GraduationCap, Lightbulb, Pencil, SkipForward, Trophy } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { recordEvent } from '../api/events';
 import { gameReducer, isMistake, newGame, type GameAction } from '../game/game';
@@ -14,6 +14,8 @@ interface TutorialProps {
   onDone: () => void;
   /** The button at the end, e.g. "Start the puzzle". */
   doneLabel: string;
+  /** Back to the home screen, offered once the tutorial is finished. */
+  onBack: () => void;
 }
 
 /**
@@ -22,7 +24,7 @@ interface TutorialProps {
  * by the engine (see tutorial/lessons.ts); along the way it covers notes, erase, undo and mistakes.
  * Not timed and not recorded as an attempt.
  */
-export function Tutorial({ onDone, doneLabel }: TutorialProps) {
+export function Tutorial({ onDone, doneLabel, onBack }: TutorialProps) {
   const [state, dispatch] = useReducer(gameReducer, tutorialPuzzle, (p) => newGame(p));
   const [index, setIndex] = useState(0);
   const [shown, setShown] = useState<BoardHighlight | null>(null);
@@ -31,11 +33,11 @@ export function Tutorial({ onDone, doneLabel }: TutorialProps) {
   const finished = index >= lessons.length;
 
   const finish = useCallback(
-    (outcome: 'completed' | 'skipped') => {
+    (outcome: 'completed' | 'skipped', then: () => void = onDone) => {
       markTutorialSeen();
       if (outcome === 'completed') recordEvent('tutorial_completed', { detail: { mistakes: state.mistakes } });
       else recordEvent('tutorial_skipped', { detail: { step: index } });
-      onDone();
+      then();
     },
     [index, state.mistakes, onDone],
   );
@@ -85,6 +87,11 @@ export function Tutorial({ onDone, doneLabel }: TutorialProps) {
   return (
     <main className="mx-auto grid max-w-[1040px] gap-3 px-2 pt-2 pb-6 sm:gap-4 sm:px-4 sm:pt-4 sm:pb-8">
       <header className="flex flex-wrap items-center gap-3">
+        {finished && (
+          <button type="button" className="btn btn-ghost btn-sm text-primary" onClick={() => finish('completed', onBack)} aria-label="Back to puzzles">
+            <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
+          </button>
+        )}
         <h1 className="flex flex-1 items-center gap-2 text-xl font-bold sm:text-2xl">
           <GraduationCap className="size-6 text-primary" aria-hidden="true" /> How to play
         </h1>
@@ -108,8 +115,7 @@ export function Tutorial({ onDone, doneLabel }: TutorialProps) {
                 <Trophy className="size-5 text-success" aria-hidden="true" /> That's Pidoku
               </h2>
               <p>
-                You solved it{state.mistakes > 0 ? ` with ${state.mistakes} mistake${state.mistakes === 1 ? '' : 's'}` : ' without a mistake'}. Every puzzle is the same idea, with more to work out:
-                look for a row, column or box that needs a digit, and count the copies it still needs.
+                You solved it{state.mistakes > 0 ? ` with ${state.mistakes} mistake${state.mistakes === 1 ? '' : 's'}` : ' without a mistake'}. Every puzzle follows the same rules.
               </p>
               <button type="button" className="btn btn-primary mt-1 sm:w-fit" onClick={() => finish('completed')} autoFocus>
                 {doneLabel} <ArrowRight className="size-4" aria-hidden="true" />
