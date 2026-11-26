@@ -98,7 +98,8 @@ export function LeaderboardView({ title, ...source }: LeaderboardViewProps) {
   );
 }
 
-function Switch<T extends string>({ label, options, value, onChange }: { label: string; options: [T, string][]; value: T; onChange: (value: T) => void }) {
+/** A row of tabs choosing one of a few options. */
+export function Switch<T extends string>({ label, options, value, onChange }: { label: string; options: [T, string][]; value: T; onChange: (value: T) => void }) {
   return (
     <div role="tablist" aria-label={label} className="tabs tabs-box tabs-sm">
       {options.map(([option, text]) => (

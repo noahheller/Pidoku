@@ -440,6 +440,46 @@ export async function fetchStreak(signal?: AbortSignal, now: Date = new Date()):
   return request<Streak>(`/api/players/me/streak?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
 }
 
+/** Which puzzles the stats page counts: all, dailies only, or random ones only. */
+export type StatsSource = 'all' | 'daily' | 'random';
+
+/** One difficulty on the stats page (pidoku-api's PlayerStats.DifficultyStats). Times are ranked times, penalties included. */
+export interface DifficultyStats {
+  difficulty: Difficulty;
+  /** Solves counted: each puzzle's first solve, of the chosen source, assisted ones only if asked for. */
+  solved: number;
+  /** Solves with hints or auto notes, counted or not. */
+  assisted: number;
+  /** Null when nothing is counted. */
+  averageMs: number | null;
+  medianMs: number | null;
+  bestMs: number | null;
+  /** Counted solves with no mistakes and no hints. */
+  cleanSolves: number;
+  averageMistakes: number;
+  /** Counted solves in the last 30 days, and their average (null when there are none). */
+  recentSolved: number;
+  recentAverageMs: number | null;
+}
+
+/** The signed-in player's own stats (pidoku-api's PlayerStats). */
+export interface PlayerStats {
+  source: StatsSource;
+  includeAssisted: boolean;
+  currentStreak: number;
+  bestStreak: number;
+  /** All time, whatever the filters. */
+  dailiesSolved: number;
+  /** Easiest first; only difficulties with a solve of the chosen source. */
+  difficulties: DifficultyStats[];
+}
+
+/** The signed-in player's stats: all puzzles, dailies or random ones, with or without assisted solves. */
+export async function fetchStats(source: StatsSource, includeAssisted: boolean, signal?: AbortSignal, now: Date = new Date()): Promise<PlayerStats> {
+  const url = `/api/players/me/stats?today=${localDate(now)}&source=${source}${includeAssisted ? '&assisted=true' : ''}`;
+  return request<PlayerStats>(url, { token: await requireToken(), signal }, BUSY);
+}
+
 /** The player's friends, each with their current streak as of the player's own date. */
 export async function fetchFriends(signal?: AbortSignal, now: Date = new Date()): Promise<Friend[]> {
   return request<Friend[]>(`/api/friends?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);

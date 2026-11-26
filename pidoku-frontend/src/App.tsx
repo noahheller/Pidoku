@@ -11,6 +11,7 @@ import { PlayerPage } from './components/PlayerPage';
 import { PrivacyPage } from './components/PrivacyPage';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
+import { StatsPage } from './components/StatsPage';
 import { Tutorial } from './components/Tutorial';
 import { timeToBeat, type TimeToBeat } from './game/leaderboardStats';
 import type { PuzzleDef } from './game/puzzleFile';
@@ -28,6 +29,7 @@ const firstVisit = !hasAccount();
  * - `/local/{id}`: a puzzle that only exists in this browser (bundled, or loaded from a file).
  * - `/leaderboard/{date}?difficulty=hard`: a date's daily leaderboards.
  * - `/me`: the player's name, profile visibility, friends and Google sign-in.
+ * - `/me/stats`: the player's own stats per difficulty.
  * - `/players/{playerId}`: a player's streaks, best times and recent dailies: their own, a
  *   friend's, or a public one. `/friends/{playerId}` is its older address.
  * - `/f/{friendCode}`: a friend's invite link.
@@ -84,6 +86,7 @@ function App() {
       <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...recent]} />} />
       <Route path="/leaderboard/:date" element={<LeaderboardPage />} />
       <Route path="/me" element={<Profile />} />
+      <Route path="/me/stats" element={<StatsPage />} />
       <Route path="/players/:id" element={<PlayerPage />} />
       <Route path="/friends/:id" element={<PlayerPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
