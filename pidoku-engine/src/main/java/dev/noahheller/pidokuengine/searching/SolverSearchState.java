@@ -14,7 +14,6 @@ public class SolverSearchState {
     private final int[] colFilled;
     private final int[] boxFilled;
     private final PidokuRules rules;
-    private final int boxSize;
     private boolean valid = true;
 
     /* -----------------------------------------------------------------------
@@ -40,6 +39,20 @@ public class SolverSearchState {
     /** The rules' digits in their order (3, 1, 4, 5, 9, 2, 6 for 9x9), copied once. */
     private final int[] uniqueDigits;
 
+    /* -----------------------------------------------------------------------
+     What canPlace allows, per unit, kept up to date by place and remove: bit
+     (1 << value) is set when the unit can still take `value`. That is, the
+     unit has fewer copies of it than the rules allow, and, if the unit has
+     one empty cell left, `value` is the digit that would complete it. A cell
+     can take a value when its row, column and box all allow it.
+     -----------------------------------------------------------------------
+     */
+    private final int[] rowAllowed;
+    private final int[] colAllowed;
+    private final int[] boxAllowed;
+    /** Copies of each digit (0-9) a unit must hold; 0 for digits this Pidoku doesn't use. */
+    private final int[] frequency;
+
     public static SolverSearchState from(PidokuRules rules, int[][] puzzle) {
         SolverSearchState state = new SolverSearchState(rules, puzzle);
         state.loadInitialValues();
@@ -52,7 +65,6 @@ public class SolverSearchState {
         this.size = grid.length;
         this.rules = rules;
         this.uniqueDigits = rules.getUniqueDigits();
-        this.boxSize = rules.boxDim(size);
 
         int totalBoxes = rules.totalBoxes(size);
         this.rowDigitCounts = new int[size][rules.MAX_VALUE + 1];
@@ -63,6 +75,17 @@ public class SolverSearchState {
         this.boxFilled = new int[totalBoxes];
         this.eliminatedCandidates = new int[size][size];
         this.candidateMasks = new int[size * size];
+
+        this.frequency = new int[rules.MAX_VALUE + 1];
+        for (int digit = 0; digit <= rules.MAX_VALUE; digit++) frequency[digit] = rules.getDigitFrequency(digit);
+        this.rowAllowed = new int[size];
+        this.colAllowed = new int[size];
+        this.boxAllowed = new int[totalBoxes];
+        for (int i = 0; i < size; i++) {
+            updateRowAllowed(i);
+            updateColAllowed(i);
+        }
+        for (int box = 0; box < totalBoxes; box++) updateBoxAllowed(box);
     }
 
     /**
@@ -130,6 +153,9 @@ public class SolverSearchState {
         boxFilled[boxIndex]++;
         eliminatedCandidates[row][col] = 0;
         candidatesStale = true;
+        updateRowAllowed(row);
+        updateColAllowed(col);
+        updateBoxAllowed(boxIndex);
     }
 
     public boolean isValid() {
@@ -151,6 +177,9 @@ public class SolverSearchState {
         boxFilled[boxIndex]--;
         eliminatedCandidates[row][col] = 0;
         candidatesStale = true;
+        updateRowAllowed(row);
+        updateColAllowed(col);
+        updateBoxAllowed(boxIndex);
     }
 
 
@@ -171,28 +200,13 @@ public class SolverSearchState {
 
     /** {@link #canPlace(BoardPosition, int)} without the position object. */
     public boolean canPlace(int row, int col, int value) {
-        int boxIndex = rules.boxIndex(row, col);
-        int freq = rules.getDigitFrequency(value);
-        if (freq == -1) {
-            return false;
-        }
-        if (rowDigitCounts[row][value] + 1 > freq) {
-            return false;
-        }
-        if (colDigitCounts[col][value] + 1 > freq) {
-            return false;
-        }
-        if (boxDigitCounts[boxIndex][value] + 1 > freq) {
-            return false;
-        }
-        if (rowFilled[row] + 1 == size && !wouldCompleteDigitCounts(rowDigitCounts[row], value)) {
-            return false;
-        }
-        if (colFilled[col] + 1 == size && !wouldCompleteDigitCounts(colDigitCounts[col], value)) {
-            return false;
-        }
-        return boxFilled[boxIndex] + 1 != boxSize * boxSize
-                || wouldCompleteDigitCounts(boxDigitCounts[boxIndex], value);
+        if (value < 0 || value >= Integer.SIZE) return false;
+        return (allowedAt(row, col) & (1 << value)) != 0;
+    }
+
+    /** The digits the cell's row, column and box all still allow (ignores soft-eliminations and whether the cell is empty). */
+    private int allowedAt(int row, int col) {
+        return rowAllowed[row] & colAllowed[col] & boxAllowed[rules.boxIndex(row, col)];
     }
 
     /**
@@ -212,13 +226,7 @@ public class SolverSearchState {
      */
     int computeCandidateMask(int row, int col) {
         if (grid[row][col] != PidokuRules.EMPTY) return 0;
-        int eliminated = eliminatedCandidates[row][col];
-        int mask = 0;
-        for (int value : uniqueDigits) {
-            int bit = 1 << value;
-            if ((eliminated & bit) == 0 && canPlace(row, col, value)) mask |= bit;
-        }
-        return mask;
+        return allowedAt(row, col) & ~eliminatedCandidates[row][col];
     }
 
     private void rebuildCandidates() {
@@ -235,16 +243,39 @@ public class SolverSearchState {
         return uniqueDigits;
     }
 
-    private boolean wouldCompleteDigitCounts(int[] counts, int value) {
-        for (int digit = rules.MIN_VALUE; digit <= rules.MAX_VALUE; digit++) {
-            int next = counts[digit] + (digit == value ? 1 : 0);
-            if (next != rules.getDigitFrequency(digit)) {
-                return false;
-            }
-        }
-        return true;
+    private void updateRowAllowed(int row) {
+        rowAllowed[row] = allowedIn(rowDigitCounts[row], rowFilled[row]);
     }
 
+    private void updateColAllowed(int col) {
+        colAllowed[col] = allowedIn(colDigitCounts[col], colFilled[col]);
+    }
+
+    private void updateBoxAllowed(int box) {
+        boxAllowed[box] = allowedIn(boxDigitCounts[box], boxFilled[box]);
+    }
+
+    /**
+     * The digits a unit with these counts can still take: fewer copies placed than the rules allow,
+     * and, when only one cell is left, the one digit that would leave every count exactly at its
+     * frequency (none, if no single digit would).
+     */
+    private int allowedIn(int[] counts, int filled) {
+        int allowed = 0;
+        for (int digit : uniqueDigits) {
+            if (counts[digit] < frequency[digit]) allowed |= 1 << digit;
+        }
+        if (filled + 1 != size) return allowed;
+
+        int completing = -1;
+        for (int digit = rules.MIN_VALUE; digit <= rules.MAX_VALUE; digit++) {
+            if (counts[digit] == frequency[digit]) continue;
+            // A second digit off its frequency, or one more than a copy short: no digit completes it.
+            if (completing != -1 || counts[digit] != frequency[digit] - 1) return 0;
+            completing = digit;
+        }
+        return completing == -1 ? 0 : allowed & (1 << completing);
+    }
 
     public int getSize() {
         return size;
