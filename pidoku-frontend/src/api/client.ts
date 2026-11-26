@@ -454,6 +454,15 @@ export async function deletePlayer(): Promise<void> {
   await request<void>('/api/players/me', { method: 'DELETE', token: await requireToken() }, BUSY);
 }
 
+/**
+ * Moves the anonymous player whose ID token this is into the signed-in Google player, after this
+ * browser switched to a Google account that already had a player: its solves, streak and friends
+ * come along, and it leaves the leaderboards.
+ */
+export async function mergeAnonymousPlayer(anonymousToken: string): Promise<void> {
+  await request<void>('/api/players/me/merge', { method: 'POST', body: { anonymousToken }, token: await requireToken() }, BUSY);
+}
+
 /** The player's current and best streak, as of their own local date. */
 export async function fetchStreak(signal?: AbortSignal, now: Date = new Date()): Promise<Streak> {
   return request<Streak>(`/api/players/me/streak?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);

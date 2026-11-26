@@ -121,6 +121,104 @@ public class PlayerService {
     }
 
     /**
+     * Moves an anonymous player into the Google player a token belongs to, then deletes the
+     * anonymous one. This is for signing in with Google in a browser that was already playing
+     * anonymously, when that Google account already has a player from another device: the browser
+     * switches to it, and what it played anonymously comes along.
+     *
+     * <ul>
+     *     <li>Attempts and analytics events move. Leaderboards and streaks are computed from attempts,
+     *     so the anonymous solves rank under the Google player from then on. Where both have an
+     *     unfinished attempt at the same puzzle, the Google player's is kept.</li>
+     *     <li>Friendships move, except one between the two players and ones the Google player
+     *     already has.</li>
+     *     <li>A supporter badge carries over (the longer of the two), as do Ko-fi payments and
+     *     an unused supporter code if the Google player has none.</li>
+     *     <li>The anonymous player's display name is taken only if the Google player has none.</li>
+     * </ul>
+     *
+     * Does nothing if the anonymous player doesn't exist (never played, or already merged), so a
+     * retried merge is harmless.
+     *
+     * @param token     the signed-in player's token, which must be a Google sign-in
+     * @param anonymous the anonymous account's verified token
+     * @throws InvalidMergeException if {@code token} isn't a Google sign-in or {@code anonymous}
+     *                               isn't an anonymous one
+     */
+    @Transactional
+    public void mergeAnonymous(Jwt token, Jwt anonymous) {
+        if (!FirebaseTokens.isGoogle(token)) {
+            throw new InvalidMergeException("Sign in with Google to take over another player's games.");
+        }
+        if (!FirebaseTokens.isAnonymous(anonymous)) {
+            throw new InvalidMergeException("Only an anonymous player can be moved into your account.");
+        }
+        if (anonymous.getSubject().equals(token.getSubject())) {
+            return;
+        }
+        Optional<Player> source = players.findByFirebaseUid(anonymous.getSubject());
+        if (source.isEmpty()) {
+            return;
+        }
+        Player into = forToken(token);
+        long from = source.get().getId();
+        long to = into.getId();
+        // Lock both, in id order, so two merges (or a merge and a delete) can't interleave.
+        jdbc.sql("SELECT id FROM players WHERE id IN (:from, :to) ORDER BY id FOR UPDATE")
+                .param("from", from).param("to", to).query(Long.class).list();
+
+        if (into.getDisplayName() == null && source.get().getDisplayName() != null) {
+            try {
+                into.rename(DisplayName.of(source.get().getDisplayName()));
+            } catch (InvalidDisplayNameException e) {
+                // Allowed when it was picked but not under today's rules: the Google player stays unnamed.
+            }
+        }
+        jdbc.sql("""
+                        UPDATE players t SET
+                            supporter_since = LEAST(t.supporter_since, f.supporter_since),
+                            supporter_until = CASE
+                                WHEN t.supporter_since IS NULL THEN f.supporter_until
+                                WHEN t.supporter_until IS NULL OR f.supporter_until IS NULL THEN NULL
+                                ELSE GREATEST(t.supporter_until, f.supporter_until) END
+                        FROM players f
+                        WHERE t.id = :to AND f.id = :from AND f.supporter_since IS NOT NULL
+                        """)
+                .param("from", from).param("to", to).update();
+
+        // At most one unfinished attempt per puzzle (attempts_open_key): keep the Google player's.
+        jdbc.sql("""
+                        DELETE FROM attempts a
+                        WHERE a.player_id = :from AND a.completed_at IS NULL
+                          AND EXISTS (SELECT 1 FROM attempts b
+                                      WHERE b.player_id = :to AND b.puzzle_id = a.puzzle_id AND b.completed_at IS NULL)
+                        """)
+                .param("from", from).param("to", to).update();
+        jdbc.sql("UPDATE attempts SET player_id = :to WHERE player_id = :from").param("from", from).param("to", to).update();
+        jdbc.sql("UPDATE events SET player_id = :to WHERE player_id = :from").param("from", from).param("to", to).update();
+        jdbc.sql("UPDATE kofi_payments SET player_id = :to WHERE player_id = :from").param("from", from).param("to", to).update();
+        jdbc.sql("""
+                        UPDATE supporter_codes SET player_id = :to
+                        WHERE player_id = :from AND NOT EXISTS (SELECT 1 FROM supporter_codes WHERE player_id = :to)
+                        """)
+                .param("from", from).param("to", to).update();
+        jdbc.sql("DELETE FROM supporter_codes WHERE player_id = :from").param("from", from).update();
+
+        // Both directions of each of the anonymous player's friendships, as FriendService keeps them.
+        jdbc.sql("""
+                        INSERT INTO friendships (player_id, friend_id, created_at)
+                        SELECT :to, friend_id, created_at FROM friendships WHERE player_id = :from AND friend_id <> :to
+                        UNION ALL
+                        SELECT player_id, :to, created_at FROM friendships WHERE friend_id = :from AND player_id <> :to
+                        ON CONFLICT (player_id, friend_id) DO NOTHING
+                        """)
+                .param("from", from).param("to", to).update();
+        jdbc.sql("DELETE FROM friendships WHERE player_id = :from OR friend_id = :from").param("from", from).update();
+
+        jdbc.sql("DELETE FROM players WHERE id = :from").param("from", from).update();
+    }
+
+    /**
      * Deletes the player a token belongs to and everything kept about them: their attempts (so
      * their times leave every leaderboard), their analytics events, their friendships in both directions, their
      * supporter code and Ko-fi payment records, and the player itself. Does nothing if the player doesn't exist, so deleting twice is harmless. The Firebase

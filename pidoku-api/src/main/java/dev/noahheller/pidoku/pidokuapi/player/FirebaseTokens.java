@@ -16,6 +16,11 @@ public final class FirebaseTokens {
         return token != null && "google.com".equals(signInProvider(token));
     }
 
+    /** Whether the token is from an anonymous account, one not linked to Google. */
+    public static boolean isAnonymous(Jwt token) {
+        return token != null && "anonymous".equals(signInProvider(token));
+    }
+
     /** The Google account's name ({@code name} claim), for a Google sign-in that has one. */
     public static Optional<String> googleName(Jwt token) {
         return isGoogle(token) ? Optional.ofNullable(token.getClaimAsString("name")).filter(n -> !n.isBlank()) : Optional.empty();
