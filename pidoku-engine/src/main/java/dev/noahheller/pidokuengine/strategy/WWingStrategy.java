@@ -104,16 +104,11 @@ public class WWingStrategy implements Strategy {
         List<BivalueCell> bivalueCells = new ArrayList<>();
         for (int row = 0; row < size; row++) {
             for (int col = 0; col < size; col++) {
-                if (!state.isEmpty(row, col)) continue;
-                List<Integer> candidates = SearchUtils.getCandidates(state, row, col);
-                if (candidates.size() == 2) {
-                    int a = candidates.get(0);
-                    int b = candidates.get(1);
-                    if (a > b) {
-                        int tmp = a;
-                        a = b;
-                        b = tmp;
-                    }
+                int mask = state.candidateMask(row, col);
+                if (Integer.bitCount(mask) == 2) {
+                    // Lowest bit first, so the pair's digits are in ascending order.
+                    int a = Integer.numberOfTrailingZeros(mask);
+                    int b = Integer.numberOfTrailingZeros(mask & ~(1 << a));
                     bivalueCells.add(new BivalueCell(new BoardPosition(row, col), a, b));
                 }
             }
