@@ -26,6 +26,20 @@ public class SolverSearchState {
      */
     private final int[][] eliminatedCandidates;
 
+    /* -----------------------------------------------------------------------
+     The candidates of every cell, shared by every strategy that looks at this
+     board. candidateMasks[row * size + col] has bit (1 << value) set when
+     `value` is a candidate there: the cell is empty, the digit isn't
+     soft-eliminated, and canPlace allows it. Rebuilt lazily on the first read
+     after a place or remove; an eliminate only clears its own bit.
+     -----------------------------------------------------------------------
+     */
+    private final int[] candidateMasks;
+    private boolean candidatesStale = true;
+
+    /** The rules' digits in their order (3, 1, 4, 5, 9, 2, 6 for 9x9), copied once. */
+    private final int[] uniqueDigits;
+
     public static SolverSearchState from(PidokuRules rules, int[][] puzzle) {
         SolverSearchState state = new SolverSearchState(rules, puzzle);
         state.loadInitialValues();
@@ -37,7 +51,7 @@ public class SolverSearchState {
         this.grid = ArrayUtils.copy(grid);
         this.size = grid.length;
         this.rules = rules;
-        rules.getUniqueDigits();
+        this.uniqueDigits = rules.getUniqueDigits();
         this.boxSize = rules.boxDim(size);
 
         int totalBoxes = rules.totalBoxes(size);
@@ -48,6 +62,7 @@ public class SolverSearchState {
         this.colFilled = new int[size];
         this.boxFilled = new int[totalBoxes];
         this.eliminatedCandidates = new int[size][size];
+        this.candidateMasks = new int[size * size];
     }
 
     /**
@@ -68,6 +83,8 @@ public class SolverSearchState {
     public void eliminate(int row, int col, int value) {
         if (grid[row][col] != PidokuRules.EMPTY) return;
         eliminatedCandidates[row][col] |= (1 << value);
+        // Only this cell's candidates change, so a fresh cache stays fresh.
+        if (!candidatesStale) candidateMasks[row * size + col] &= ~(1 << value);
     }
 
     /**
@@ -89,22 +106,20 @@ public class SolverSearchState {
                     valid = false;
                     return;
                 }
-                if (!canPlace(new BoardPosition(row, col), value)) {
+                if (!canPlace(row, col, value)) {
                     valid = false;
                     return;
                 }
-                place(new BoardPosition(row, col), value);
+                place(row, col, value);
             }
         }
     }
 
-    public void place(int row, int col, int value) {
-        place(new BoardPosition(row, col), value);
+    public void place(BoardPosition position, int value) {
+        place(position.getRow(), position.getCol(), value);
     }
 
-    public void place(BoardPosition position, int value) {
-        int row = position.getRow();
-        int col = position.getCol();
+    public void place(int row, int col, int value) {
         int boxIndex = rules.boxIndex(row, col);
         grid[row][col] = value;
         rowDigitCounts[row][value]++;
@@ -114,6 +129,7 @@ public class SolverSearchState {
         colFilled[col]++;
         boxFilled[boxIndex]++;
         eliminatedCandidates[row][col] = 0;
+        candidatesStale = true;
     }
 
     public boolean isValid() {
@@ -134,6 +150,7 @@ public class SolverSearchState {
         colFilled[col]--;
         boxFilled[boxIndex]--;
         eliminatedCandidates[row][col] = 0;
+        candidatesStale = true;
     }
 
 
@@ -149,8 +166,11 @@ public class SolverSearchState {
      * @return true if the value can be placed in the position.
      */
     public boolean canPlace(BoardPosition position, int value) {
-        int row = position.getRow();
-        int col = position.getCol();
+        return canPlace(position.getRow(), position.getCol(), value);
+    }
+
+    /** {@link #canPlace(BoardPosition, int)} without the position object. */
+    public boolean canPlace(int row, int col, int value) {
         int boxIndex = rules.boxIndex(row, col);
         int freq = rules.getDigitFrequency(value);
         if (freq == -1) {
@@ -173,6 +193,46 @@ public class SolverSearchState {
         }
         return boxFilled[boxIndex] + 1 != boxSize * boxSize
                 || wouldCompleteDigitCounts(boxDigitCounts[boxIndex], value);
+    }
+
+    /**
+     * The cell's candidates as a bitmask, bit {@code 1 << value} per candidate digit; 0 for a filled
+     * cell. Takes soft-eliminations into account. Computed once per board change and shared by
+     * every caller until the next {@code place} or {@code remove}.
+     */
+    public int candidateMask(int row, int col) {
+        if (candidatesStale) rebuildCandidates();
+        return candidateMasks[row * size + col];
+    }
+
+    /**
+     * {@link #candidateMask} worked out from scratch, without reading or filling the cache. For
+     * callers that change the board between every read (the backtracker), where the cache would
+     * only be rebuilt and thrown away.
+     */
+    int computeCandidateMask(int row, int col) {
+        if (grid[row][col] != PidokuRules.EMPTY) return 0;
+        int eliminated = eliminatedCandidates[row][col];
+        int mask = 0;
+        for (int value : uniqueDigits) {
+            int bit = 1 << value;
+            if ((eliminated & bit) == 0 && canPlace(row, col, value)) mask |= bit;
+        }
+        return mask;
+    }
+
+    private void rebuildCandidates() {
+        for (int row = 0; row < size; row++) {
+            for (int col = 0; col < size; col++) {
+                candidateMasks[row * size + col] = computeCandidateMask(row, col);
+            }
+        }
+        candidatesStale = false;
+    }
+
+    /** The rules' digits in their order. Shared, not copied: callers must not modify it. */
+    int[] uniqueDigits() {
+        return uniqueDigits;
     }
 
     private boolean wouldCompleteDigitCounts(int[] counts, int value) {

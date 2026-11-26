@@ -80,8 +80,8 @@ own difficulty and the puzzle has to be generated on demand.
    start. Streak reminders are postponed until analytics show streaks breaking because people
    forget.
 
-   Before milestone 7, engine work: Pidoku-only techniques (the twin X-Wing; see "Engine
-   follow-ups"), the shared-candidate speedup and the Trivial tune.
+   Before milestone 7, engine work: the shared-candidate speedup (done 2026-11-26), then
+   Pidoku-only techniques (the twin X-Wing), both in "Engine follow-ups", and the Trivial tune.
 
 7. Custom generation: players build their own difficulty.
 8. Campaign mode, end to end.
@@ -736,7 +736,8 @@ and so on, then get a puzzle generated for it.
 - Not built unless the above proves too little: a per-player rate limit, and running
   generation as a separate Cloud Run service with low concurrency. For a game among friends
   the semaphore is expected to be enough.
-- The shared-candidate solver speedup becomes worth doing here, since players wait on it.
+- The shared-candidate speedup is done (about 24% faster). If players still wait too long, the
+  next steps are listed under it in "Engine follow-ups".
 - Generated puzzles are stored with `source = custom`, so they get share codes like any
   other puzzle but never enter the random pool.
 
@@ -887,7 +888,48 @@ are done before v1 is called done.
   better than dependency within Easy and Medium, but under leave-one-puzzle-out no rewrite of the
   score beat the current one, so the weights are unchanged until milestone 9 has more data.
 - Tune the Trivial target, which is too easy at 65 clues.
-- Shared-candidate speedup (needed for custom generation).
+- **Shared-candidate speedup** (done 2026-11-26, branch `engine-speedup`; no output change, so no
+  engine version bump).
+  - *The problem:* to find the next move, `HumanPidokuSolver.nextMove` runs every strategy over the
+    board, and each one kept asking `SearchUtils.isCandidate` whether a digit can go in a cell, which
+    allocated a `BoardPosition` and re-ran `SolverSearchState.canPlace` every time.
+  - *The fix:* `SolverSearchState` keeps a candidate bitmask per cell (`candidateMask(row, col)`),
+    rebuilt lazily on the first read after a `place` or `remove`; an `eliminate` clears its own bit.
+    `isCandidate`/`getCandidates` read it, so every strategy in a step shares one computation.
+    `getCandidates` keeps the rules' digit order (3, 1, 4, 5, 9, 2, 6), which hidden subsets'
+    elimination order depends on. The backtracker's `findNextCell` deliberately doesn't use the
+    cache (the board changes at every node, and a full rebuild would lose its early exit); it
+    computes each cell's mask directly, without allocating.
+  - *Proof of no behaviour change:* `GoldenTest` compares against `src/test/resources/golden/`:
+    generated puzzles, scores and solve steps for every premade profile (seeds 1 and 2), and a hash per
+    strategy of everything `findAll` returns (moves, elimination order, reasons) along the solves of
+    200 seeded boards, plus the chosen moves and their explanations. The strategy hashes matter:
+    sorting `getCandidates` changed no generated puzzle but failed five of them. Regenerate with
+    `./gradlew :pidoku-engine:updateGolden` only when a change is meant to alter outputs (the twin
+    X-Wing will). `SolverSearchStateTest` checks the cache against a fresh computation after random
+    place/remove/eliminate sequences.
+  - *Measured* with `./gradlew :pidoku-engine:benchmark` (not in CI), on one 16-thread Linux machine,
+    seeds 1..5, mean ms per puzzle, two runs each:
+
+    | | Trivial | Easy | Medium | Hard | Expert | Fiendish | all six |
+    |---|---|---|---|---|---|---|---|
+    | before | 27–31 | 31–32 | 62–66 | 157–161 | 3,680–3,860 | 4,940–5,200 | 8,900–9,300 |
+    | after | 24–27 | 25–29 | 51–61 | 118–130 | 2,780–2,980 | 3,710–3,910 | 6,700–7,100 |
+
+    About 24% faster overall. Per call: the human solver 690–730 → 450–490 µs, and the uniqueness
+    check 150–160 → 110 µs, because `findNextCell` no longer allocates.
+  - *Where the time goes now:* the uniqueness check is 41% of generation for Hard and up (before and
+    after), since generation runs it on every removal and swap it tries but runs the human solver only
+    on those that pass. JFR shows `canPlace` as the top frame, mostly under the backtracker's
+    `findNextCell`, then list allocation in the strategies (`emptyCellsIn*`, `getCandidates`).
+    Next steps if custom generation needs more:
+    1. Make the candidate computation itself cheap, for both solvers: keep a per-unit mask of digits
+       still allowed (count below frequency) and of the one digit that would complete a unit, so a
+       cell's mask is a few ANDs instead of seven `canPlace` calls.
+    2. Then, for the backtracker, update the 20 peers' masks on `place`/`remove` instead of
+       recomputing in `findNextCell`.
+    3. Fewer allocations in the strategies (reuse the empty-cell lists per step; masks instead of
+       `List<Integer>` in the subset strategies, with the golden test guarding ordering).
 - **Techniques only Pidoku has.** The doubled digits allow deductions classic Sudoku doesn't.
   The engine already has one: a unit with exactly two places left for its two 5s (the doubled
   hidden single, costed ×1.5). X-Wing and W-Wing only handle digits that appear once. A counting
