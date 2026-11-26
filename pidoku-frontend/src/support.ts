@@ -3,4 +3,4 @@
  * card on /me until it's set; a supporter still sees their badge. Ko-fi's webhook for this page
  * must point at /api/kofi/webhook (see docs/DEVELOPMENT.md, "Ko-fi supporters").
  */
-export const KOFI_URL: string | null = " Ko-fi.com/noahheller";
+export const KOFI_URL: string | null = 'https://ko-fi.com/noahheller';
