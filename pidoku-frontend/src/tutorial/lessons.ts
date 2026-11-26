@@ -90,7 +90,7 @@ export const lessons: Lesson[] = [
   {
     kind: 'info',
     title: 'Sudoku with the digits of π',
-    body: `Every row, column and box holds the first nine digits of π: ${PI_DIGITS.slice(0, 9).join(' ')}. So each has two 1s and two 5s, and never a 7 or an 8. Row 1 has its 1s and 5s marked.`,
+    body: `Every row, column and box contains the first nine digits of π: ${PI_DIGITS.slice(0, 9).join(' ')}. \n That means, in each section there are two 1s and two 5s, but no 7s or 8s.\n Row 1 has its 1s and 5s marked.`,
     highlight: { area: firstRow, pattern: firstRow.filter((i) => repeated.includes(tutorialPuzzle.givens[i])), blockers: [], target: null },
   },
   {
