@@ -155,7 +155,7 @@ export async function currentAccount(): Promise<Account | null> {
  * What signing in with Google did:
  * - `linked`: the anonymous account is now a Google account, with the same player.
  * - `switched`: that Google account was already a player (signed in on another device), so this
- *   browser now uses it. The anonymous account's games stay with the anonymous account.
+ *   browser now uses it. The anonymous account's games are moved into it (see `afterSwitch`).
  * - `cancelled`: the player closed the Google window.
  */
 export type GoogleSignIn = 'linked' | 'switched' | 'cancelled';
@@ -174,9 +174,15 @@ export class SignInError extends Error {
  *
  * @param beforeSwitch runs before switching to a Google account that's already a player, while
  *        the anonymous account is still signed in (e.g. to send its unsent solves)
+ * @param afterSwitch runs once signed in to that Google account, with an ID token of the anonymous
+ *        account it switched from (e.g. to move the anonymous player's games into it). If it
+ *        fails, the sign-in still stands: the games just stay with the anonymous player.
  * @throws SignInError if it didn't work
  */
-export async function signInWithGoogle(beforeSwitch: () => Promise<void> = async () => {}): Promise<GoogleSignIn> {
+export async function signInWithGoogle(
+  beforeSwitch: () => Promise<void> = async () => {},
+  afterSwitch: (anonymousToken: string) => Promise<void> = async () => {},
+): Promise<GoogleSignIn> {
   if (E2E_AUTH || !firebaseConfig) throw new SignInError('Sign-in is turned off on this site.');
   const [auth, { GoogleAuthProvider, linkWithPopup, signInWithCredential, signInWithPopup }] = await Promise.all([
     getAuthInstance(firebaseConfig),
@@ -200,7 +206,11 @@ export async function signInWithGoogle(beforeSwitch: () => Promise<void> = async
       const credential = GoogleAuthProvider.credentialFromError(e as AuthError);
       if (!credential) throw e;
       await beforeSwitch();
+      // Taken before switching: once signed out of the anonymous account, nothing can get one.
+      const anonymousToken = await user.getIdToken();
       await signInWithCredential(auth, credential);
+      lastToken = null;
+      await afterSwitch(anonymousToken).catch(() => {});
       return 'switched';
     }
   } catch (e) {

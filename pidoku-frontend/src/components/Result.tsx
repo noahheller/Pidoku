@@ -280,7 +280,7 @@ function GooglePrompt({ streak }: { streak: number }) {
       <p className="flex items-center gap-1.5 text-sm text-success" role="status">
         <ShieldCheck className="size-4 shrink-0" aria-hidden="true" />
         {state.switched
-          ? 'Signed in. That Google account already had a player, so this browser uses it now.'
+          ? 'Signed in. That Google account already had a player, so this browser uses it now, with your games from here added to it.'
           : 'Signed in. Your streak is saved to your Google account.'}
       </p>
     );

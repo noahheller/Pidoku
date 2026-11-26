@@ -2,7 +2,7 @@ import { ArrowLeft, BarChart3, Check, ChevronRight, CircleAlert, Copy, Flame, Lo
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { currentAccount, deleteAccount, signInWithGoogle, signOut, SignInError, type Account } from '../api/auth';
-import { addFriend, ApiError, deletePlayer, fetchFriends, fetchPlayer, removeFriend, updateDisplayName, updateProfileVisibility, type Friend, type Player, type ProfileVisibility } from '../api/client';
+import { addFriend, ApiError, deletePlayer, fetchFriends, fetchPlayer, mergeAnonymousPlayer, removeFriend, updateDisplayName, updateProfileVisibility, type Friend, type Player, type ProfileVisibility } from '../api/client';
 import { sendPendingCompletions } from '../api/completions';
 import { friendUrl } from '../game/daily';
 import { clearAllLocalData, clearPlayerCaches } from '../game/storage';
@@ -396,8 +396,9 @@ export function GoogleButton({ onDone, className = 'btn' }: { onDone: (result: '
   const signIn = () => {
     setBusy(true);
     setError(null);
-    // Unsent solves belong to this browser's account, so send them before switching away from it.
-    signInWithGoogle(() => sendPendingCompletions())
+    // Unsent solves belong to this browser's account, so send them before switching away from it,
+    // then move that account's games into the Google one.
+    signInWithGoogle(() => sendPendingCompletions(), mergeAnonymousPlayer)
       .then((result) => {
         if (result !== 'cancelled') onDone(result);
       })
@@ -459,7 +460,8 @@ function AccountSection({ account, onLinked, onPlayerChanged }: { account: Accou
             setNotice('Done: this player is now your Google account.');
             onLinked();
           } else {
-            // The Google account was already a player elsewhere: this browser uses that one now.
+            // The Google account was already a player elsewhere: this browser uses that one now,
+            // with this browser's anonymous games moved into it.
             onPlayerChanged();
           }
         }}

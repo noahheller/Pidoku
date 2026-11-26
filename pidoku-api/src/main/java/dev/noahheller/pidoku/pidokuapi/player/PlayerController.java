@@ -3,9 +3,12 @@ package dev.noahheller.pidoku.pidokuapi.player;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,9 +17,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlayerController {
 
     private final PlayerService playerService;
+    private final JwtDecoder jwtDecoder;
 
-    public PlayerController(PlayerService playerService) {
+    public PlayerController(PlayerService playerService, JwtDecoder jwtDecoder) {
         this.playerService = playerService;
+        this.jwtDecoder = jwtDecoder;
     }
 
     /**
@@ -46,6 +51,32 @@ public class PlayerController {
     @PatchMapping("/api/players/me")
     public PlayerResponse update(@AuthenticationPrincipal Jwt token, @RequestBody UpdateRequest request) {
         return PlayerResponse.from(playerService.update(token, request.displayName(), request.profileVisibility()));
+    }
+
+    /** @param anonymousToken the Firebase ID token of the anonymous account to move in */
+    public record MergeRequest(String anonymousToken) {
+    }
+
+    /**
+     * Moves an anonymous player into the signed-in Google player (see
+     * {@link PlayerService#mergeAnonymous}): for a browser that played anonymously and then signed
+     * in with a Google account that already had a player. The anonymous token is verified like the
+     * request's own. 204, also when there was no anonymous player; 400 if the token doesn't verify
+     * or isn't anonymous, or the request isn't signed in with Google.
+     */
+    @PostMapping("/api/players/me/merge")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void merge(@AuthenticationPrincipal Jwt token, @RequestBody MergeRequest request) {
+        if (request.anonymousToken() == null || request.anonymousToken().isBlank()) {
+            throw new InvalidMergeException("anonymousToken is required.");
+        }
+        Jwt anonymous;
+        try {
+            anonymous = jwtDecoder.decode(request.anonymousToken());
+        } catch (JwtException e) {
+            throw new InvalidMergeException("The anonymous sign-in couldn't be verified.");
+        }
+        playerService.mergeAnonymous(token, anonymous);
     }
 
     /**

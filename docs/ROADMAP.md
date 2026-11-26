@@ -452,7 +452,10 @@ Decisions made while building it:
   friend code with Copy link / Share, adding by code, the friend list, and the account.
 - **Google sign-in** is a popup (`linkWithPopup`), which keeps the uid. If that Google account is
   already a player, this browser switches to it (`signInWithCredential`): unsent solves are sent
-  first, and the cached streak and dismissed prompts are cleared. Signing out gives the browser a
+  first, then the anonymous player is merged into the Google one (`POST /api/players/me/merge`
+  with the anonymous ID token: attempts, events, friends and supporter badge move over, and the
+  anonymous player is deleted, so it leaves the leaderboards), and the cached streak and
+  dismissed prompts are cleared. Signing out gives the browser a
   fresh anonymous player. Asked for under a daily's result once the streak is 3 days ("Not now"
   is remembered), and always available on `/me`.
 
