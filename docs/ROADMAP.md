@@ -736,7 +736,7 @@ and so on, then get a puzzle generated for it.
 - Not built unless the above proves too little: a per-player rate limit, and running
   generation as a separate Cloud Run service with low concurrency. For a game among friends
   the semaphore is expected to be enough.
-- The shared-candidate speedup is done (about 24% faster). If players still wait too long, the
+- The shared-candidate speedup and unit masks are done (about 44% faster). If players still wait too long, the
   next steps are listed under it in "Engine follow-ups".
 - Generated puzzles are stored with `source = custom`, so they get share codes like any
   other puzzle but never enter the random pool.
@@ -918,18 +918,33 @@ are done before v1 is called done.
 
     About 24% faster overall. Per call: the human solver 690–730 → 450–490 µs, and the uniqueness
     check 150–160 → 110 µs, because `findNextCell` no longer allocates.
-  - *Where the time goes now:* the uniqueness check is 41% of generation for Hard and up (before and
-    after), since generation runs it on every removal and swap it tries but runs the human solver only
-    on those that pass. JFR shows `canPlace` as the top frame, mostly under the backtracker's
-    `findNextCell`, then list allocation in the strategies (`emptyCellsIn*`, `getCandidates`).
-    Next steps if custom generation needs more:
-    1. Make the candidate computation itself cheap, for both solvers: keep a per-unit mask of digits
-       still allowed (count below frequency) and of the one digit that would complete a unit, so a
-       cell's mask is a few ANDs instead of seven `canPlace` calls.
-    2. Then, for the backtracker, update the 20 peers' masks on `place`/`remove` instead of
-       recomputing in `findNextCell`.
-    3. Fewer allocations in the strategies (reuse the empty-cell lists per step; masks instead of
+  - *Unit masks* (2026-11-26, after the above): each row, column and box keeps a mask of the digits
+    it can still take (count below frequency, and only the completing digit when one cell is left),
+    updated on `place`/`remove`. `canPlace` and a cell's candidates are now three ANDs, for both
+    solvers. Outputs unchanged (`GoldenTest`); `SolverSearchStateTest` checks `canPlace` against the
+    old count-based rule. The last-cell rule turns out to be implied by the counts, since no count
+    can exceed its frequency, but it's kept so the behaviour is exactly the old one.
+
+    | | Trivial | Easy | Medium | Hard | Expert | Fiendish | all six |
+    |---|---|---|---|---|---|---|---|
+    | unit masks | 24–28 | 23 | 40–41 | 89 | 2,100–2,170 | 2,800–2,840 | 5,100–5,200 |
+
+    That's about 25% faster than the cache alone and about 44% faster than the original engine. The
+    uniqueness check went from 110 to 55 µs per call, and the human solver from 450–490 to 430 µs.
+  - *Tried and rejected* (2026-11-26, measured, not kept):
+    - Dropping the per-candidate uniqueness check: a board the human solver finishes is unique, so
+      the check adds no information, but it rejects ambiguous boards in about 110 µs where the human
+      solver only gives up after every strategy has failed. Generation took 13.2–13.6 s, twice as
+      long. The backtracker is a cheap filter in front of the expensive solver.
+    - Stopping the human solve at the profile's tier ceiling: exactly the same outputs, but within
+      noise (Medium about 10% faster, the rest unchanged), because the human solver only runs on
+      boards that already passed the uniqueness check. Not worth a second solve path.
+  - *Where the time goes now:* the human solver is about 70% of generation for Hard and up, and the
+    uniqueness check about 30%. Next steps if custom generation needs more:
+    1. Fewer allocations in the strategies (reuse the empty-cell lists per step; masks instead of
        `List<Integer>` in the subset strategies, with the golden test guarding ordering).
+    2. For the backtracker, updating the 20 peers' masks on `place`/`remove` instead of recomputing in
+       `findNextCell`. Less valuable now that a cell's mask is three ANDs.
 - **Techniques only Pidoku has.** The doubled digits allow deductions classic Sudoku doesn't.
   The engine already has one: a unit with exactly two places left for its two 5s (the doubled
   hidden single, costed ×1.5). X-Wing and W-Wing only handle digits that appear once. A counting
