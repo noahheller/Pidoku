@@ -292,7 +292,7 @@ function AddFriendForm({ onAdded }: { onAdded: (friend: Friend) => void }) {
       .then((friend) => {
         onAdded(friend);
         setCode('');
-        setMessage({ ok: true, text: `${friend.displayName ?? 'Your friend'} is now your friend.` });
+        setMessage({ ok: true, text: `${friend.displayName ?? 'Anonymous'} is now your friend.` });
       })
       .catch((err: unknown) => setMessage({ ok: false, text: err instanceof Error ? err.message : String(err) }))
       .finally(() => setAdding(false));

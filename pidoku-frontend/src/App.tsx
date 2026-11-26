@@ -95,7 +95,7 @@ function App() {
 /** How to play, from the home screen: back there when it's done. */
 function TutorialPage() {
   const exit = useExit();
-  return <Tutorial onDone={exit} doneLabel="Play today's puzzles" />;
+  return <Tutorial onDone={exit} onBack={exit} doneLabel="Play today's puzzles" />;
 }
 
 let arrivalRecorded = false;

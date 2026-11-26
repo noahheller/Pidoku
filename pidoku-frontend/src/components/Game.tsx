@@ -34,7 +34,7 @@ interface GameProps {
  */
 export function Game(props: GameProps) {
   const [tutorial, setTutorial] = useState(() => !isTutorialSeen());
-  if (tutorial) return <Tutorial onDone={() => setTutorial(false)} doneLabel={`Start ${props.puzzle.name}`} />;
+  if (tutorial) return <Tutorial onDone={() => setTutorial(false)} onBack={props.onExit} doneLabel={`Start ${props.puzzle.name}`} />;
   return <PuzzleGame {...props} />;
 }
 
@@ -581,7 +581,7 @@ function StartScreen({ puzzle, onStart }: { puzzle: PuzzleDef; onStart: () => vo
         <p className="text-sm text-base-content/60">{countClues(puzzle.givens)} clues</p>
         <p className="text-base-content/80">
           The clock starts when you press Start. It runs while the puzzle is on screen and pauses when you go back to
-          Puzzles or switch to another tab, then carries on when you return.
+          Puzzles or switch to another tab. The clock resumes when you return to the puzzle.
         </p>
         <button type="button" className="btn btn-primary btn-lg w-full" onClick={onStart} autoFocus>
           <Play className="size-5" aria-hidden="true" /> Start
