@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existingIdToken, idToken } from './auth';
-import { addFriend, ApiError, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, fetchStats, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, createSupporterCode, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, fetchStats, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
@@ -329,6 +329,14 @@ describe('friends', () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 204 }));
     await expect(removeFriend(3)).resolves.toBeUndefined();
     expect(fetchMock).toHaveBeenCalledWith('/api/friends/3', expect.objectContaining({ method: 'DELETE' }));
+  });
+
+  it('asks for a supporter code', async () => {
+    signIn('token-1');
+    const code = { code: 'PI-7K3M9QAB', expiresAt: '2026-12-26T12:00:00Z' };
+    const fetchMock = respond(200, code);
+    await expect(createSupporterCode()).resolves.toEqual(code);
+    expect(fetchMock).toHaveBeenCalledWith('/api/players/me/supporter-code', expect.objectContaining({ method: 'POST' }));
   });
 
   it("deletes the signed-in player's data", async () => {

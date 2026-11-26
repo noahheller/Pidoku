@@ -88,6 +88,21 @@ class PlayerDeletionTest extends IntegrationTest {
     }
 
     @Test
+    void deletesTheirSupporterCodeAndKofiPayments() {
+        addPlayer("alice");
+        addPlayer("bob");
+        jdbc.update("INSERT INTO supporter_codes (player_id, code, expires_at) SELECT id, 'PI-' || firebase_uid, now() + interval '1 day' FROM players");
+        jdbc.update("INSERT INTO kofi_payments (transaction_id, player_id) SELECT 'tx-' || firebase_uid, id FROM players");
+        jdbc.update("INSERT INTO kofi_payments (transaction_id) VALUES ('tx-unlinked')");
+
+        assertThat(delete("alice")).hasStatus(HttpStatus.NO_CONTENT);
+
+        assertThat(count("SELECT count(*) FROM supporter_codes")).isOne();
+        assertThat(count("SELECT count(*) FROM kofi_payments WHERE transaction_id IN ('tx-bob', 'tx-unlinked')")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM kofi_payments")).isEqualTo(2);
+    }
+
+    @Test
     void leavesOtherPlayersAlone() {
         solve("alice");
         solve("bob");

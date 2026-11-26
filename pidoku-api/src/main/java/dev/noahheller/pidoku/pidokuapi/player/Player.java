@@ -14,7 +14,7 @@ import java.time.Instant;
 /**
  * One Firebase account (table {@code players}, created in V3). Rows are inserted by
  * {@link PlayerRepository#insertIfAbsent}, never through JPA; afterwards JPA only changes the
- * display name and profile visibility.
+ * display name and profile visibility. Supporter status is only ever written by SupporterService.
  */
 @Getter
 @Entity
@@ -48,8 +48,21 @@ public class Player {
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
 
+    /** When they first supported Pidoku on Ko-fi; null if they haven't (V13). Set by SupporterService. */
+    @Column(name = "supporter_since", insertable = false, updatable = false)
+    private Instant supporterSince;
+
+    /** When their supporter badge ends; null for good (one-off tips). For memberships later. */
+    @Column(name = "supporter_until", insertable = false, updatable = false)
+    private Instant supporterUntil;
+
     /** For JPA. */
     protected Player() {
+    }
+
+    /** Whether they have a supporter badge at {@code now}. Matches LeaderboardService's query. */
+    public boolean isSupporter(Instant now) {
+        return supporterSince != null && (supporterUntil == null || supporterUntil.isAfter(now));
     }
 
     public void rename(DisplayName displayName) {
