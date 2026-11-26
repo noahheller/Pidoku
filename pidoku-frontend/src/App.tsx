@@ -1,7 +1,8 @@
 import { CircleAlert, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
-import { fetchByShareCode } from './api/client';
+import { existingIdToken } from './api/auth';
+import { fetchByShareCode, fetchPuzzleLeaderboard } from './api/client';
 import { sendPendingCompletions } from './api/completions';
 import { flushEvents, recordEvent } from './api/events';
 import { Game } from './components/Game';
@@ -10,10 +11,12 @@ import { PlayerPage } from './components/PlayerPage';
 import { PrivacyPage } from './components/PrivacyPage';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
+import { StatsPage } from './components/StatsPage';
 import { Tutorial } from './components/Tutorial';
+import { timeToBeat, type TimeToBeat } from './game/leaderboardStats';
 import type { PuzzleDef } from './game/puzzleFile';
 import { addRecent } from './game/recent';
-import { clearProgress, clearResult, hasAccount, loadRecentPuzzles, saveRecentPuzzles } from './game/storage';
+import { clearProgress, clearResult, hasAccount, loadProgress, loadRecentPuzzles, saveRecentPuzzles } from './game/storage';
 import { bundledPuzzles } from './puzzles';
 
 /** Whether this browser had never signed in when the page loaded, before anything here signs it in. */
@@ -26,6 +29,7 @@ const firstVisit = !hasAccount();
  * - `/local/{id}`: a puzzle that only exists in this browser (bundled, or loaded from a file).
  * - `/leaderboard/{date}?difficulty=hard`: a date's daily leaderboards.
  * - `/me`: the player's name, profile visibility, friends and Google sign-in.
+ * - `/me/stats`: the player's own stats per difficulty.
  * - `/players/{playerId}`: a player's streaks, best times and recent dailies: their own, a
  *   friend's, or a public one. `/friends/{playerId}` is its older address.
  * - `/f/{friendCode}`: a friend's invite link.
@@ -82,6 +86,7 @@ function App() {
       <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...recent]} />} />
       <Route path="/leaderboard/:date" element={<LeaderboardPage />} />
       <Route path="/me" element={<Profile />} />
+      <Route path="/me/stats" element={<StatsPage />} />
       <Route path="/players/:id" element={<PlayerPage />} />
       <Route path="/friends/:id" element={<PlayerPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
@@ -159,7 +164,24 @@ function useExit(): () => void {
   return () => void navigate('/');
 }
 
-type Loaded = { status: 'loading' } | { status: 'loaded'; puzzle: PuzzleDef } | { status: 'failed'; message: string };
+type Loaded = { status: 'loading' } | { status: 'loaded'; puzzle: PuzzleDef; timeToBeat?: TimeToBeat | null } | { status: 'failed'; message: string };
+
+/**
+ * The time to beat for a challenge link: someone else's solve of a shared puzzle that isn't a
+ * daily (a daily has its own start screen and leaderboard). Null when there's none, when the
+ * player has already started it here, or when the leaderboard can't be fetched: the puzzle then
+ * just opens, as it always did.
+ */
+async function challengeFor(puzzle: PuzzleDef, signal: AbortSignal): Promise<TimeToBeat | null> {
+  if (puzzle.dailyDate || !puzzle.shareCode || loadProgress(puzzle.id) !== null) return null;
+  const filter = { friendsOnly: false, cleanOnly: false };
+  const [everyone, friends] = await Promise.all([
+    fetchPuzzleLeaderboard(puzzle.shareCode, filter, signal).catch(() => null),
+    // Friends only for a browser that's already signed in: no sign-in just to open a link.
+    existingIdToken().then((token) => (token ? fetchPuzzleLeaderboard(puzzle.shareCode!, { ...filter, friendsOnly: true }, signal).catch(() => null) : null)),
+  ]);
+  return timeToBeat(everyone, friends);
+}
 
 function SharedPuzzle() {
   const { shareCode = '' } = useParams();
@@ -174,7 +196,10 @@ function SharedPuzzle() {
     if (known) return;
     const controller = new AbortController();
     fetchByShareCode(shareCode, controller.signal)
-      .then((puzzle) => setFetched({ status: 'loaded', puzzle, code: shareCode }))
+      .then(async (puzzle) => {
+        const toBeat = await challengeFor(puzzle, controller.signal);
+        if (!controller.signal.aborted) setFetched({ status: 'loaded', puzzle, timeToBeat: toBeat, code: shareCode });
+      })
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setFetched({ status: 'failed', message: e instanceof Error ? e.message : String(e), code: shareCode });
       });
@@ -185,7 +210,7 @@ function SharedPuzzle() {
 
   if (state.status === 'loaded') {
     // key resets all game state when switching puzzles.
-    return <Game key={state.puzzle.id} puzzle={state.puzzle} replay={replay} notice={notice} onExit={exit} />;
+    return <Game key={state.puzzle.id} puzzle={state.puzzle} timeToBeat={state.timeToBeat ?? null} replay={replay} notice={notice} onExit={exit} />;
   }
   return (
     <main className="mx-auto grid max-w-xl gap-4 px-4 pt-12">

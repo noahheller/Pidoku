@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, Trash2, UserPlus, UserRound, Users, X } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, ChevronRight, CircleAlert, Copy, Flame, LogOut, RotateCw, Share2, ShieldCheck, Trash2, UserPlus, UserRound, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { currentAccount, deleteAccount, signInWithGoogle, signOut, SignInError, type Account } from '../api/auth';
@@ -62,6 +62,12 @@ export function Profile() {
           </Card>
           <Card title="Your profile">
             <ProfileSettings player={state.player} onSaved={(player) => setState({ ...state, player })} />
+          </Card>
+          <Card title="Your stats">
+            <p className="text-sm text-base-content/70">Average, median and best times at each difficulty, how often you solve clean, and how you've done lately. Only you can see them.</p>
+            <Link to="/me/stats" className="btn btn-sm w-fit">
+              <BarChart3 className="size-4" aria-hidden="true" /> See your stats
+            </Link>
           </Card>
           <Card title="Friends">
             <FriendCode code={state.player.friendCode} />

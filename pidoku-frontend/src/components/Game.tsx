@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, CircleX, Info, Lightbulb, Pause, Play, Timer, X } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CircleX, Info, Lightbulb, Pause, Play, Swords, Timer, X } from 'lucide-react';
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState, type RefObject } from 'react';
 import { ApiError, fetchHint, saveProgress as uploadProgress, startAttempt, type Attempt, type Hint } from '../api/client';
 import { recordCompletion } from '../api/completions';
@@ -7,6 +7,7 @@ import { dailyNumber } from '../game/daily';
 import { countClues, formatDate, formatPenalty, formatTime } from '../game/format';
 import { gameReducer, isMistake, newGame, toSaved, type GameAction, type GameState, type SavedProgress } from '../game/game';
 import { hintHighlight, hintText, hintUsed } from '../game/hints';
+import type { TimeToBeat } from '../game/leaderboardStats';
 import { HINT_STEP_PENALTY_MS, penaltyMs } from '../game/penalties';
 import { actionForKey } from '../game/keys';
 import type { PuzzleDef } from '../game/puzzleFile';
@@ -25,6 +26,11 @@ interface GameProps {
   replay?: boolean;
   /** Shown above the board, e.g. "You've played every hard puzzle. Here's one again." */
   notice?: string | null;
+  /**
+   * Someone else's solve, for a puzzle opened from a challenge link: the puzzle then waits on a
+   * start screen showing it, like a daily, so the race starts when the player is ready.
+   */
+  timeToBeat?: TimeToBeat | null;
   onExit: () => void;
 }
 
@@ -38,7 +44,7 @@ export function Game(props: GameProps) {
   return <PuzzleGame {...props} />;
 }
 
-function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps) {
+function PuzzleGame({ puzzle, replay = false, notice = null, timeToBeat = null, onExit }: GameProps) {
   const [state, dispatch] = useReducer(gameReducer, puzzle, (p) => newGame(p, loadProgress(p.id)));
   const { values, notes, mistakes, elapsedMs, completed, autoNotesUsed, hintsUsed, hintPenaltyMs, rules } = state;
   // When the board (not just the clock) last changed here, to tell this browser's copy from a newer
@@ -54,9 +60,10 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
   }, [values, notes, mistakes]);
   const [synced, setSynced] = useState(false);
   // A daily waits on its start screen until the player presses Start: its ranked time is the
-  // server's wall-clock time, so the start has to be deliberate. Once started (there's saved
-  // progress) it opens straight to the board. Other puzzles start when opened.
-  const [ready, setReady] = useState(() => !puzzle.dailyDate || loadProgress(puzzle.id) !== null);
+  // server's wall-clock time, so the start has to be deliberate. So does a challenge (a shared
+  // puzzle with a time to beat). Once started (there's saved progress) it opens straight to the
+  // board. Other puzzles start when opened.
+  const [ready, setReady] = useState(() => (!puzzle.dailyDate && !timeToBeat) || loadProgress(puzzle.id) !== null);
   const [recorded, setRecorded] = useState<Recorded>(() => {
     const saved = loadResult(puzzle.id);
     return saved ? { status: 'recorded', ...saved } : { status: 'none' };
@@ -324,7 +331,7 @@ function PuzzleGame({ puzzle, replay = false, notice = null, onExit }: GameProps
       {notice && <Notice text={notice} />}
       {synced && <Notice text="Carried on from where you left off on another device." />}
 
-      {!ready && <StartScreen puzzle={puzzle} onStart={() => setReady(true)} />}
+      {!ready && <StartScreen puzzle={puzzle} timeToBeat={timeToBeat} onStart={() => setReady(true)} />}
 
       {completed && (
         <Result
@@ -564,21 +571,34 @@ function Notice({ text }: { text: string }) {
 }
 
 /**
- * A daily before it starts: what it is, and a Start button. The board stays hidden, so the clock
- * can't be beaten by studying it first.
+ * A daily, or a challenge, before it starts: what it is, and a Start button. The board stays
+ * hidden, so the clock can't be beaten by studying it first.
  */
-function StartScreen({ puzzle, onStart }: { puzzle: PuzzleDef; onStart: () => void }) {
-  const date = puzzle.dailyDate!;
+function StartScreen({ puzzle, timeToBeat, onStart }: { puzzle: PuzzleDef; timeToBeat: TimeToBeat | null; onStart: () => void }) {
+  const date = puzzle.dailyDate;
   return (
     <section className="card mx-auto w-full max-w-md border border-base-300 bg-base-100 shadow-sm" aria-labelledby="start-title">
       <div className="card-body items-center gap-4 p-6 text-center sm:p-8">
-        <p className="flex items-center gap-1.5 text-sm text-base-content/60">
-          <CalendarDays className="size-4" aria-hidden="true" /> Pidoku #{dailyNumber(date)} · {formatDate(date)}
-        </p>
+        {date ? (
+          <p className="flex items-center gap-1.5 text-sm text-base-content/60">
+            <CalendarDays className="size-4" aria-hidden="true" /> Pidoku #{dailyNumber(date)} · {formatDate(date)}
+          </p>
+        ) : (
+          <p className="flex items-center gap-1.5 text-sm text-base-content/60">
+            <Swords className="size-4" aria-hidden="true" /> Challenge · {puzzle.shareCode}
+          </p>
+        )}
         <h2 id="start-title" className="text-3xl font-bold">
           {puzzle.difficulty}
         </h2>
         <p className="text-sm text-base-content/60">{countClues(puzzle.givens)} clues</p>
+        {!date && timeToBeat && (
+          <p className="rounded-box bg-primary/10 px-4 py-2 text-lg">
+            <span className="font-semibold">{timeToBeat.name ?? (timeToBeat.friend ? 'A friend' : 'Someone')}</span> solved this in{' '}
+            <span className="font-semibold tabular-nums">{formatTime(timeToBeat.elapsedMs)}</span>
+            {timeToBeat.penaltyMs > 0 && <span className="text-sm text-warning tabular-nums"> {formatPenalty(timeToBeat.penaltyMs)}</span>}. Can you beat it?
+          </p>
+        )}
         <p className="text-base-content/80">
           The clock starts when you press Start. It runs while the puzzle is on screen and pauses when you go back to
           Puzzles or switch to another tab. The clock resumes when you return to the puzzle.

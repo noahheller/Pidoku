@@ -1,7 +1,7 @@
 import { ChevronRight, CircleAlert, CloudOff, Lightbulb, RotateCw, Target, UserPlus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
-import { fetchLeaderboard, type Difficulty, type Leaderboard, type LeaderboardEntry } from '../api/client';
+import { fetchLeaderboard, fetchPuzzleLeaderboard, type Difficulty, type Leaderboard, type LeaderboardEntry } from '../api/client';
 import { formatPenalty, formatTime } from '../game/format';
 import { gapLine, photoFinishes, standing } from '../game/leaderboardStats';
 import {
@@ -15,35 +15,38 @@ import {
 
 type State = { status: 'loading' } | { status: 'loaded'; board: Leaderboard } | { status: 'failed'; message: string };
 
-interface LeaderboardViewProps {
-  /** The daily's date, YYYY-MM-DD. */
-  date: string;
-  difficulty: Difficulty;
-  title?: string;
-}
+/** Which puzzle's board: a daily by its date and difficulty, or any puzzle by its share code. */
+export type LeaderboardSource = { date: string; difficulty: Difficulty } | { shareCode: string };
+
+type LeaderboardViewProps = LeaderboardSource & { title?: string };
 
 /**
- * One daily's leaderboard. Two switches, both remembered: whose times (everyone or friends), and
+ * One puzzle's leaderboard: a daily's, or any shared puzzle's (challenge links). Two switches, both remembered: whose times (everyone or friends), and
  * how they're ranked (fastest overall, with time added for mistakes and hints, or clean: only
  * solves with no mistakes and no hints).
  * Each player's first solve counts, timed by the game's clock (which pauses while they're away).
  */
-export function LeaderboardView({ date, difficulty, title }: LeaderboardViewProps) {
+export function LeaderboardView({ title, ...source }: LeaderboardViewProps) {
   const [scope, setScope] = useState<LeaderboardScope>(loadLeaderboardScope);
   const [ranking, setRanking] = useState<LeaderboardRanking>(loadLeaderboardRanking);
   const [state, setState] = useState<State & { key?: string }>({ status: 'loading' });
   const [retries, setRetries] = useState(0);
-  const key = `${date}/${difficulty}/${scope}/${ranking}/${retries}`;
+  const date = 'date' in source ? source.date : null;
+  const difficulty = 'date' in source ? source.difficulty : null;
+  const shareCode = 'shareCode' in source ? source.shareCode : null;
+  const key = `${date}/${difficulty}/${shareCode}/${scope}/${ranking}/${retries}`;
 
   useEffect(() => {
     const controller = new AbortController();
-    fetchLeaderboard(date, difficulty, { friendsOnly: scope === 'friends', cleanOnly: ranking === 'clean' }, controller.signal)
+    const filter = { friendsOnly: scope === 'friends', cleanOnly: ranking === 'clean' };
+    const board = shareCode !== null ? fetchPuzzleLeaderboard(shareCode, filter, controller.signal) : fetchLeaderboard(date!, difficulty!, filter, controller.signal);
+    board
       .then((board) => setState({ status: 'loaded', board, key }))
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e), key });
       });
     return () => controller.abort();
-  }, [date, difficulty, scope, ranking, key]);
+  }, [date, difficulty, shareCode, scope, ranking, key]);
 
   const current: State = state.key === key ? state : { status: 'loading' };
 
@@ -95,7 +98,8 @@ export function LeaderboardView({ date, difficulty, title }: LeaderboardViewProp
   );
 }
 
-function Switch<T extends string>({ label, options, value, onChange }: { label: string; options: [T, string][]; value: T; onChange: (value: T) => void }) {
+/** A row of tabs choosing one of a few options. */
+export function Switch<T extends string>({ label, options, value, onChange }: { label: string; options: [T, string][]; value: T; onChange: (value: T) => void }) {
   return (
     <div role="tablist" aria-label={label} className="tabs tabs-box tabs-sm">
       {options.map(([option, text]) => (

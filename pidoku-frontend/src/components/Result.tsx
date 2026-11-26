@@ -120,6 +120,11 @@ export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, hintsUsed, 
           )}
           {puzzle.dailyDate && streak && <StreakStat streak={streak} />}
         </dl>
+        {isRecorded && (
+          <Link to="/me/stats" className="link link-primary w-fit text-sm">
+            How this compares with your other solves
+          </Link>
+        )}
 
         {recorded.status === 'unsent' && (
           <p className="flex items-center gap-2 text-sm text-warning">
@@ -165,6 +170,13 @@ export function Result({ puzzle, elapsedMs, mistakes, autoNotesUsed, hintsUsed, 
             <Link to={`/leaderboard/${puzzle.dailyDate}?difficulty=${dailyDifficulty}`} className="link link-primary mt-2 inline-block text-sm">
               Today's other leaderboards
             </Link>
+          </div>
+        )}
+        {/* Any other puzzle from the API has a board too: sharing it is a challenge. */}
+        {!puzzle.dailyDate && puzzle.shareCode && recorded.status !== 'saving' && (
+          <div className="border-t border-base-300 pt-4">
+            <LeaderboardView shareCode={puzzle.shareCode} title="Leaderboard" />
+            <p className="mt-2 text-sm text-base-content/60">Share it to challenge your friends: they'll see the time to beat.</p>
           </div>
         )}
       </div>

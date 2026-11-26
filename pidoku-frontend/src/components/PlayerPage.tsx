@@ -208,7 +208,8 @@ function Profile({ profile }: { profile: PlayerProfile }) {
   );
 }
 
-function Tile({ icon, label, value, note }: { icon?: ReactNode; label: string; value: string; note?: string }) {
+/** One number in a row of stat tiles, inside a `<dl>`. */
+export function Tile({ icon, label, value, note }: { icon?: ReactNode; label: string; value: string; note?: string }) {
   return (
     <div className="grid gap-0.5 rounded-box border border-base-300 bg-base-100 p-3">
       <dt className="flex items-center gap-1 text-xs font-semibold tracking-wide text-base-content/60 uppercase">
