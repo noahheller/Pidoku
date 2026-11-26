@@ -17,7 +17,7 @@ export function PrivacyPage() {
           <ShieldCheck className="size-6 text-primary" aria-hidden="true" /> Privacy
         </h1>
         <p className="text-base-content/80">
-          Pidoku is a free hobby puzzle game. It keeps only what it needs for streaks, friends and leaderboards, and a few game events to learn what to improve. There are no
+          Pidoku is a free puzzle game. Made for my amazing girlfriend. It keeps only what it needs for streaks, friends and leaderboards, and a few game events to learn what to improve. There are no
           ads, no third-party analytics and no tracking cookies, and nothing is sold or shared for marketing.
         </p>
         <p className="text-sm text-base-content/60">Last updated {UPDATED}.</p>
