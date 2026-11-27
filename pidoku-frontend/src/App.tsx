@@ -10,10 +10,14 @@ import { LeaderboardPage } from './components/LeaderboardPage';
 import { PlayerPage } from './components/PlayerPage';
 import { PrivacyPage } from './components/PrivacyPage';
 import { currentCosmetics, setSupporter } from './components/cosmetics';
-import { AddFriendPage, Profile } from './components/Profile';
+import { AccountPage } from './components/AccountPage';
+import { AddFriendPage, FriendsPage } from './components/FriendsPage';
+import { LookAndFeelPage } from './components/LookAndFeel';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
 import { StatsPage } from './components/StatsPage';
+import { SupportPage } from './components/Support';
 import { Tutorial } from './components/Tutorial';
+import { YouPage } from './components/YouPage';
 import { timeToBeat, type TimeToBeat } from './game/leaderboardStats';
 import type { PuzzleDef } from './game/puzzleFile';
 import { hasLockedChoice } from './game/cosmetics';
@@ -30,8 +34,12 @@ const firstVisit = !hasAccount();
  * - `/p/{shareCode}`: a puzzle from the API. This is the share link, so it works opened cold.
  * - `/local/{id}`: a puzzle that only exists in this browser (bundled, or loaded from a file).
  * - `/leaderboard/{date}?difficulty=hard`: a date's daily leaderboards.
- * - `/me`: the player's name, profile visibility, friends and Google sign-in.
+ * - `/friends`: the player's friend code, adding a friend by theirs, and their friends.
+ * - `/me`: "You": the player's name, and a menu of the pages below.
  * - `/me/stats`: the player's own stats per difficulty.
+ * - `/me/look`: Look & feel (board theme, ink, digits, solve celebration).
+ * - `/me/support`: Support Pidoku (a tip on Ko-fi for a supporter badge).
+ * - `/me/account`: Account & privacy (Google sign-in, profile visibility, deleting the account).
  * - `/players/{playerId}`: a player's streaks, best times and recent dailies: their own, a
  *   friend's, or a public one. `/friends/{playerId}` is its older address.
  * - `/f/{friendCode}`: a friend's invite link.
@@ -88,8 +96,12 @@ function App() {
       <Route path="/p/:shareCode" element={<SharedPuzzle />} />
       <Route path="/local/:id" element={<LocalPuzzle puzzles={[...bundledPuzzles, ...recent]} />} />
       <Route path="/leaderboard/:date" element={<LeaderboardPage />} />
-      <Route path="/me" element={<Profile />} />
+      <Route path="/friends" element={<FriendsPage />} />
+      <Route path="/me" element={<YouPage />} />
       <Route path="/me/stats" element={<StatsPage />} />
+      <Route path="/me/look" element={<LookAndFeelPage />} />
+      <Route path="/me/support" element={<SupportPage />} />
+      <Route path="/me/account" element={<AccountPage />} />
       <Route path="/players/:id" element={<PlayerPage />} />
       <Route path="/friends/:id" element={<PlayerPage />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
@@ -110,7 +122,7 @@ function TutorialPage() {
  * Supporter-only looks (game/cosmetics.ts) show from what this browser last heard, so they're
  * there straight away and offline. When some are chosen, asks the API once a visit whether the
  * badge is still there (it isn't for another player signed in here, say). Nobody else is asked:
- * a supporter picks their looks on /me, which says so itself.
+ * a supporter picks their looks on /me/look, which says so itself.
  */
 function useSupporterCheck() {
   useEffect(() => {
@@ -246,7 +258,7 @@ function SharedPuzzle() {
           <span>{state.message}</span>
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-plain btn-sm"
             onClick={() => {
               setFetched({ status: 'loading' });
               setRetries((n) => n + 1);

@@ -88,7 +88,7 @@ export function Tutorial({ onDone, doneLabel, onBack }: TutorialProps) {
     <main className="mx-auto grid max-w-[1040px] gap-3 px-2 pt-2 pb-6 sm:gap-4 sm:px-4 sm:pt-4 sm:pb-8">
       <header className="flex flex-wrap items-center gap-3">
         {finished && (
-          <button type="button" className="btn btn-ghost btn-sm text-primary" onClick={() => finish('completed', onBack)} aria-label="Back to puzzles">
+          <button type="button" className="back-link btn btn-ghost btn-sm text-primary" onClick={() => finish('completed', onBack)} aria-label="Back to puzzles">
             <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
           </button>
         )}
@@ -148,7 +148,7 @@ export function Tutorial({ onDone, doneLabel, onBack }: TutorialProps) {
                 {lesson.kind === 'finish' && (
                   <button
                     type="button"
-                    className="btn btn-sm"
+                    className="btn btn-plain btn-sm"
                     onClick={() => {
                       const step = nextStep(state.values);
                       if (!step) return;

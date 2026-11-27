@@ -12,7 +12,7 @@ test('a friend added by code shows on the home card and the Friends leaderboard'
   await solveViaApi(request, bob, hard);
 
   // Alice adds him by his code.
-  await alice.page.goto('/me');
+  await alice.page.goto('/friends');
   await alice.page.getByLabel('Add a friend by code').fill(friendCode);
   await alice.page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(alice.page.getByRole('list', { name: 'Your friends' })).toContainText(bobName);

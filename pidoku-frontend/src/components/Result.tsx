@@ -12,7 +12,7 @@ import type { PuzzleDef } from '../game/puzzleFile';
 import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, loadProgress, saveStreak } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
 import { LeaderboardView } from './Leaderboard';
-import { GoogleButton } from './Profile';
+import { GoogleButton } from './GoogleButton';
 
 /** A streak this long is worth keeping: past it, players without an account are asked to sign in with Google. */
 const STREAK_WORTH_KEEPING = 3;
@@ -293,7 +293,7 @@ function GooglePrompt({ streak }: { streak: number }) {
       </p>
       <div className="flex flex-wrap items-start gap-2">
         <GoogleButton
-          className="btn btn-sm"
+          className="btn btn-plain btn-sm"
           onDone={(result) => {
             if (result === 'switched') {
               clearPlayerCaches();
@@ -372,7 +372,7 @@ function ShareButton({ text, url, onShared }: { text: string; url: string | null
     });
   };
   return (
-    <button type="button" className="btn btn-sm" onClick={share}>
+    <button type="button" className="btn btn-plain btn-sm" onClick={share}>
       <Share2 className="size-4 shrink-0" aria-hidden="true" /> Share
     </button>
   );
@@ -391,7 +391,7 @@ function CopyButton({ text, onCopied }: { text: string; onCopied: () => void }) 
     }
   };
   return (
-    <button type="button" className="btn btn-sm" onClick={copy}>
+    <button type="button" className="btn btn-plain btn-sm" onClick={copy}>
       {copied ? <Check className="size-4 shrink-0" aria-hidden="true" /> : <Copy className="size-4 shrink-0" aria-hidden="true" />}
       {copied ? 'Copied' : 'Copy'}
     </button>
@@ -427,10 +427,11 @@ function NamePrompt() {
       <p className="flex items-center gap-1.5 text-sm text-success" role="status">
         <Check className="size-4 shrink-0" aria-hidden="true" />
         <span>
-          Friends will see you as {state.name}. Change it any time under{' '}
+          Friends will see you as {state.name}. Change it any time on the{' '}
           <Link to="/me" className="link">
-            You &amp; friends
-          </Link>
+            You
+          </Link>{' '}
+          page
           .
         </span>
       </p>

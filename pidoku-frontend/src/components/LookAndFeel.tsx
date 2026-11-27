@@ -1,5 +1,6 @@
-import { Coffee, Lock, Play } from 'lucide-react';
+import { Coffee, Lock, Palette, Play } from 'lucide-react';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import {
   CELEBRATIONS,
   DIGIT_STYLES,
@@ -13,14 +14,35 @@ import {
   type InkOption,
   type ThemeOption,
 } from '../game/cosmetics';
+import { KOFI_URL } from '../support';
 import { Celebration } from './Celebration';
 import { chooseCosmetic, loadMonoFont, useCosmetics } from './cosmetics';
+import { Card, Loading, SubPage } from './SubPage';
+import { usePlayer } from './usePlayer';
 
 /**
- * The "Look & feel" card on /me: board theme, ink colour, digit style and solve celebration.
- * Everyone can see every option. The supporter-only ones are a thank-you for a tip on Ko-fi:
- * picking one without the badge says so, and points at the Support card (`#support`), when
- * there is one.
+ * `/me/look`. It waits for the player, so a new supporter's badge is known (see usePlayer) before
+ * they pick a look. If the API can't be reached, the options still work from what was known.
+ */
+export function LookAndFeelPage() {
+  const { state } = usePlayer();
+  return (
+    <SubPage back={{ to: '/me', label: 'You' }} icon={Palette} title="Look & feel">
+      {state.status === 'loading' ? (
+        <Loading />
+      ) : (
+        <Card>
+          <LookAndFeel canSupport={KOFI_URL !== null} />
+        </Card>
+      )}
+    </SubPage>
+  );
+}
+
+/**
+ * Board theme, ink colour, digit style and solve celebration. Everyone can see every option.
+ * The supporter-only ones are a thank-you for a tip on Ko-fi: picking one without the badge says
+ * so, and points at Support Pidoku (`/me/support`) when `canSupport`.
  */
 export function LookAndFeel({ canSupport }: { canSupport: boolean }) {
   const { active, supporter } = useCosmetics();
@@ -222,9 +244,9 @@ function LockedNote({ label, canSupport }: { label: string; canSupport: boolean 
         {canSupport && (
           <>
             A tip on Ko-fi unlocks it, with everything else here.{' '}
-            <a href="#support" className="link link-primary">
+            <Link to="/me/support" className="link link-primary">
               How to support Pidoku
-            </a>
+            </Link>
           </>
         )}
       </span>

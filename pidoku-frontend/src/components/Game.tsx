@@ -315,7 +315,7 @@ function PuzzleGame({ puzzle, replay = false, notice = null, timeToBeat = null, 
       <header className="flex flex-wrap items-center gap-4">
         <button
           type="button"
-          className="btn btn-ghost btn-sm text-primary"
+          className="back-link btn btn-ghost btn-sm text-primary"
           onClick={onExit}
           title={running ? 'Back to puzzles. Your clock pauses until you come back.' : 'Back to puzzles'}
           aria-label={running ? 'Back to puzzles, pausing your clock' : 'Back to puzzles'}

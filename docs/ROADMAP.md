@@ -433,7 +433,7 @@ Decisions made while building it:
   the players either side, and "photo finish" for times under a second apart. An extra column in
   the same ranking query: the fastest clean solve, returned even when beyond the top 50. (A "first
   to finish" highlight was here too, removed in Nov 2026.) Friends' current
-  streaks come from one query for all friends when `/me` opens, as of the viewer's date (it can be a
+  streaks come from one query for all friends when `/friends` opens, as of the viewer's date (it can be a
   day out for a friend far away). Head-to-head records are left for later.
 - **Friend profiles** (`/friends/{id}`, opened from the friend list): streak and best streak,
   dailies solved, clean rate, best time per difficulty and their last week of dailies, all from
@@ -448,8 +448,15 @@ Decisions made while building it:
   to accept: codes are only shared with people you know. Stored as two rows per friendship. Each
   player gets a friend code (share-code alphabet) the first time they open `GET /api/players/me`;
   it never changes. Invite links are `/f/{code}`.
-- **`/me` ("You & friends")**: the name (the place to change it that leaderboards needed), the
-  friend code with Copy link / Share, adding by code, the friend list, and the account.
+- **Friends and You** (split from one "You & friends" page on 2026-11-26, which mixed friends,
+  sign-in and looks in one long scroll). The home screen links both.
+  - `/friends`: the friend code with Copy link / Share, adding by code, and the friend list, with
+    a nudge to pick a name while the player has none.
+  - `/me` ("You"): the name (the place to change it that leaderboards needed), a "Keep your
+    progress" card with Google sign-in for guests, and a menu: Your stats (`/me/stats`), Your
+    profile (`/players/{id}`), Look & feel (`/me/look`), Support Pidoku (`/me/support`) and
+    Account & privacy (`/me/account`: Google sign-in and sign-out, who can see the profile, a
+    link to `/privacy`, and deleting the account).
 - **Google sign-in** is a popup (`linkWithPopup`), which keeps the uid. If that Google account is
   already a player, this browser switches to it (`signInWithCredential`): unsent solves are sent
   first, then the anonymous player is merged into the Google one (`POST /api/players/me/merge`
@@ -457,7 +464,7 @@ Decisions made while building it:
   anonymous player is deleted, so it leaves the leaderboards), and the cached streak and
   dismissed prompts are cleared. Signing out gives the browser a
   fresh anonymous player. Asked for under a daily's result once the streak is 3 days ("Not now"
-  is remembered), and always available on `/me`.
+  is remembered), and always available on `/me` and `/me/account`.
 
 - One leaderboard per daily (date and difficulty), ranked by `active_ms`, the game's own timer
   (changed from the server's wall-clock `elapsed_ms` on 2026-11-19: time spent away from the tab
@@ -630,7 +637,7 @@ puzzle (a daily only if started once its date began, as on the leaderboards) and
 Java: per difficulty, solves counted, assisted solves (always reported, so the page can say how
 many it left out), average, median, best (ranked times, penalties included), clean solves, average
 mistakes, and the last 30 days' count and average. "Random" means pool puzzles that never became a
-daily. The page (`/me/stats`, linked from You & friends and from the result screen) has a source
+daily. The page (`/me/stats`, linked from the You page and from the result screen) has a source
 switch and an "Include assisted solves" switch, off by default, both remembered in the browser. The
 trend line compares the last 30 days with all time and stays quiet when every solve is recent.
 
@@ -853,7 +860,7 @@ Principles, for every step below:
   bring a consent banner for EU and UK players and a privacy policy, so they're the last resort.
 - **Review:** three months after the tip jar goes live, and again before milestone 7 ships.
 
-**Supporter badge, as built (2026-11-26).** A player asks for a single-use code on `/me` (`PI-`
+**Supporter badge, as built (2026-11-26).** A player asks for a single-use code on `/me/support` (`PI-`
 plus 8 characters, 30 days) and pastes it into their Ko-fi tip's message. Ko-fi's webhook
 (`POST /api/kofi/webhook`) is checked against the verification token before anything else, and a
 live code makes its player a supporter for good (`players.supporter_since`; `supporter_until`
@@ -916,10 +923,11 @@ are done before v1 is called done.
   screen was removed on 2026-11-20; dropping a file into `src/puzzles` is the way to try one.
 - Home screen today: Today's dailies (each card with its hardest technique, who has solved it and
   the fastest time) with the streak, Random puzzle, Recent. How to play (tutorial), Leaderboards
-  (any date) and You & friends (5). To come: Generate (7), Campaign (8).
+  (any date), Friends and You (5). To come: Generate (7), Campaign (8).
 - Routes: `/`, `/p/{shareCode}` and `/local/{id}` (milestone 4); `/leaderboard/{date}`, `/me` and
-  `/f/{friendCode}` (milestone 5); `/privacy` and `/tutorial` (after v1). Campaign levels will add
-  theirs.
+  `/f/{friendCode}` (milestone 5); `/privacy` and `/tutorial` (after v1); `/me/stats` (stats page);
+  `/friends`, `/me/look`, `/me/support` and `/me/account` (the split of You & friends,
+  2026-11-26). Campaign levels will add theirs.
 
 ## Engine follow-ups
 

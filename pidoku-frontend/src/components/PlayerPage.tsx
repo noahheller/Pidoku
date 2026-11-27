@@ -6,7 +6,7 @@ import { dailyLabel } from '../game/daily';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import { clearPlayerCaches } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
-import { GoogleButton } from './Profile';
+import { GoogleButton } from './GoogleButton';
 import { VISIBILITY } from './visibility';
 
 type State =
@@ -54,7 +54,7 @@ export function PlayerPage() {
         <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
           <CircleAlert className="size-5" aria-hidden="true" />
           <span>{current.message}</span>
-          <button type="button" className="btn btn-sm" onClick={() => setRetries((n) => n + 1)}>
+          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
             <RotateCw className="size-4" aria-hidden="true" /> Retry
           </button>
         </div>
@@ -80,7 +80,7 @@ export function PlayerPage() {
 function BackLink() {
   const navigate = useNavigate();
   const location = useLocation();
-  const className = 'btn btn-ghost btn-sm w-fit text-primary';
+  const className = 'back-link btn btn-ghost btn-sm w-fit text-primary';
   const content = (
     <>
       <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Back
@@ -124,7 +124,7 @@ function Subtitle({ profile }: { profile: PlayerProfile }) {
         <span className="flex items-center gap-1">
           <Icon className="size-4" aria-hidden="true" /> Your profile · {label}
         </span>
-        <Link to="/me" className="link link-primary">
+        <Link to="/me/account" className="link link-primary">
           Change who can see it
         </Link>
       </p>

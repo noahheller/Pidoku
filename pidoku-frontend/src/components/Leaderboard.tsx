@@ -88,7 +88,7 @@ export function LeaderboardView({ title, ...source }: LeaderboardViewProps) {
         <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
           <CircleAlert className="size-5" aria-hidden="true" />
           <span>{current.message}</span>
-          <button type="button" className="btn btn-sm" onClick={() => setRetries((n) => n + 1)}>
+          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
             <RotateCw className="size-4" aria-hidden="true" /> Retry
           </button>
         </div>
@@ -117,7 +117,7 @@ function Board({ board }: { board: Leaderboard }) {
     return board.friendsOnly ? (
       <p className="text-sm text-base-content/60">
         None of your friends has solved this one{what} yet.{' '}
-        <Link to="/me" className="link link-primary inline-flex items-center gap-1">
+        <Link to="/friends" className="link link-primary inline-flex items-center gap-1">
           <UserPlus className="size-4" aria-hidden="true" /> Add friends
         </Link>
       </p>
@@ -159,7 +159,7 @@ function Board({ board }: { board: Leaderboard }) {
       </p>
       {board.friendsOnly && board.total === 1 && board.you && (
         <p className="text-sm text-base-content/60">
-          <Link to="/me" className="link link-primary">
+          <Link to="/friends" className="link link-primary">
             Add friends
           </Link>{' '}
           to see how you compare.

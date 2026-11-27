@@ -10,7 +10,7 @@ export function PrivacyPage() {
   return (
     <main className="mx-auto grid max-w-xl gap-6 px-4 pt-4 pb-16">
       <header className="grid gap-3">
-        <Link to="/" className="btn btn-ghost btn-sm w-fit text-primary">
+        <Link to="/" className="back-link btn btn-ghost btn-sm w-fit text-primary">
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -64,7 +64,7 @@ export function PrivacyPage() {
         <ul className="list-disc ps-5">
           <li>Everyone: the leaderboards show your name (or Anonymous) and your times on the daily puzzles, and a supporter badge if you've tipped on Ko-fi.</li>
           <li>
-            Your profile (your streak, best times and recent dailies): your friends by default. On <strong>You &amp; friends</strong> you can make it public, so any player can see
+            Your profile (your streak, best times and recent dailies): your friends by default. Under <strong>You › Account &amp; privacy</strong> you can make it public, so any player can see
             it, or private, so only you can. Only players signed in with Google can see other players' profiles.
           </li>
           <li>Nobody else sees your email, and no one but you sees your unfinished games.</li>
@@ -76,16 +76,16 @@ export function PrivacyPage() {
 
       <Section title="Deleting your data">
         <p>
-          On{' '}
-          <Link to="/me" className="link link-primary">
-            You &amp; friends
+          Under{' '}
+          <Link to="/me/account" className="link link-primary">
+            You › Account &amp; privacy
           </Link>
           , choose <strong>Delete my account</strong>. It deletes straight away and for good your name, friends, every solve and game in progress (so your times leave the leaderboards), your
           game events, your supporter code and tip records, your sign-in, and
           Pidoku's data in that browser. Database backups can hold a copy for a short while until they expire.
         </p>
         <p>
-          You can also remove a friend or change your name there any time. Clearing your browser's data for this site deletes what's kept in the browser; if you never signed in with
+          You can remove a friend on the Friends page, and change your name on the You page, any time. Clearing your browser's data for this site deletes what's kept in the browser; if you never signed in with
           Google, that also loses your account.
         </p>
         <p>

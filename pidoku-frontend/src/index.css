@@ -334,6 +334,15 @@
   }
 }
 
+/*
+ * A secondary button (Retry, Copy link, Add, the home screen's buttons...), used with `btn`:
+ * white, with a light border that turns primary on hover, like the puzzle cards. In place of
+ * daisyUI's default grey button.
+ */
+@utility btn-plain {
+  @apply border-base-300 bg-base-100 shadow-none transition hover:border-primary hover:shadow-md;
+}
+
 /* Handwritten digits: the number pad and what the player writes on the board. */
 @utility casual {
   font-family: var(--digit-font, var(--font-hand));
@@ -385,4 +394,33 @@
   code {
     @apply rounded-sm bg-base-200 px-1 text-[0.9em];
   }
+}
+
+/*
+ * Back buttons ("← Puzzles", "← You"): hovered, focused and pressed, they look as they do at rest.
+ * daisyUI would turn a ghost button into a raised grey one. Unlayered, so it wins over daisyUI's
+ * own hover and focus rules.
+ */
+.btn.back-link {
+  &:hover,
+  &:focus-visible,
+  &:active {
+    --btn-bg: transparent;
+    --btn-border: transparent;
+    --btn-shadow: 0 0 #0000;
+    --btn-inset: 0 0 #0000;
+    outline: none;
+    translate: none;
+  }
+}
+
+/*
+ * Text fields: a blue border and a soft blue glow when focused, in place of daisyUI's ring in the
+ * text colour (black, or white in dark mode) drawn around the field.
+ */
+.input:focus,
+.input:focus-within {
+  --input-color: var(--color-primary);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-primary) 22%, transparent);
 }

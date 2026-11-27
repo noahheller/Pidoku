@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { api, dailies, enter, fill, newPlayer, openDaily, type Player } from './support.ts';
 
 /**
- * Makes a player a supporter the way a real tip does: a code from /me, then Ko-fi's webhook with
+ * Makes a player a supporter the way a real tip does: a code from /me/support, then Ko-fi's webhook with
  * that code in the message. The token is the API test profile's (src/test/resources/config).
  */
 async function makeSupporter(request: APIRequestContext, player: Player): Promise<void> {
@@ -15,11 +15,15 @@ async function makeSupporter(request: APIRequestContext, player: Player): Promis
 
 test('supporter looks are locked without the badge, but high contrast is free', async ({ browser }) => {
   const { page, context } = await newPlayer(browser);
-  await page.goto('/me');
+  await page.goto('/me/look');
   const html = page.locator('html');
 
   await page.getByRole('button', { name: 'Chalkboard (supporters only)' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Chalkboard is a thank-you for supporters' })).toBeVisible();
+  // It points at how to support, on its own page.
+  await page.getByRole('link', { name: 'How to support Pidoku' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Support Pidoku' })).toBeVisible();
+  await page.goBack();
   await expect(html).not.toHaveAttribute('data-theme');
 
   await page.getByRole('button', { name: 'High contrast', exact: true }).click();
@@ -32,10 +36,10 @@ test('supporter looks are locked without the badge, but high contrast is free', 
 test('a supporter picks a theme, ink and digits, and they stay after a reload', async ({ browser, request }) => {
   const player = await newPlayer(browser);
   const { page, context } = player;
-  await page.goto('/me');
+  await page.goto('/me/support');
   await expect(page.getByRole('button', { name: 'Get my supporter code' })).toBeVisible();
   await makeSupporter(request, player);
-  await page.reload();
+  await page.goto('/me/look');
   await expect(page.getByText('Thanks for supporting Pidoku!')).toBeVisible();
 
   await page.getByRole('button', { name: 'Chalkboard', exact: true }).click();
@@ -68,10 +72,11 @@ test("a supporter's celebration plays on a solve, and the result still shows", a
   const { easy } = await dailies(request);
   const player = await newPlayer(browser);
   const { page, context } = player;
-  await page.goto('/me');
+  await page.goto('/me/support');
   await expect(page.getByRole('button', { name: 'Get my supporter code' })).toBeVisible();
   await makeSupporter(request, player);
-  await page.reload();
+  await page.goto('/me/look');
+  await expect(page.getByText('Thanks for supporting Pidoku!')).toBeVisible();
   await page.getByRole('button', { name: 'π cascade', exact: true }).click();
 
   await openDaily(page, 'Daily Easy');
@@ -92,10 +97,11 @@ test('reduced motion skips the celebration', async ({ browser, request }) => {
   const player = await newPlayer(browser);
   const { page, context } = player;
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto('/me');
+  await page.goto('/me/support');
   await expect(page.getByRole('button', { name: 'Get my supporter code' })).toBeVisible();
   await makeSupporter(request, player);
-  await page.reload();
+  await page.goto('/me/look');
+  await expect(page.getByText('Thanks for supporting Pidoku!')).toBeVisible();
   await page.getByRole('button', { name: 'Pie burst', exact: true }).click();
 
   await openDaily(page, 'Daily Medium');

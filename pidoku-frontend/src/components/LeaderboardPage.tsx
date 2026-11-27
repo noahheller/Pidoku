@@ -30,7 +30,7 @@ export function LeaderboardPage() {
   return (
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
       <header className="grid gap-3">
-        <Link to="/" className="btn btn-ghost btn-sm w-fit text-primary">
+        <Link to="/" className="back-link btn btn-ghost btn-sm w-fit text-primary">
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
         </Link>
         <div>

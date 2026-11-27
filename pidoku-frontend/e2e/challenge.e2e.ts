@@ -13,7 +13,7 @@ test('a challenge link to a random puzzle shows the time to beat, and the result
   // friend's time comes first, so other runs' solves of the same puzzle don't get in the way), and
   // no board yet.
   const { page, context } = await newPlayer(browser);
-  await page.goto('/me');
+  await page.goto('/friends');
   await page.getByLabel('Add a friend by code').fill(friendCode);
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Your friends' })).toContainText(name);
