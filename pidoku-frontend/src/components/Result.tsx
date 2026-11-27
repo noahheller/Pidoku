@@ -293,7 +293,7 @@ function GooglePrompt({ streak }: { streak: number }) {
       </p>
       <div className="flex flex-wrap items-start gap-2">
         <GoogleButton
-          className="btn btn-sm"
+          className="btn btn-plain btn-sm"
           onDone={(result) => {
             if (result === 'switched') {
               clearPlayerCaches();
@@ -372,7 +372,7 @@ function ShareButton({ text, url, onShared }: { text: string; url: string | null
     });
   };
   return (
-    <button type="button" className="btn btn-sm" onClick={share}>
+    <button type="button" className="btn btn-plain btn-sm" onClick={share}>
       <Share2 className="size-4 shrink-0" aria-hidden="true" /> Share
     </button>
   );
@@ -391,7 +391,7 @@ function CopyButton({ text, onCopied }: { text: string; onCopied: () => void }) 
     }
   };
   return (
-    <button type="button" className="btn btn-sm" onClick={copy}>
+    <button type="button" className="btn btn-plain btn-sm" onClick={copy}>
       {copied ? <Check className="size-4 shrink-0" aria-hidden="true" /> : <Copy className="size-4 shrink-0" aria-hidden="true" />}
       {copied ? 'Copied' : 'Copy'}
     </button>

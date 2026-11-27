@@ -104,7 +104,7 @@ function SupportSteps({ kofiUrl, anonymous }: { kofiUrl: string; anonymous: bool
             <span className="font-mono text-xl font-bold tracking-wider select-all" aria-label={`Your supporter code: ${state.code.code.split('').join(' ')}`}>
               {state.code.code}
             </span>
-            <button type="button" className="btn btn-sm ml-auto" onClick={() => copy(state.code.code)}>
+            <button type="button" className="btn btn-plain btn-sm ml-auto" onClick={() => copy(state.code.code)}>
               {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
               {copied ? 'Copied' : 'Copy code'}
             </button>
@@ -112,7 +112,7 @@ function SupportSteps({ kofiUrl, anonymous }: { kofiUrl: string; anonymous: bool
           <p className="text-xs text-base-content/60">Only the code links your tip to you: Pidoku keeps nothing Ko-fi knows about you, such as your name or email.</p>
         </div>
       ) : (
-        <button type="button" className="btn btn-sm w-fit" onClick={getCode} disabled={state.status === 'loading'}>
+        <button type="button" className="btn btn-plain btn-sm w-fit" onClick={getCode} disabled={state.status === 'loading'}>
           {state.status === 'loading' && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
           Get my supporter code
         </button>

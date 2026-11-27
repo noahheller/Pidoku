@@ -42,7 +42,7 @@ export function YouPage() {
                   Your streak and times live only in this browser, so clearing its data loses them. Sign in with Google to keep them and play on other devices too.
                 </p>
                 <GoogleButton
-                  className="btn w-fit bg-base-100"
+                  className="btn btn-plain w-fit"
                   onDone={(result) => {
                     if (result === 'linked') setLinked(true);
                     afterSignIn(result);

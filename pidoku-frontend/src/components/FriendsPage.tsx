@@ -96,7 +96,7 @@ function FriendCode({ code }: { code: string }) {
           {code}
         </span>
         <div className="ml-auto flex gap-2">
-          <button type="button" className="btn btn-sm" onClick={copy}>
+          <button type="button" className="btn btn-plain btn-sm" onClick={copy}>
             {copied ? <Check className="size-4" aria-hidden="true" /> : <Copy className="size-4" aria-hidden="true" />}
             {copied ? 'Link copied' : 'Copy link'}
           </button>
@@ -148,7 +148,7 @@ function AddFriendForm({ onAdded }: { onAdded: (friend: Friend) => void }) {
           spellCheck={false}
           placeholder="e.g. 7KQ4M2XD"
         />
-        <button type="submit" className="btn" disabled={adding || !code.trim()}>
+        <button type="submit" className="btn btn-plain" disabled={adding || !code.trim()}>
           {adding ? <span className="loading loading-spinner loading-xs" aria-hidden="true" /> : <UserPlus className="size-4" aria-hidden="true" />} Add
         </button>
       </div>

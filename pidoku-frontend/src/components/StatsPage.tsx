@@ -44,7 +44,7 @@ export function StatsPage() {
   return (
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
       <header className="grid gap-3">
-        <Link to="/me" className="btn btn-ghost btn-sm w-fit text-primary">
+        <Link to="/me" className="back-link btn btn-ghost btn-sm w-fit text-primary">
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> You
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -89,7 +89,7 @@ export function StatsPage() {
         <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
           <CircleAlert className="size-5" aria-hidden="true" />
           <span>{current.message}</span>
-          <button type="button" className="btn btn-sm" onClick={() => setRetries((n) => n + 1)}>
+          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
             <RotateCw className="size-4" aria-hidden="true" /> Retry
           </button>
         </div>

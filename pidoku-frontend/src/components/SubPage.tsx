@@ -7,7 +7,7 @@ export function SubPage({ back, icon: Icon, title, children }: { back: { to: str
   return (
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
       <header className="grid gap-3">
-        <Link to={back.to} className="btn btn-ghost btn-sm w-fit text-primary">
+        <Link to={back.to} className="back-link btn btn-ghost btn-sm w-fit text-primary">
           <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> {back.label}
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -43,7 +43,7 @@ export function Failed({ message, onRetry }: { message: string; onRetry: () => v
     <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
       <CircleAlert className="size-5" aria-hidden="true" />
       <span>{message}</span>
-      <button type="button" className="btn btn-sm" onClick={onRetry}>
+      <button type="button" className="btn btn-plain btn-sm" onClick={onRetry}>
         <RotateCw className="size-4" aria-hidden="true" /> Retry
       </button>
     </div>

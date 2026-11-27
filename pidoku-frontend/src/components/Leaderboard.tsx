@@ -88,7 +88,7 @@ export function LeaderboardView({ title, ...source }: LeaderboardViewProps) {
         <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
           <CircleAlert className="size-5" aria-hidden="true" />
           <span>{current.message}</span>
-          <button type="button" className="btn btn-sm" onClick={() => setRetries((n) => n + 1)}>
+          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
             <RotateCw className="size-4" aria-hidden="true" /> Retry
           </button>
         </div>

@@ -40,13 +40,13 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
             Pidoku <span className="text-primary">π</span>
           </h1>
           <nav className="flex flex-wrap justify-end gap-2" aria-label="Pidoku">
-            <Link to="/tutorial" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+            <Link to="/tutorial" className="btn btn-plain btn-sm">
               <GraduationCap className="size-4" aria-hidden="true" /> How to play
             </Link>
-            <Link to="/friends" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+            <Link to="/friends" className="btn btn-plain btn-sm">
               <Users className="size-4" aria-hidden="true" /> Friends
             </Link>
-            <Link to="/me" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+            <Link to="/me" className="btn btn-plain btn-sm">
               <UserRound className="size-4" aria-hidden="true" /> You
             </Link>
           </nav>
@@ -76,7 +76,7 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
           <div role="alert" className="alert alert-soft alert-warning">
             <CircleAlert className="size-5" aria-hidden="true" />
             <span>{daily.state.message}</span>
-            <button type="button" className="btn btn-sm" onClick={daily.retry}>
+            <button type="button" className="btn btn-plain btn-sm" onClick={daily.retry}>
               <RotateCw className="size-4" aria-hidden="true" /> Retry
             </button>
           </div>
@@ -292,8 +292,7 @@ function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef, options: PlayOpt
           <button
             key={difficulty}
             type="button"
-            // Same outline as the puzzle cards: a light border that turns primary on hover.
-            className="btn btn-sm border-base-300 bg-base-100 capitalize shadow-none transition hover:border-primary hover:shadow-md"
+            className="btn btn-plain btn-sm capitalize"
             disabled={loading !== null}
             onClick={() => play(difficulty)}
           >

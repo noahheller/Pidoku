@@ -34,7 +34,7 @@ export function AccountPage() {
               </Card>
               <Card title="Your data">
                 <p className="text-sm text-base-content/70">What Pidoku keeps about you, who can see it, and how to delete it.</p>
-                <Link to="/privacy" className="btn btn-sm w-fit">
+                <Link to="/privacy" className="btn btn-plain btn-sm w-fit">
                   <FileText className="size-4" aria-hidden="true" /> Privacy: what Pidoku keeps <ChevronRight className="size-4" aria-hidden="true" />
                 </Link>
               </Card>
@@ -85,7 +85,7 @@ function AccountSection({ account, onSignedIn, onSignedOut }: { account: Account
         You're playing without an account, so your streak and times live in this browser only. Clearing its data loses them. Sign in with Google to keep them and play on other devices too.
       </p>
       <GoogleButton
-        className="btn w-fit"
+        className="btn btn-plain w-fit"
         onDone={(result) => {
           if (result === 'linked') setNotice('Done: this player is now your Google account.');
           onSignedIn(result);
@@ -149,7 +149,7 @@ function ProfileSettings({ player, onSaved }: { player: Player; onSaved: (player
           {error}
         </p>
       )}
-      <Link to={`/players/${player.id}`} className="btn btn-sm w-fit">
+      <Link to={`/players/${player.id}`} className="btn btn-plain btn-sm w-fit">
         <UserRound className="size-4" aria-hidden="true" /> View your profile
       </Link>
     </div>

@@ -3,7 +3,10 @@ import { signInWithGoogle, SignInError } from '../api/auth';
 import { mergeAnonymousPlayer } from '../api/client';
 import { sendPendingCompletions } from '../api/completions';
 
-/** Google sign-in, so the account isn't lost with this browser's data and works on other devices. */
+/**
+ * Google sign-in, so the account isn't lost with this browser's data and works on other devices.
+ * It has no focus ring, by choice.
+ */
 export function GoogleButton({ onDone, className = 'btn' }: { onDone: (result: 'linked' | 'switched') => void; className?: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +26,7 @@ export function GoogleButton({ onDone, className = 'btn' }: { onDone: (result: '
 
   return (
     <div className="grid gap-2">
-      <button type="button" className={className} onClick={signIn} disabled={busy}>
+      <button type="button" className={`${className} focus-visible:outline-none`} onClick={signIn} disabled={busy}>
         {busy ? <span className="loading loading-spinner loading-xs" aria-hidden="true" /> : <GoogleIcon />} Sign in with Google
       </button>
       {error && (

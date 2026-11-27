@@ -258,7 +258,7 @@ function SharedPuzzle() {
           <span>{state.message}</span>
           <button
             type="button"
-            className="btn btn-sm"
+            className="btn btn-plain btn-sm"
             onClick={() => {
               setFetched({ status: 'loading' });
               setRetries((n) => n + 1);
