@@ -12,7 +12,7 @@ import type { PuzzleDef } from '../game/puzzleFile';
 import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, loadProgress, saveStreak } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
 import { LeaderboardView } from './Leaderboard';
-import { GoogleButton } from './Profile';
+import { GoogleButton } from './GoogleButton';
 
 /** A streak this long is worth keeping: past it, players without an account are asked to sign in with Google. */
 const STREAK_WORTH_KEEPING = 3;
@@ -427,10 +427,11 @@ function NamePrompt() {
       <p className="flex items-center gap-1.5 text-sm text-success" role="status">
         <Check className="size-4 shrink-0" aria-hidden="true" />
         <span>
-          Friends will see you as {state.name}. Change it any time under{' '}
+          Friends will see you as {state.name}. Change it any time on the{' '}
           <Link to="/me" className="link">
-            You &amp; friends
-          </Link>
+            You
+          </Link>{' '}
+          page
           .
         </span>
       </p>

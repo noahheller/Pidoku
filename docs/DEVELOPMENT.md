@@ -159,7 +159,7 @@ The API needs no credentials for this. It accepts tokens issued for the Firebase
 ## Ko-fi supporters
 
 A tip on Ko-fi gives the player a supporter badge on leaderboards. The player asks the app for a
-single-use code (`/me` → Support Pidoku) and pastes it into the tip's message; Ko-fi's webhook
+single-use code (You → Support Pidoku, `/me/support`) and pastes it into the tip's message; Ko-fi's webhook
 calls the API, which matches the code (`supporter/SupporterService`). Nothing Ko-fi knows about the
 payer is stored: `kofi_payments` holds the transaction id and, once linked, the player.
 

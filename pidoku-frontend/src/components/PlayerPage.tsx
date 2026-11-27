@@ -6,7 +6,7 @@ import { dailyLabel } from '../game/daily';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import { clearPlayerCaches } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
-import { GoogleButton } from './Profile';
+import { GoogleButton } from './GoogleButton';
 import { VISIBILITY } from './visibility';
 
 type State =
@@ -124,7 +124,7 @@ function Subtitle({ profile }: { profile: PlayerProfile }) {
         <span className="flex items-center gap-1">
           <Icon className="size-4" aria-hidden="true" /> Your profile · {label}
         </span>
-        <Link to="/me" className="link link-primary">
+        <Link to="/me/account" className="link link-primary">
           Change who can see it
         </Link>
       </p>

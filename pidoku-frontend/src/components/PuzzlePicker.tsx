@@ -1,4 +1,4 @@
-import { CircleAlert, Flame, GraduationCap, Puzzle, RotateCw, Shuffle, Timer, Trophy, Users } from 'lucide-react';
+import { CircleAlert, Flame, GraduationCap, Puzzle, RotateCw, Shuffle, Timer, Trophy, UserRound, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { DIFFICULTIES, fetchDailySummary, fetchRecent, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
@@ -43,8 +43,11 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
             <Link to="/tutorial" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
               <GraduationCap className="size-4" aria-hidden="true" /> How to play
             </Link>
+            <Link to="/friends" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
+              <Users className="size-4" aria-hidden="true" /> Friends
+            </Link>
             <Link to="/me" className="btn btn-sm border-base-300 bg-base-100 shadow-none hover:border-primary">
-              <Users className="size-4" aria-hidden="true" /> You &amp; friends
+              <UserRound className="size-4" aria-hidden="true" /> You
             </Link>
           </nav>
         </div>

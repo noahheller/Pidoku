@@ -45,7 +45,7 @@ export function StatsPage() {
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
       <header className="grid gap-3">
         <Link to="/me" className="btn btn-ghost btn-sm w-fit text-primary">
-          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> You &amp; friends
+          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> You
         </Link>
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <BarChart3 className="size-6 text-primary" aria-hidden="true" /> Your stats
