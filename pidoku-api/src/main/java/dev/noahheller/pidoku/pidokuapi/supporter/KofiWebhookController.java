@@ -2,12 +2,10 @@ package dev.noahheller.pidoku.pidokuapi.supporter;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import dev.noahheller.pidoku.pidokuapi.web.ApiException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ProblemDetail;
-import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,10 +26,9 @@ import java.security.MessageDigest;
  * <p>Only the token, the transaction id and the message are read from the JSON; the payer's name,
  * email, the amount and the rest are never bound, stored or logged.
  */
+@Slf4j
 @RestController
 public class KofiWebhookController {
-
-    private static final Logger log = LoggerFactory.getLogger(KofiWebhookController.class);
 
     /** Longer than any Ko-fi transaction id (a UUID); the column's size. */
     static final int MAX_TRANSACTION_ID_LENGTH = 64;
@@ -66,20 +63,20 @@ public class KofiWebhookController {
     @PostMapping(path = "/api/kofi/webhook", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public void payment(@RequestParam("data") String data) {
         if (!properties.webhookEnabled()) {
-            throw error(HttpStatus.NOT_FOUND, "Not found.");
+            throw new ApiException(HttpStatus.NOT_FOUND, "Not found.");
         }
         KofiPayment payment;
         try {
             payment = json.readValue(data, KofiPayment.class);
         } catch (JacksonException e) {
-            throw error(HttpStatus.BAD_REQUEST, "data isn't a Ko-fi payment.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "data isn't a Ko-fi payment.");
         }
         if (payment == null || !tokenMatches(payment.verificationToken())) {
-            throw error(HttpStatus.FORBIDDEN, "Wrong verification token.");
+            throw new ApiException(HttpStatus.FORBIDDEN, "Wrong verification token.");
         }
         String transactionId = payment.transactionId();
         if (transactionId == null || transactionId.isBlank() || transactionId.length() > MAX_TRANSACTION_ID_LENGTH) {
-            throw error(HttpStatus.BAD_REQUEST, "kofi_transaction_id is missing or too long.");
+            throw new ApiException(HttpStatus.BAD_REQUEST, "kofi_transaction_id is missing or too long.");
         }
         SupporterService.Outcome outcome = supporterService.recordPayment(transactionId, payment.message());
         log.info("Ko-fi payment {}: {}", transactionId, outcome);
@@ -92,9 +89,5 @@ public class KofiWebhookController {
         }
         return MessageDigest.isEqual(token.getBytes(StandardCharsets.UTF_8),
                 properties.verificationToken().getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static ErrorResponseException error(HttpStatus status, String detail) {
-        return new ErrorResponseException(status, ProblemDetail.forStatusAndDetail(status, detail), null);
     }
 }

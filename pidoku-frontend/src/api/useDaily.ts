@@ -1,10 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { fetchDaily, localDate, type DailyPuzzles } from './client';
-
-export type DailyState =
-  | { status: 'loading' }
-  | { status: 'loaded'; daily: DailyPuzzles }
-  | { status: 'failed'; message: string };
+import { useEffect, useState } from 'react';
+import { fetchDailyOn, localDate, type DailyPuzzles } from './client';
+import { useLoad, type Load } from './useLoad';
 
 /** How often an open page checks whether the player's date has changed. */
 const DATE_CHECK_MS = 60_000;
@@ -14,9 +10,7 @@ const DATE_CHECK_MS = 60_000;
  * page is open (left open past midnight), so it never keeps showing yesterday's. `retry` loads
  * them again.
  */
-export function useDaily(): { state: DailyState; retry: () => void } {
-  const [state, setState] = useState<DailyState>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
+export function useDaily(): { state: Load<DailyPuzzles>; retry: () => void } {
   const [today, setToday] = useState(() => localDate(new Date()));
 
   useEffect(() => {
@@ -31,23 +25,7 @@ export function useDaily(): { state: DailyState; retry: () => void } {
     };
   }, []);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchDaily(controller.signal)
-      .then((daily) => setState({ status: 'loaded', daily }))
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        setState({ status: 'failed', message: e instanceof Error ? e.message : String(e) });
-      });
-    return () => controller.abort();
-  }, [attempt, today]);
-
-  const retry = useCallback(() => {
-    setState({ status: 'loading' });
-    setAttempt((n) => n + 1);
-  }, []);
-
-  // Another date's puzzles are on their way out: show the loading state until today's arrive.
-  const stale = state.status === 'loaded' && state.daily.date !== today;
-  return { state: stale ? { status: 'loading' } : state, retry };
+  // Keyed by the date, so yesterday's puzzles give way to the loading state until today's arrive.
+  const { state, reload } = useLoad(today, (signal) => fetchDailyOn(today, signal));
+  return { state, retry: reload };
 }

@@ -13,15 +13,19 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Clock;
+
 @RestController
 public class PlayerController {
 
     private final PlayerService playerService;
     private final JwtDecoder jwtDecoder;
+    private final Clock clock;
 
-    public PlayerController(PlayerService playerService, JwtDecoder jwtDecoder) {
+    public PlayerController(PlayerService playerService, JwtDecoder jwtDecoder, Clock clock) {
         this.playerService = playerService;
         this.jwtDecoder = jwtDecoder;
+        this.clock = clock;
     }
 
     /**
@@ -30,7 +34,7 @@ public class PlayerController {
      */
     @GetMapping("/api/players/me")
     public PlayerResponse me(@AuthenticationPrincipal Jwt token) {
-        return PlayerResponse.from(playerService.me(token));
+        return PlayerResponse.from(playerService.me(token), clock.instant());
     }
 
     /**
@@ -53,7 +57,7 @@ public class PlayerController {
     @PatchMapping("/api/players/me")
     public PlayerResponse update(@AuthenticationPrincipal Jwt token, @RequestBody UpdateRequest request) {
         return PlayerResponse.from(playerService.update(token, request.displayName(), request.profileVisibility(),
-                request.historyVisibility()));
+                request.historyVisibility()), clock.instant());
     }
 
     /** @param anonymousToken the Firebase ID token of the anonymous account to move in */

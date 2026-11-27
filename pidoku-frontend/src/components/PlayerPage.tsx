@@ -1,7 +1,8 @@
-import { ArrowLeft, ChevronRight, CircleAlert, CloudOff, Flame, History as HistoryIcon, Lock, RotateCw, Swords, Target, Trophy, UserPlus } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { ChevronRight, CloudOff, Flame, History as HistoryIcon, Lock, Swords, Target, Trophy, UserPlus } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ApiError, DAILY_DIFFICULTIES, fetchHistory, fetchProfile, type HistoryEntry, type PlayerProfile } from '../api/client';
+import { useLoad } from '../api/useLoad';
 import { dailyLabel } from '../game/daily';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import { challengeFrom, historyShownTo, versus, type HistoryOwner } from '../game/history';
@@ -12,18 +13,11 @@ import { reloadCosmetics } from './cosmetics';
 import { GoogleButton } from './GoogleButton';
 import { Switch } from './Leaderboard';
 import type { PlayOptions } from './PuzzlePicker';
-import { Failed, Loading } from './SubPage';
+import { BackLink, LoadStatus } from './SubPage';
 import { VISIBILITY } from './visibility';
 
 /** Opens a puzzle the way the home screen does (it goes on Recent), with a time to beat if there is one. */
 type OnPlay = (puzzle: PuzzleDef, options?: PlayOptions) => void;
-
-type State =
-  | { status: 'loading' }
-  | { status: 'loaded'; profile: PlayerProfile }
-  /** Someone else's profile, and the player isn't signed in with Google. */
-  | { status: 'signInNeeded' }
-  | { status: 'failed'; message: string };
 
 /**
  * `/players/{playerId}` (and `/friends/{playerId}`, its older address): a player's streaks,
@@ -35,42 +29,14 @@ type State =
 export function PlayerPage({ onPlay }: { onPlay: OnPlay }) {
   const { id = '' } = useParams();
   const playerId = Number(id);
-  const [state, setState] = useState<State & { key?: string }>({ status: 'loading' });
-  const [retries, setRetries] = useState(0);
-  const key = `${id}/${retries}`;
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchProfile(playerId, controller.signal)
-      .then((profile) => setState({ status: 'loaded', profile, key }))
-      .catch((e: unknown) => {
-        if (controller.signal.aborted) return;
-        if (e instanceof ApiError && e.status === 403) setState({ status: 'signInNeeded', key });
-        else setState({ status: 'failed', message: e instanceof Error ? e.message : String(e), key });
-      });
-    return () => controller.abort();
-  }, [playerId, key]);
-
-  const current: State = state.key === key ? state : { status: 'loading' };
+  const { state, reload } = useLoad(id, (signal) => fetchProfile(playerId, signal));
+  // Someone else's profile, and the player isn't signed in with Google.
+  const signInNeeded = state.status === 'failed' && state.error instanceof ApiError && state.error.status === 403;
 
   return (
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
-      <BackLink />
-      {current.status === 'loading' && (
-        <p className="flex items-center gap-2 text-base-content/60" role="status">
-          <span className="loading loading-spinner loading-sm" aria-hidden="true" /> Loading…
-        </p>
-      )}
-      {current.status === 'failed' && (
-        <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
-          <CircleAlert className="size-5" aria-hidden="true" />
-          <span>{current.message}</span>
-          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
-            <RotateCw className="size-4" aria-hidden="true" /> Retry
-          </button>
-        </div>
-      )}
-      {current.status === 'signInNeeded' && (
+      <Back />
+      {signInNeeded ? (
         <SignInNeeded
           onSignedIn={(result) => {
             // Another player now: what was cached for the old one no longer applies.
@@ -78,38 +44,23 @@ export function PlayerPage({ onPlay }: { onPlay: OnPlay }) {
               clearPlayerCaches();
               reloadCosmetics();
             }
-            setRetries((n) => n + 1);
+            reload();
           }}
         />
+      ) : (
+        <LoadStatus state={state} onRetry={reload} />
       )}
-      {current.status === 'loaded' && <Profile profile={current.profile} onPlay={onPlay} />}
+      {state.status === 'loaded' && <Profile profile={state.value} onPlay={onPlay} />}
     </main>
   );
 }
 
 /** Back where the player came from (a leaderboard, their friends), or home when opened cold. */
-function BackLink() {
+function Back() {
   const navigate = useNavigate();
   const location = useLocation();
-  const className = 'back-link btn btn-ghost btn-sm w-fit text-primary';
-  const content = (
-    <>
-      <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Back
-    </>
-  );
   // 'default' is the key of the first page loaded in this tab: there's nothing in the app to go back to.
-  if (location.key === 'default') {
-    return (
-      <Link to="/" className={className}>
-        {content}
-      </Link>
-    );
-  }
-  return (
-    <button type="button" className={className} onClick={() => void navigate(-1)}>
-      {content}
-    </button>
-  );
+  return location.key === 'default' ? <BackLink to="/" label="Back" /> : <BackLink label="Back" onClick={() => void navigate(-1)} />;
 }
 
 function SignInNeeded({ onSignedIn }: { onSignedIn: (result: 'linked' | 'switched') => void }) {
@@ -206,7 +157,7 @@ function Profile({ profile, onPlay }: { profile: PlayerProfile; onPlay: OnPlay }
                         <span className="capitalize">{s.difficulty}</span>
                         <span className="font-semibold tabular-nums">
                           {formatTime(s.elapsedMs)}
-                          {(s.penaltyMs ?? 0) > 0 && <span className="ml-1 text-xs font-normal text-warning">{formatPenalty(s.penaltyMs)}</span>}
+                          {s.penaltyMs > 0 && <span className="ml-1 text-xs font-normal text-warning">{formatPenalty(s.penaltyMs)}</span>}
                         </span>
                         <span className={s.mistakes === 0 ? 'text-success' : 'text-base-content/60'}>{s.mistakes === 0 ? '✓' : `${s.mistakes}✗`}</span>
                         {s.late && <CloudOff className="size-3.5 text-base-content/50" aria-label="Sent late" />}
@@ -220,15 +171,17 @@ function Profile({ profile, onPlay }: { profile: PlayerProfile; onPlay: OnPlay }
         </div>
       </section>
 
-      {profile.historyVisible !== undefined && <History profile={profile} onPlay={onPlay} />}
+      <History profile={profile} onPlay={onPlay} />
     </>
   );
 }
 
-type HistoryState =
-  | { status: 'loading' }
-  | { status: 'loaded'; entries: HistoryEntry[]; hasMore: boolean; more: 'idle' | 'loading' | 'failed' }
-  | { status: 'failed'; message: string };
+/** The pages of history loaded so far, and whether the next one is on its way. */
+interface HistoryPages {
+  entries: HistoryEntry[];
+  hasMore: boolean;
+  more: 'idle' | 'loading' | 'failed';
+}
 
 /**
  * Every puzzle the player has solved, newest first, a page at a time, if they show it to this
@@ -237,35 +190,22 @@ type HistoryState =
  */
 function History({ profile, onPlay }: { profile: PlayerProfile; onPlay: OnPlay }) {
   const [inCommon, setInCommon] = useState(false);
-  const [retries, setRetries] = useState(0);
-  const key = `${profile.id}/${inCommon}/${retries}`;
-  const [state, setState] = useState<HistoryState & { key?: string }>({ status: 'loading' });
-  const visible = profile.historyVisible === true;
-
-  useEffect(() => {
-    if (!visible) return;
-    const controller = new AbortController();
-    fetchHistory(profile.id, { inCommon }, controller.signal)
-      .then((page) => setState({ status: 'loaded', entries: page.entries, hasMore: page.hasMore, more: 'idle', key }))
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e), key });
-      });
-    return () => controller.abort();
-  }, [visible, profile.id, inCommon, key]);
-
-  const current: HistoryState = state.key === key ? state : { status: 'loading' };
+  const visible = profile.historyVisible;
+  const { state, reload, update } = useLoad<HistoryPages>(visible ? `${profile.id}/${inCommon}` : null, async (signal) => {
+    const page = await fetchHistory(profile.id, { inCommon }, signal);
+    return { entries: page.entries, hasMore: page.hasMore, more: 'idle' };
+  });
   const name = profile.displayName ?? 'Anonymous';
   const owner: HistoryOwner = { displayName: profile.displayName, you: profile.you, friend: profile.friendsSince !== null };
 
   const loadMore = () => {
-    if (current.status !== 'loaded' || current.more === 'loading') return;
-    setState({ ...current, more: 'loading', key });
-    const update = (change: (s: Extract<HistoryState, { status: 'loaded' }>) => HistoryState) =>
-      setState((s) => (s.key === key && s.status === 'loaded' ? { ...change(s), key } : s));
-    fetchHistory(profile.id, { offset: current.entries.length, inCommon })
-      .then((page) => update((s) => ({ ...s, entries: [...s.entries, ...page.entries], hasMore: page.hasMore, more: 'idle' })))
-      .catch(() => update((s) => ({ ...s, more: 'failed' })));
+    if (state.status !== 'loaded' || state.value.more === 'loading') return;
+    update((h) => ({ ...h, more: 'loading' }));
+    fetchHistory(profile.id, { offset: state.value.entries.length, inCommon })
+      .then((page) => update((h) => ({ ...h, entries: [...h.entries, ...page.entries], hasMore: page.hasMore, more: 'idle' })))
+      .catch(() => update((h) => ({ ...h, more: 'failed' })));
   };
+  const pages = state.status === 'loaded' ? state.value : null;
 
   return (
     <section className="card border border-base-300 bg-base-100 shadow-sm" aria-labelledby="history-title">
@@ -293,22 +233,21 @@ function History({ profile, onPlay }: { profile: PlayerProfile; onPlay: OnPlay }
         ) : (
           <>
             <HistoryCaption profile={profile} inCommon={inCommon} />
-            {current.status === 'loading' && <Loading />}
-            {current.status === 'failed' && <Failed message={current.message} onRetry={() => setRetries((n) => n + 1)} />}
-            {current.status === 'loaded' && current.entries.length === 0 && <EmptyHistory profile={profile} inCommon={inCommon} />}
-            {current.status === 'loaded' && current.entries.length > 0 && (
+            <LoadStatus state={state} onRetry={reload} />
+            {pages && pages.entries.length === 0 && <EmptyHistory profile={profile} inCommon={inCommon} />}
+            {pages && pages.entries.length > 0 && (
               <ul className="grid gap-2" aria-label={profile.you ? 'Puzzles you solved' : `Puzzles ${name} solved`}>
-                {current.entries.map((entry) => (
+                {pages.entries.map((entry) => (
                   <li key={entry.puzzle.id}>
                     <HistoryRow entry={entry} owner={owner} onPlay={onPlay} />
                   </li>
                 ))}
               </ul>
             )}
-            {current.status === 'loaded' && current.hasMore && (
-              <button type="button" className="btn btn-plain btn-sm w-fit" onClick={loadMore} disabled={current.more === 'loading'}>
-                {current.more === 'loading' && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
-                {current.more === 'failed' ? "Couldn't load more. Try again" : 'Show more'}
+            {pages?.hasMore && (
+              <button type="button" className="btn btn-plain btn-sm w-fit" onClick={loadMore} disabled={pages.more === 'loading'}>
+                {pages.more === 'loading' && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
+                {pages.more === 'failed' ? "Couldn't load more. Try again" : 'Show more'}
               </button>
             )}
           </>
@@ -324,7 +263,7 @@ function HistoryCaption({ profile, inCommon }: { profile: PlayerProfile; inCommo
     return <p className="text-sm text-base-content/60">{profile.you ? 'Puzzles a friend has solved too.' : 'Puzzles you or your friends have solved too.'}</p>;
   }
   if (!profile.you) return null;
-  const { label, Icon } = VISIBILITY[historyShownTo(profile.visibility, profile.historyVisibility ?? 'friends')];
+  const { label, Icon } = VISIBILITY[historyShownTo(profile.visibility, profile.historyVisibility)];
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/60">
       <span className="flex items-center gap-1">

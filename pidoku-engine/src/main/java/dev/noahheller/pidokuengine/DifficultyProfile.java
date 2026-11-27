@@ -4,6 +4,7 @@ import dev.noahheller.pidokuengine.searching.SolveTrace;
 import dev.noahheller.pidokuengine.strategy.StrategyEnum;
 import dev.noahheller.pidokuengine.strategy.Tier;
 
+import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Map;
 
@@ -29,7 +30,7 @@ public class DifficultyProfile {
         this.maxClues = b.maxClues;
         this.strategyTierCeiling = b.ceiling;
         this.strategyTierFloor = b.floor;
-        this.maxStrategyUses = java.util.Collections.unmodifiableMap(b.maxStrategyUses);
+        this.maxStrategyUses = Collections.unmodifiableMap(new EnumMap<>(b.maxStrategyUses));
     }
 
     // Score windows are calibrated against DifficultyScorer (p10-p90 over ~100k generated puzzles):
@@ -124,7 +125,8 @@ public class DifficultyProfile {
 
         if (clueCount >= 0 && (clueCount < minClues || clueCount > maxClues)) return false;
 
-        if (trace.getTotalScore() < minScore || trace.getTotalScore() > maxScore) return false;
+        int score = trace.getTotalScore();
+        if (score < minScore || score > maxScore) return false;
 
         if (trace.getHardestStrategy() != null
                 && trace.getHardestStrategy().getTier().isHarderThan(strategyTierCeiling)) {

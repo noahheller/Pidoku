@@ -38,7 +38,7 @@ final class Words {
 
     /** "top-left", "centre" and so on for 4×4 and 9×9 boards; "number 7" on bigger ones. */
     private static String boxName(int index, PidokuRules rules) {
-        int perRow = rules.boxesPerRow(rules.getSize());
+        int perRow = rules.boxesPerRow();
         int row = index / perRow;
         int col = index % perRow;
         if (perRow == 2) {
@@ -55,7 +55,12 @@ final class Words {
 
     /** "a 3" or "an 8". */
     static String a(int digit) {
-        return (digit == 8 ? "an " : "a ") + digit;
+        return article(digit) + digit;
+    }
+
+    /** "a " or "an ", for the digit that follows. */
+    static String article(int digit) {
+        return digit == 8 ? "an " : "a ";
     }
 
     /** "one 3", "two 5s". */

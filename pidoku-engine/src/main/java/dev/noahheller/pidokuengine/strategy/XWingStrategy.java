@@ -8,6 +8,11 @@ import dev.noahheller.pidokuengine.searching.SolverSearchState;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Two rows that each have only two spots left for a digit, in the same two columns: the digit is
+ * in one corner of that rectangle in each row, so it can't be anywhere else in those columns. The
+ * same with rows and columns swapped. Only for digits π has once.
+ */
 public class XWingStrategy implements Strategy {
     @Override
     public List<Move> findAll(SolverSearchState state) {
@@ -17,127 +22,80 @@ public class XWingStrategy implements Strategy {
             if (rules.getDigitFrequency(digit) != 1) {
                 continue;
             }
-            findRowBased(state, digit, moves);
-            findColBased(state, digit, moves);
+            find(state, digit, UnitType.ROW, UnitType.COLUMN, moves);
+            find(state, digit, UnitType.COLUMN, UnitType.ROW, moves);
         }
         return moves;
     }
 
-    private void findRowBased(SolverSearchState state, int digit, List<Move> moves) {
+    /**
+     * X-Wings with their base lines of {@code baseType}, clearing the digit from the two lines of
+     * {@code coverType} through their corners.
+     */
+    private void find(SolverSearchState state, int digit, UnitType baseType, UnitType coverType, List<Move> moves) {
+        PidokuRules rules = state.getRules();
         int size = state.getSize();
-        List<RowPair> rowPairs = new ArrayList<>();
-        for (int row = 0; row < size; row++) {
-            int remaining = state.getRules().getDigitFrequency(digit) - state.getRowDigitCount(row, digit);
-            if (remaining != 1) continue;
-
-            List<Integer> cols = new ArrayList<>();
-            for (int col = 0; col < size; col++) {
-                if (SearchUtils.isCandidate(state, row, col, digit)) {
-                    cols.add(col);
-                }
-            }
-            if (cols.size() == 2) {
-                int c1 = cols.get(0);
-                int c2 = cols.get(1);
-                rowPairs.add(new RowPair(row, Math.min(c1, c2), Math.max(c1, c2)));
-            }
+        List<Base> bases = new ArrayList<>();
+        for (Unit line : Unit.all(baseType, rules)) {
+            if (SearchUtils.remaining(state, line, digit) != 1) continue;
+            Base base = twoSpots(state, line, digit);
+            if (base != null) bases.add(base);
         }
 
-        for (int i = 0; i < rowPairs.size(); i++) {
-            RowPair a = rowPairs.get(i);
-            for (int j = i + 1; j < rowPairs.size(); j++) {
-                RowPair b = rowPairs.get(j);
-                if (a.col1 != b.col1 || a.col2 != b.col2) continue;
+        for (int i = 0; i < bases.size(); i++) {
+            Base a = bases.get(i);
+            for (int j = i + 1; j < bases.size(); j++) {
+                Base b = bases.get(j);
+                if (a.first() != b.first() || a.second() != b.second()) continue;
 
+                Unit cover1 = new Unit(coverType, a.first());
+                Unit cover2 = new Unit(coverType, a.second());
                 List<Move.Candidate> eliminations = new ArrayList<>();
-                for (int row = 0; row < size; row++) {
-                    if (row == a.row || row == b.row) continue;
-                    if (SearchUtils.isCandidate(state, row, a.col1, digit)) {
-                        eliminations.add(new Move.Candidate(new BoardPosition(row, a.col1), digit));
-                    }
-                    if (SearchUtils.isCandidate(state, row, a.col2, digit)) {
-                        eliminations.add(new Move.Candidate(new BoardPosition(row, a.col2), digit));
-                    }
+                // Along a cover line, cell k is where it crosses base line k.
+                for (int k = 0; k < size; k++) {
+                    if (k == a.line().index() || k == b.line().index()) continue;
+                    addIfCandidate(state, cover1, k, digit, eliminations);
+                    addIfCandidate(state, cover2, k, digit, eliminations);
                 }
                 Move move = Move.eliminating(eliminations);
-                // Reason: the two base rows, then the two columns cleared, and the four corners.
+                // Reason: the two base lines, then the two lines cleared, and the four corners.
                 if (move != null) moves.add(move.because(
-                        List.of(Unit.row(a.row), Unit.row(b.row), Unit.column(a.col1), Unit.column(a.col2)),
-                        List.of(new BoardPosition(a.row, a.col1), new BoardPosition(a.row, a.col2),
-                                new BoardPosition(b.row, a.col1), new BoardPosition(b.row, a.col2)),
+                        List.of(a.line(), b.line(), cover1, cover2),
+                        List.of(a.line().cell(a.first(), rules), a.line().cell(a.second(), rules),
+                                b.line().cell(a.first(), rules), b.line().cell(a.second(), rules)),
                         List.of(digit)));
             }
         }
     }
 
-    private void findColBased(SolverSearchState state, int digit, List<Move> moves) {
-        int size = state.getSize();
-        List<ColPair> colPairs = new ArrayList<>();
-        for (int col = 0; col < size; col++) {
-            int remaining = state.getRules().getDigitFrequency(digit) - state.getColDigitCount(col, digit);
-            if (remaining != 1) continue;
-
-            List<Integer> rows = new ArrayList<>();
-            for (int row = 0; row < size; row++) {
-                if (SearchUtils.isCandidate(state, row, col, digit)) {
-                    rows.add(row);
-                }
-            }
-            if (rows.size() == 2) {
-                int r1 = rows.get(0);
-                int r2 = rows.get(1);
-                colPairs.add(new ColPair(col, Math.min(r1, r2), Math.max(r1, r2)));
+    /** The line, if it has exactly two spots left for the digit; otherwise null. */
+    private static Base twoSpots(SolverSearchState state, Unit line, int digit) {
+        PidokuRules rules = state.getRules();
+        int first = -1;
+        int second = -1;
+        for (int k = 0; k < state.getSize(); k++) {
+            if (!SearchUtils.isCandidate(state, line.rowOf(k, rules), line.colOf(k, rules), digit)) continue;
+            if (first < 0) {
+                first = k;
+            } else if (second < 0) {
+                second = k;
+            } else {
+                return null;
             }
         }
+        return second < 0 ? null : new Base(line, first, second);
+    }
 
-        for (int i = 0; i < colPairs.size(); i++) {
-            ColPair a = colPairs.get(i);
-            for (int j = i + 1; j < colPairs.size(); j++) {
-                ColPair b = colPairs.get(j);
-                if (a.row1 != b.row1 || a.row2 != b.row2) continue;
-
-                List<Move.Candidate> eliminations = new ArrayList<>();
-                for (int col = 0; col < size; col++) {
-                    if (col == a.col || col == b.col) continue;
-                    if (SearchUtils.isCandidate(state, a.row1, col, digit)) {
-                        eliminations.add(new Move.Candidate(new BoardPosition(a.row1, col), digit));
-                    }
-                    if (SearchUtils.isCandidate(state, a.row2, col, digit)) {
-                        eliminations.add(new Move.Candidate(new BoardPosition(a.row2, col), digit));
-                    }
-                }
-                Move move = Move.eliminating(eliminations);
-                // Reason: the two base columns, then the two rows cleared, and the four corners.
-                if (move != null) moves.add(move.because(
-                        List.of(Unit.column(a.col), Unit.column(b.col), Unit.row(a.row1), Unit.row(a.row2)),
-                        List.of(new BoardPosition(a.row1, a.col), new BoardPosition(a.row2, a.col),
-                                new BoardPosition(a.row1, b.col), new BoardPosition(a.row2, b.col)),
-                        List.of(digit)));
-            }
+    private static void addIfCandidate(SolverSearchState state, Unit unit, int k, int digit, List<Move.Candidate> out) {
+        PidokuRules rules = state.getRules();
+        int row = unit.rowOf(k, rules);
+        int col = unit.colOf(k, rules);
+        if (SearchUtils.isCandidate(state, row, col, digit)) {
+            out.add(new Move.Candidate(new BoardPosition(row, col), digit));
         }
     }
 
-    private static class RowPair {
-        private final int row;
-        private final int col1;
-        private final int col2;
-
-        private RowPair(int row, int col1, int col2) {
-            this.row = row;
-            this.col1 = col1;
-            this.col2 = col2;
-        }
-    }
-
-    private static class ColPair {
-        private final int col;
-        private final int row1;
-        private final int row2;
-
-        private ColPair(int col, int row1, int row2) {
-            this.col = col;
-            this.row1 = row1;
-            this.row2 = row2;
-        }
+    /** A base line and its two spots for the digit, as cell numbers along it ({@code first < second}). */
+    private record Base(Unit line, int first, int second) {
     }
 }

@@ -43,7 +43,7 @@ class PidokuRulesTest {
 
     @Test
     void boxGeometry() {
-        assertEquals(3, rules.getBoxDim());
+        assertEquals(3, rules.boxDim());
         assertEquals(0, rules.boxIndex(0, 0));
         assertEquals(2, rules.boxIndex(0, 8));
         assertEquals(4, rules.boxIndex(4, 4));

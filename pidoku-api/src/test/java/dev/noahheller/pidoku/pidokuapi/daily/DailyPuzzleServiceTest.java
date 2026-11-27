@@ -10,7 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Duration;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -33,6 +35,21 @@ class DailyPuzzleServiceTest extends IntegrationTest {
 
     @Autowired
     DailyPuzzleRepository dailies;
+
+    @Test
+    void theSqlDailyWindowMatchesTheJavaOne() {
+        for (LocalDate date : new LocalDate[]{DATE, LocalDate.of(2026, 12, 31), LocalDate.of(2028, 2, 29)}) {
+            OffsetDateTime opens = jdbc.queryForObject("SELECT " + DailyPuzzleService.opensAtSql("CAST(? AS date)"),
+                    OffsetDateTime.class, date);
+            OffsetDateTime closes = jdbc.queryForObject("SELECT " + DailyPuzzleService.closesAtSql("CAST(? AS date)"),
+                    OffsetDateTime.class, date);
+
+            assertThat(opens.toInstant()).as("opens %s", date).isEqualTo(DailyPuzzleService.opensAt(date));
+            assertThat(closes.toInstant()).as("closes %s", date).isEqualTo(DailyPuzzleService.closesAt(date));
+        }
+        // Midnight at UTC+14 to midnight at UTC-12: 50 hours in which it's that date somewhere.
+        assertThat(Duration.between(DailyPuzzleService.opensAt(DATE), DailyPuzzleService.closesAt(DATE))).hasHours(50);
+    }
 
     @Test
     void fillWithNewStoresThePuzzleAsADaily() {

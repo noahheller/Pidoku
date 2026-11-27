@@ -8,6 +8,7 @@ import java.util.Random;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 class ShareCodeGeneratorTest {
 
@@ -35,6 +36,22 @@ class ShareCodeGeneratorTest {
             codes.add(generator.next());
         }
         assertThat(codes).hasSize(1_000);
+    }
+
+    @Test
+    void nextUnusedSkipsCodesThatAreTaken() {
+        ShareCodeGenerator same = new ShareCodeGenerator(new Random(7));
+        Set<String> taken = Set.of(same.next(), same.next());
+        String third = same.next();
+
+        assertThat(generator.nextUnused("test code", taken::contains)).isEqualTo(third);
+    }
+
+    @Test
+    void nextUnusedGivesUpWhenEveryCodeIsTaken() {
+        assertThatIllegalStateException()
+                .isThrownBy(() -> generator.nextUnused("test code", code -> true))
+                .withMessage("No unused test code found in " + ShareCodeGenerator.MAX_ATTEMPTS + " attempts");
     }
 
     @Test

@@ -28,8 +28,8 @@ public class WWingStrategy implements Strategy {
                 BivalueCell b = bivalueCells.get(j);
                 if (!a.hasSamePair(b)) continue;
 
-                int d1 = a.first;
-                int d2 = a.second;
+                int d1 = a.first();
+                int d2 = a.second();
                 findWings(state, rules, strongLinksByDigit, a, b, d1, d2, moves);
                 findWings(state, rules, strongLinksByDigit, a, b, d2, d1, moves);
             }
@@ -51,21 +51,21 @@ public class WWingStrategy implements Strategy {
         if (rules.getDigitFrequency(linkDigit) != 1) return;
         if (rules.getDigitFrequency(eliminateDigit) != 1) return;
 
+        // Only digits with links are in the map.
         List<StrongLink> links = strongLinksByDigit.get(linkDigit);
-        if (links == null || links.isEmpty()) return;
+        if (links == null) return;
 
         for (StrongLink link : links) {
-            if (!connects(a.position, b.position, link, rules)) continue;
+            if (!connects(a.position(), b.position(), link, rules)) continue;
 
             List<Move.Candidate> eliminations = new ArrayList<>();
             int size = state.getSize();
             for (int row = 0; row < size; row++) {
                 for (int col = 0; col < size; col++) {
                     if (!state.isEmpty(row, col)) continue;
-                    if (a.position.getRow() == row && a.position.getCol() == col) continue;
-                    if (b.position.getRow() == row && b.position.getCol() == col) continue;
                     BoardPosition pos = new BoardPosition(row, col);
-                    if (!sees(rules, pos, a.position) || !sees(rules, pos, b.position)) continue;
+                    if (pos.equals(a.position()) || pos.equals(b.position())) continue;
+                    if (!sees(rules, pos, a.position()) || !sees(rules, pos, b.position())) continue;
                     if (SearchUtils.isCandidate(state, pos, eliminateDigit)) {
                         eliminations.add(new Move.Candidate(pos, eliminateDigit));
                     }
@@ -74,23 +74,18 @@ public class WWingStrategy implements Strategy {
             Move move = Move.eliminating(eliminations);
             // Reason: the unit holding the strong link; the two wing cells, then the link's ends;
             // the link digit, then the digit cleared.
-            if (move != null) moves.add(move.because(List.of(link.unit),
-                    List.of(a.position, b.position, link.first, link.second), List.of(linkDigit, eliminateDigit)));
+            if (move != null) moves.add(move.because(List.of(link.unit()),
+                    List.of(a.position(), b.position(), link.first(), link.second()), List.of(linkDigit, eliminateDigit)));
         }
     }
 
     private boolean connects(BoardPosition a, BoardPosition b, StrongLink link, PidokuRules rules) {
         // link must be between two *other* cells.
-        if (samePosition(link.first, a) || samePosition(link.first, b)
-                || samePosition(link.second, a) || samePosition(link.second, b)) {
+        if (link.first().equals(a) || link.first().equals(b) || link.second().equals(a) || link.second().equals(b)) {
             return false;
         }
-        return (sees(rules, a, link.first) && sees(rules, b, link.second))
-                || (sees(rules, a, link.second) && sees(rules, b, link.first));
-    }
-
-    private static boolean samePosition(BoardPosition a, BoardPosition b) {
-        return a.getRow() == b.getRow() && a.getCol() == b.getCol();
+        return (sees(rules, a, link.first()) && sees(rules, b, link.second()))
+                || (sees(rules, a, link.second()) && sees(rules, b, link.first()));
     }
 
     private boolean sees(PidokuRules rules, BoardPosition a, BoardPosition b) {
@@ -116,16 +111,24 @@ public class WWingStrategy implements Strategy {
         return bivalueCells;
     }
 
+    /**
+     * For each digit π has once, every unit with only two spots left for it, in the order rows,
+     * columns, boxes. Digits with none are left out.
+     */
     private Map<Integer, List<StrongLink>> buildStrongLinks(SolverSearchState state) {
         PidokuRules rules = state.getRules();
         Map<Integer, List<StrongLink>> linksByDigit = new HashMap<>();
-        int[] digits = rules.getUniqueDigits();
-        for (int digit : digits) {
+        for (int digit : rules.getUniqueDigits()) {
             if (rules.getDigitFrequency(digit) != 1) continue;
             List<StrongLink> links = new ArrayList<>();
-            addRowLinks(state, digit, links);
-            addColLinks(state, digit, links);
-            addBoxLinks(state, digit, links);
+            for (UnitType type : UnitType.values()) {
+                for (Unit unit : Unit.all(type, rules)) {
+                    List<BoardPosition> spots = SearchUtils.candidateCells(state, unit, digit);
+                    if (spots.size() == 2) {
+                        links.add(new StrongLink(spots.get(0), spots.get(1), unit));
+                    }
+                }
+            }
             if (!links.isEmpty()) {
                 linksByDigit.put(digit, links);
             }
@@ -133,78 +136,15 @@ public class WWingStrategy implements Strategy {
         return linksByDigit;
     }
 
-    private void addRowLinks(SolverSearchState state, int digit, List<StrongLink> links) {
-        int size = state.getSize();
-        for (int row = 0; row < size; row++) {
-            List<BoardPosition> candidates = new ArrayList<>();
-            for (int col = 0; col < size; col++) {
-                if (SearchUtils.isCandidate(state, row, col, digit)) {
-                    candidates.add(new BoardPosition(row, col));
-                }
-            }
-            if (candidates.size() == 2) {
-                links.add(new StrongLink(candidates.get(0), candidates.get(1), Unit.row(row)));
-            }
-        }
-    }
+    /** A cell with only two candidates, {@code first < second}. */
+    private record BivalueCell(BoardPosition position, int first, int second) {
 
-    private void addColLinks(SolverSearchState state, int digit, List<StrongLink> links) {
-        int size = state.getSize();
-        for (int col = 0; col < size; col++) {
-            List<BoardPosition> candidates = new ArrayList<>();
-            for (int row = 0; row < size; row++) {
-                if (SearchUtils.isCandidate(state, row, col, digit)) {
-                    candidates.add(new BoardPosition(row, col));
-                }
-            }
-            if (candidates.size() == 2) {
-                links.add(new StrongLink(candidates.get(0), candidates.get(1), Unit.column(col)));
-            }
-        }
-    }
-
-    private void addBoxLinks(SolverSearchState state, int digit, List<StrongLink> links) {
-        int totalBoxes = state.getRules().totalBoxes(state.getSize());
-        for (int box = 0; box < totalBoxes; box++) {
-            List<BoardPosition> candidates = SearchUtils.emptyCellsInBox(state, box);
-            List<BoardPosition> digitCandidates = new ArrayList<>();
-            for (BoardPosition pos : candidates) {
-                if (SearchUtils.isCandidate(state, pos, digit)) {
-                    digitCandidates.add(pos);
-                }
-            }
-            if (digitCandidates.size() == 2) {
-                links.add(new StrongLink(digitCandidates.get(0), digitCandidates.get(1), Unit.box(box)));
-            }
-        }
-    }
-
-    private static class BivalueCell {
-        private final BoardPosition position;
-        private final int first;
-        private final int second;
-
-        private BivalueCell(BoardPosition position, int first, int second) {
-            this.position = position;
-            this.first = first;
-            this.second = second;
-        }
-
-        private boolean hasSamePair(BivalueCell other) {
-            return this.first == other.first && this.second == other.second;
+        boolean hasSamePair(BivalueCell other) {
+            return first == other.first && second == other.second;
         }
     }
 
     /** The only two places left for a digit in {@code unit}. */
-    private static class StrongLink {
-        private final BoardPosition first;
-        private final BoardPosition second;
-        private final Unit unit;
-
-        private StrongLink(BoardPosition first, BoardPosition second, Unit unit) {
-            this.first = first;
-            this.second = second;
-            this.unit = unit;
-        }
+    private record StrongLink(BoardPosition first, BoardPosition second, Unit unit) {
     }
 }

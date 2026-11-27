@@ -2,7 +2,7 @@ import { Check, Coffee, Copy, ExternalLink, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { Link, Navigate } from 'react-router';
 import type { Account } from '../api/auth';
-import { createSupporterCode, type Player, type SupporterCode } from '../api/client';
+import { createSupporterCode, errorMessage, type Player, type SupporterCode } from '../api/client';
 import { KOFI_URL } from '../support';
 import { Card, LoadStatus, SubPage } from './SubPage';
 import { usePlayer } from './usePlayer';
@@ -59,7 +59,7 @@ function SupportSteps({ kofiUrl, anonymous }: { kofiUrl: string; anonymous: bool
     setCopied(false);
     createSupporterCode()
       .then((code) => setState({ status: 'ready', code }))
-      .catch((e: unknown) => setState({ status: 'failed', message: e instanceof Error ? e.message : String(e) }));
+      .catch((e: unknown) => setState({ status: 'failed', message: errorMessage(e) }));
   };
   const copy = async (code: string) => {
     try {

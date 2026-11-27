@@ -202,7 +202,14 @@ class StatsControllerTest extends IntegrationTest {
 
     @Test
     void anUnknownSourceIsABadRequest() {
-        assertThat(stats("alice", "source=campaign")).hasStatus(HttpStatus.BAD_REQUEST);
+        assertThat(stats("alice", "source=campaign")).hasStatus(HttpStatus.BAD_REQUEST)
+                .bodyJson().extractingPath("$.detail").asString()
+                .isEqualTo("Unknown source 'campaign'. Valid values: all, daily, random");
+    }
+
+    @Test
+    void theSourceIgnoresCase() {
+        assertThat(stats("alice", "source=DAILY")).hasStatusOk();
     }
 
     @Test

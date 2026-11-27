@@ -21,6 +21,8 @@ const attempt = (overrides: Partial<Attempt> = {}): Attempt => ({
   elapsedMs: null,
   mistakes: 0,
   hintsUsed: 0,
+  hintPenaltyMs: 0,
+  penaltyMs: 0,
   activeMs: null,
   late: false,
   progress: { values: [3, 1, 4], notes: [0, 0, 0], mistakes: 1, activeMs: 90_000 },

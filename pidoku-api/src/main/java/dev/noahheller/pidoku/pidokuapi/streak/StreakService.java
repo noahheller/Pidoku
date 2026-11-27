@@ -1,7 +1,6 @@
 package dev.noahheller.pidoku.pidokuapi.streak;
 
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
-import dev.noahheller.pidoku.pidokuapi.player.Player;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,16 +40,8 @@ public class StreakService {
      * @throws InvalidTodayException if {@code today} isn't the date anywhere in the world right now
      */
     @Transactional(readOnly = true)
-    public Streak forPlayer(Player player, LocalDate today) {
-        if (!dailyPuzzleService.isCurrentSomewhere(today)) {
-            throw new InvalidTodayException(today);
-        }
-        return Streak.of(solvedDates(player), today);
-    }
-
-    /** Distinct dates the player solved a daily on, earliest first. */
-    List<LocalDate> solvedDates(Player player) {
-        return solvedDatesByPlayer(List.of(player.getId())).getOrDefault(player.getId(), List.of());
+    public Streak forPlayer(long playerId, LocalDate today) {
+        return forPlayers(List.of(playerId), today).get(playerId);
     }
 
     /**
@@ -86,10 +77,11 @@ public class StreakService {
                         JOIN daily_puzzles d ON d.puzzle_id = a.puzzle_id
                         WHERE a.player_id IN (:playerIds)
                           AND a.completed_at IS NOT NULL
-                          AND a.completed_at >= (d.puzzle_date - interval '14 hours') AT TIME ZONE 'UTC'
-                          AND a.completed_at <  (d.puzzle_date + interval '36 hours') AT TIME ZONE 'UTC'
+                          AND a.completed_at >= %s
+                          AND a.completed_at <  %s
                         ORDER BY a.player_id, d.puzzle_date
-                        """)
+                        """.formatted(DailyPuzzleService.opensAtSql("d.puzzle_date"),
+                                DailyPuzzleService.closesAtSql("d.puzzle_date")))
                 .param("playerIds", playerIds)
                 .query((rs, n) -> dates.computeIfAbsent(rs.getLong(1), id -> new ArrayList<>())
                         .add(rs.getObject(2, LocalDate.class)))

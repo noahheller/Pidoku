@@ -1,9 +1,10 @@
 import { CircleAlert, Flame, GraduationCap, Puzzle, RotateCw, Shuffle, Timer, Trophy, UserRound, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router';
-import { DIFFICULTIES, fetchDailySummary, fetchRecent, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
+import { DIFFICULTIES, errorMessage, fetchDailySummary, fetchRecent, fetchStreak, localDate, type DailyStats, type Difficulty } from '../api/client';
 import { pickRandom } from '../api/random';
 import { useDaily } from '../api/useDaily';
+import { useLoad, type Load } from '../api/useLoad';
 import { cardStats, solvedElsewhere } from '../game/dailyStats';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
@@ -33,7 +34,7 @@ interface PuzzlePickerProps {
 
 export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
   const daily = useDaily();
-  const summary = useDailySummary(daily.state.status === 'loaded' ? daily.state.daily.date : null);
+  const summary = useDailySummary(daily.state.status === 'loaded' ? daily.state.value.date : null);
 
   return (
     <main className="mx-auto grid max-w-3xl gap-8 px-4 pt-8 pb-16">
@@ -65,8 +66,8 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
           </h2>
           {daily.state.status === 'loaded' && (
             <>
-              <span className="text-sm text-base-content/60">{formatDate(daily.state.daily.date)}</span>
-              <Link to={`/leaderboard/${daily.state.daily.date}`} className="link link-primary flex items-center gap-1 text-sm">
+              <span className="text-sm text-base-content/60">{formatDate(daily.state.value.date)}</span>
+              <Link to={`/leaderboard/${daily.state.value.date}`} className="link link-primary flex items-center gap-1 text-sm">
                 <Trophy className="size-4" aria-hidden="true" /> Leaderboards
               </Link>
             </>
@@ -74,7 +75,7 @@ export function PuzzlePicker({ bundled, recent, onPlay }: PuzzlePickerProps) {
           <StreakBadge />
         </div>
         {daily.state.status === 'loading' && <PuzzleListSkeleton count={3} />}
-        {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.daily.puzzles} onPlay={onPlay} summary={summary} />}
+        {daily.state.status === 'loaded' && <PuzzleList puzzles={daily.state.value.puzzles} onPlay={onPlay} summary={summary} />}
         {daily.state.status === 'failed' && (
           <div role="alert" className="alert alert-soft alert-warning">
             <CircleAlert className="size-5" aria-hidden="true" />
@@ -145,24 +146,13 @@ function DigitRow() {
   );
 }
 
-/** What's known about today's dailies' solves: loading, by difficulty, or nothing (it failed). */
-type Summary = { status: 'loading' } | { status: 'loaded'; byDifficulty: Map<string, DailyStats> } | { status: 'failed' };
+/** What's known about today's dailies' solves, by difficulty. If it fails, the cards go without their numbers. */
+type Summary = Load<Map<string, DailyStats>>;
 
 /** How many have solved each of the date's dailies and the fastest times, for the cards. */
 function useDailySummary(date: string | null): Summary {
-  const [summary, setSummary] = useState<Summary & { date?: string }>({ status: 'loading' });
-  useEffect(() => {
-    if (!date) return;
-    const controller = new AbortController();
-    fetchDailySummary(date, controller.signal)
-      .then((dailies) => setSummary({ status: 'loaded', date, byDifficulty: new Map(dailies.map((d) => [d.difficulty, d])) }))
-      .catch(() => {
-        // The cards work without their numbers; leave them off.
-        if (!controller.signal.aborted) setSummary({ status: 'failed', date });
-      });
-    return () => controller.abort();
-  }, [date]);
-  return summary.date === date ? summary : { status: 'loading' };
+  // Only loaded once there's a date (a null key loads nothing).
+  return useLoad(date, async (signal) => new Map((await fetchDailySummary(date!, signal)).map((d) => [d.difficulty, d]))).state;
 }
 
 interface PuzzleListProps {
@@ -223,7 +213,7 @@ function Technique({ strategy }: { strategy: string | null }) {
 }
 
 function statsFor(summary: Summary, difficulty: string | null): DailyStats | undefined {
-  return summary.status === 'loaded' && difficulty ? summary.byDifficulty.get(difficulty.toLowerCase()) : undefined;
+  return summary.status === 'loaded' && difficulty ? summary.value.get(difficulty.toLowerCase()) : undefined;
 }
 
 /** "3 friends solved · Fastest Alex 3:12", or everyone's numbers when no friend has solved it. */
@@ -280,7 +270,7 @@ function RandomPuzzle({ onPlay }: { onPlay: (puzzle: PuzzleDef, options: PlayOpt
         }
         onPlay(puzzle, { replay, notice });
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => setError(errorMessage(e)))
       .finally(() => setLoading(null));
   };
 

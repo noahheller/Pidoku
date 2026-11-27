@@ -1,7 +1,8 @@
-import { ChevronRight, CircleAlert, CloudOff, Coffee, Lightbulb, RotateCw, Target, UserPlus } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { ChevronRight, CloudOff, Coffee, Lightbulb, Target, UserPlus } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { fetchLeaderboard, fetchPuzzleLeaderboard, type Difficulty, type Leaderboard, type LeaderboardEntry } from '../api/client';
+import { useLoad } from '../api/useLoad';
 import { formatPenalty, formatTime } from '../game/format';
 import { gapLine, photoFinishes, standing } from '../game/leaderboardStats';
 import {
@@ -12,8 +13,7 @@ import {
   type LeaderboardRanking,
   type LeaderboardScope,
 } from '../game/storage';
-
-type State = { status: 'loading' } | { status: 'loaded'; board: Leaderboard } | { status: 'failed'; message: string };
+import { Failed } from './SubPage';
 
 /** Which puzzle's board: a daily by its date and difficulty, or any puzzle by its share code. */
 export type LeaderboardSource = { date: string; difficulty: Difficulty } | { shareCode: string };
@@ -29,26 +29,11 @@ type LeaderboardViewProps = LeaderboardSource & { title?: string };
 export function LeaderboardView({ title, ...source }: LeaderboardViewProps) {
   const [scope, setScope] = useState<LeaderboardScope>(loadLeaderboardScope);
   const [ranking, setRanking] = useState<LeaderboardRanking>(loadLeaderboardRanking);
-  const [state, setState] = useState<State & { key?: string }>({ status: 'loading' });
-  const [retries, setRetries] = useState(0);
-  const date = 'date' in source ? source.date : null;
-  const difficulty = 'date' in source ? source.difficulty : null;
-  const shareCode = 'shareCode' in source ? source.shareCode : null;
-  const key = `${date}/${difficulty}/${shareCode}/${scope}/${ranking}/${retries}`;
-
-  useEffect(() => {
-    const controller = new AbortController();
-    const filter = { friendsOnly: scope === 'friends', cleanOnly: ranking === 'clean' };
-    const board = shareCode !== null ? fetchPuzzleLeaderboard(shareCode, filter, controller.signal) : fetchLeaderboard(date!, difficulty!, filter, controller.signal);
-    board
-      .then((board) => setState({ status: 'loaded', board, key }))
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e), key });
-      });
-    return () => controller.abort();
-  }, [date, difficulty, shareCode, scope, ranking, key]);
-
-  const current: State = state.key === key ? state : { status: 'loading' };
+  const filter = { friendsOnly: scope === 'friends', cleanOnly: ranking === 'clean' };
+  const which = 'shareCode' in source ? source.shareCode : `${source.date}/${source.difficulty}`;
+  const { state, reload } = useLoad(`${which}/${scope}/${ranking}`, (signal) =>
+    'shareCode' in source ? fetchPuzzleLeaderboard(source.shareCode, filter, signal) : fetchLeaderboard(source.date, source.difficulty, filter, signal),
+  );
 
   return (
     <div className="grid gap-3">
@@ -83,17 +68,9 @@ export function LeaderboardView({ title, ...source }: LeaderboardViewProps) {
         {ranking === 'clean' ? 'Only solves with no mistakes and no hints, fastest first.' : 'Fastest time, plus penalties: 5 s for one mistake, 20 s for two, 45 s for three…, and up to 90 s per hint.'}
       </p>
 
-      {current.status === 'loading' && <Skeleton />}
-      {current.status === 'failed' && (
-        <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
-          <CircleAlert className="size-5" aria-hidden="true" />
-          <span>{current.message}</span>
-          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
-            <RotateCw className="size-4" aria-hidden="true" /> Retry
-          </button>
-        </div>
-      )}
-      {current.status === 'loaded' && <Board board={current.board} />}
+      {state.status === 'loading' && <Skeleton />}
+      {state.status === 'failed' && <Failed message={state.message} onRetry={reload} />}
+      {state.status === 'loaded' && <Board board={state.value} />}
     </div>
   );
 }
@@ -250,7 +227,7 @@ function Row({ entry, photoFinish, showClean }: { entry: LeaderboardEntry; photo
       <span className="w-14 text-right font-semibold tabular-nums">{formatTime(entry.elapsedMs)}</span>
       {/* Always there, so the times line up; ranked by the time plus this. */}
       <span className="w-10 text-xs text-warning tabular-nums" title={entry.penaltyMs > 0 ? 'Added for mistakes and hints' : undefined}>
-        {formatPenalty(entry.penaltyMs ?? 0)}
+        {formatPenalty(entry.penaltyMs)}
       </span>
       {/* Same width either way, so the times stay in one column. */}
       <ChevronRight className={`size-4 shrink-0 ${entry.profileId !== null ? 'text-base-content/40' : 'invisible'}`} aria-hidden="true" />

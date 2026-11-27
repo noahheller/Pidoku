@@ -1,40 +1,28 @@
 import { Check, ChevronRight, Copy, Flame, Share2, UserPlus, UserRound, Users, X } from 'lucide-react';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router';
-import { addFriend, ApiError, fetchFriends, fetchPlayer, removeFriend, type Friend, type Player } from '../api/client';
+import { addFriend, errorMessage, fetchFriends, fetchPlayer, removeFriend, type Friend } from '../api/client';
+import { useLoad } from '../api/useLoad';
 import { friendUrl } from '../game/daily';
 import { Card, LoadStatus, SubPage } from './SubPage';
-
-type Loaded = { status: 'loading' } | { status: 'loaded'; player: Player; friends: Friend[] } | { status: 'failed'; message: string };
 
 /**
  * `/friends`: the player's friend code to send, adding a friend by theirs, and the friends they
  * have. Signs the player in (anonymously) when opened, like starting a puzzle does.
  */
 export function FriendsPage() {
-  const [state, setState] = useState<Loaded>({ status: 'loading' });
-  const [reloads, setReloads] = useState(0);
-  const reload = useCallback(() => {
-    setState({ status: 'loading' });
-    setReloads((n) => n + 1);
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([fetchPlayer(controller.signal), fetchFriends(controller.signal)])
-      .then(([player, friends]) => setState({ status: 'loaded', player, friends }))
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e) });
-      });
-    return () => controller.abort();
-  }, [reloads]);
+  const { state, reload, update } = useLoad('friends', async (signal) => {
+    const [player, friends] = await Promise.all([fetchPlayer(signal), fetchFriends(signal)]);
+    return { player, friends };
+  });
+  const loaded = state.status === 'loaded' ? state.value : null;
 
   return (
     <SubPage back={{ to: '/', label: 'Puzzles' }} icon={Users} title="Friends">
       <LoadStatus state={state} onRetry={reload} />
-      {state.status === 'loaded' && (
+      {loaded && (
         <>
-          {state.player.displayName === null && (
+          {loaded.player.displayName === null && (
             <div role="note" className="alert border-base-300 bg-base-100 text-sm">
               <UserRound className="size-5 text-base-content/60" aria-hidden="true" />
               <span>
@@ -46,18 +34,18 @@ export function FriendsPage() {
             </div>
           )}
           <Card title="Invite friends">
-            <FriendCode code={state.player.friendCode} />
+            <FriendCode code={loaded.player.friendCode} />
           </Card>
           <Card
             title={
               <>
                 Your friends
-                {state.friends.length > 0 && <span className="badge badge-sm badge-ghost tabular-nums">{state.friends.length}</span>}
+                {loaded.friends.length > 0 && <span className="badge badge-sm badge-ghost tabular-nums">{loaded.friends.length}</span>}
               </>
             }
           >
-            <AddFriendForm onAdded={(friend) => setState({ ...state, friends: mergeFriend(state.friends, friend) })} />
-            <FriendList friends={state.friends} onRemoved={(id) => setState({ ...state, friends: state.friends.filter((f) => f.id !== id) })} />
+            <AddFriendForm onAdded={(friend) => update((v) => ({ ...v, friends: mergeFriend(v.friends, friend) }))} />
+            <FriendList friends={loaded.friends} onRemoved={(id) => update((v) => ({ ...v, friends: v.friends.filter((f) => f.id !== id) }))} />
           </Card>
         </>
       )}
@@ -126,7 +114,7 @@ function AddFriendForm({ onAdded }: { onAdded: (friend: Friend) => void }) {
         setCode('');
         setMessage({ ok: true, text: `${friend.displayName ?? 'Anonymous'} is now your friend.` });
       })
-      .catch((err: unknown) => setMessage({ ok: false, text: err instanceof Error ? err.message : String(err) }))
+      .catch((err: unknown) => setMessage({ ok: false, text: errorMessage(err) }))
       .finally(() => setAdding(false));
   };
 
@@ -170,7 +158,7 @@ function FriendList({ friends, onRemoved }: { friends: Friend[]; onRemoved: (id:
     setError(null);
     removeFriend(friend.id)
       .then(() => onRemoved(friend.id))
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => setError(errorMessage(err)));
   };
 
   return (
@@ -220,7 +208,7 @@ export function AddFriendPage() {
     setState({ status: 'adding' });
     addFriend(code)
       .then((friend) => setState({ status: 'added', friend }))
-      .catch((e: unknown) => setState({ status: 'failed', message: e instanceof ApiError ? e.message : String(e) }));
+      .catch((e: unknown) => setState({ status: 'failed', message: errorMessage(e) }));
   };
 
   return (

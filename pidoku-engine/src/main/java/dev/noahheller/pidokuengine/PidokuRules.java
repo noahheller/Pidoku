@@ -8,11 +8,12 @@ public class PidokuRules {
 
     public static final int EMPTY = 0;
     public final int MIN_VALUE;
-    private final int[] DIGITS;
-    private final int[] UNIQUE_DIGITS;
-    private final int[] DIGIT_FREQUENCIES;
     public final int MAX_VALUE;
+    private final int[] uniqueDigits;
+    private final int[] digitFrequencies;
     private final int size;
+    private final int boxDim;
+    private final int boxesPerRow;
 
     private static final int[] DIGITS_OF_PI = {
             3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5,
@@ -34,71 +35,60 @@ public class PidokuRules {
         if (!MathUtils.hasPerfectRoot(size)) {
             throw new IllegalArgumentException("size(" + size + ") must be a perfect square");
         }
-        if (size < 0) {
-            throw new IllegalArgumentException("size(" + size + ") must be > 0");
-        }
         this.size = size;
-        DIGITS = new int[size];
-        DIGIT_FREQUENCIES = new int[10]; // indexed by digit 0-9
-        System.arraycopy(DIGITS_OF_PI, 0, DIGITS, 0, size);
-        if (Arrays.stream(DIGITS).anyMatch(d -> d == EMPTY)) {
+        this.boxDim = (int) Math.sqrt(size);
+        this.boxesPerRow = boxDim == 0 ? 0 : size / boxDim;
+        int[] digits = Arrays.copyOf(DIGITS_OF_PI, size);
+        if (Arrays.stream(digits).anyMatch(d -> d == EMPTY)) {
             // Pi's first 0 is its 33rd digit, so this rejects size 36 and up.
             throw new IllegalArgumentException("size(" + size + ") would include the digit "
                     + EMPTY + ", which is reserved for empty cells");
         }
-        UNIQUE_DIGITS = Arrays.stream(DIGITS).distinct().toArray();
+        uniqueDigits = Arrays.stream(digits).distinct().toArray();
 
+        digitFrequencies = new int[10]; // indexed by digit 0-9
         int maxValue = -1;
         int minValue = 10;
-        for (int i = 0; i < size; i++) {
-            int value = DIGITS[i];
-            DIGIT_FREQUENCIES[value]++;
-            if (value > maxValue) {
-                maxValue = value;
-            }
-            if (value < minValue) {
-                minValue = value;
-            }
+        for (int value : digits) {
+            digitFrequencies[value]++;
+            maxValue = Math.max(maxValue, value);
+            minValue = Math.min(minValue, value);
         }
         MAX_VALUE = maxValue;
         MIN_VALUE = minValue;
     }
 
-    public int boxDim(int boardSize) {
-        return (int) Math.sqrt(boardSize);
+    /** The width (and height) of a box: 3 on a 9x9 board. */
+    public int boxDim() {
+        return boxDim;
     }
 
-    public int boxesPerRow(int boardSize) {
-        return boardSize / boxDim(boardSize);
+    /** How many boxes there are across a row of boxes. */
+    public int boxesPerRow() {
+        return boxesPerRow;
     }
 
-    public int totalBoxes(int boardSize) {
-        int boxesPerRow = boxesPerRow(boardSize);
+    public int totalBoxes() {
         return boxesPerRow * boxesPerRow;
     }
 
     public int boxIndex(int row, int col) {
-        int boxSize = boxDim(size);
-        return (row / boxSize) * boxesPerRow(size) + (col / boxSize);
+        return (row / boxDim) * boxesPerRow + (col / boxDim);
     }
 
     public boolean isPlayableValue(int value) {
-        return value >= 0 && value < DIGIT_FREQUENCIES.length && DIGIT_FREQUENCIES[value] != 0;
+        return value >= 0 && value < digitFrequencies.length && digitFrequencies[value] != 0;
     }
 
     public int getDigitFrequency(int digit) {
         if (!isPlayableValue(digit)) {
             return 0;
         }
-        return DIGIT_FREQUENCIES[digit];
+        return digitFrequencies[digit];
     }
 
     public int[] getUniqueDigits() {
-        return UNIQUE_DIGITS.clone();
-    }
-
-    public int getBoxDim() {
-        return (int) Math.sqrt(size);
+        return uniqueDigits.clone();
     }
 
     public int getSize() {

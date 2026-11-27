@@ -66,7 +66,7 @@ public class SolverSearchState {
         this.rules = rules;
         this.uniqueDigits = rules.getUniqueDigits();
 
-        int totalBoxes = rules.totalBoxes(size);
+        int totalBoxes = rules.totalBoxes();
         this.rowDigitCounts = new int[size][rules.MAX_VALUE + 1];
         this.colDigitCounts = new int[size][rules.MAX_VALUE + 1];
         this.boxDigitCounts = new int[size][rules.MAX_VALUE + 1];
@@ -116,7 +116,6 @@ public class SolverSearchState {
     public boolean isEliminated(int row, int col, int value) {
         return (eliminatedCandidates[row][col] & (1 << value)) != 0;
     }
-
 
     private void loadInitialValues() {
         for (int row = 0; row < size && valid; row++) {
@@ -182,11 +181,9 @@ public class SolverSearchState {
         updateBoxAllowed(boxIndex);
     }
 
-
     public int[][] toArray() {
         return ArrayUtils.copy(grid);
     }
-
 
     /**
      * Checks if the value can be placed in the position. Ignores soft-eliminations.
@@ -309,6 +306,5 @@ public class SolverSearchState {
     public PidokuRules getRules() {
         return rules;
     }
-
 
 }

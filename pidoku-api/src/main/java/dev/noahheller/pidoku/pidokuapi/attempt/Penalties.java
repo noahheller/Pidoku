@@ -2,8 +2,11 @@ package dev.noahheller.pidoku.pidokuapi.attempt;
 
 /**
  * Time added to a solve on the leaderboards. Every solve still counts (and keeps the streak); an
- * assisted one is just slower. The database adds them up in {@code attempts.penalty_ms} (V12), which
- * repeats {@link #mistakes}: change both together, and the frontend's {@code game/penalties.ts}.
+ * assisted one is just slower.
+ *
+ * <p>Two copies have to change with this class: {@code attempts.penalty_ms}, the generated column
+ * that adds up a solve's penalties for the leaderboards to sort by (V12), and the frontend's
+ * {@code game/penalties.ts}, which shows them during play.
  */
 public final class Penalties {
 

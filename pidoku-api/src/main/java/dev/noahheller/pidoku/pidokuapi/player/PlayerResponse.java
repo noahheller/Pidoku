@@ -14,9 +14,10 @@ import java.time.Instant;
 public record PlayerResponse(long id, String displayName, String friendCode, ProfileVisibility profileVisibility,
                              ProfileVisibility historyVisibility, Instant createdAt, Instant supporterSince) {
 
-    public static PlayerResponse from(Player player) {
+    /** @param now for whether their supporter badge has run out */
+    public static PlayerResponse from(Player player, Instant now) {
         return new PlayerResponse(player.getId(), player.getDisplayName(), player.getFriendCode(),
                 player.getProfileVisibility(), player.getHistoryVisibility(), player.getCreatedAt(),
-                player.isSupporter(Instant.now()) ? player.getSupporterSince() : null);
+                player.isSupporter(now) ? player.getSupporterSince() : null);
     }
 }

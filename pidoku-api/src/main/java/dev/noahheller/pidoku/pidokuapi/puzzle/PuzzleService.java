@@ -11,12 +11,6 @@ import java.util.Optional;
 @Service
 public class PuzzleService {
 
-    /**
-     * Tries at drawing an unused share code. With a few hundred puzzles stored, a code clashes less
-     * than once in a billion draws, so running out means something is broken.
-     */
-    private static final int MAX_SHARE_CODE_ATTEMPTS = 5;
-
     private final PuzzleRepository puzzles;
     private final ShareCodeGenerator shareCodes;
 
@@ -90,18 +84,7 @@ public class PuzzleService {
      */
     @Transactional
     public Puzzle store(GeneratedPuzzle generated, PuzzleSource source) {
-        return puzzles.save(new Puzzle(generated, unusedShareCode(), source));
-    }
-
-    // Checking first keeps the common case free of constraint violations. Two concurrent stores
-    // drawing the same unused code would still be caught by the unique constraint.
-    private String unusedShareCode() {
-        for (int attempt = 0; attempt < MAX_SHARE_CODE_ATTEMPTS; attempt++) {
-            String code = shareCodes.next();
-            if (!puzzles.existsByShareCode(code)) {
-                return code;
-            }
-        }
-        throw new IllegalStateException("No unused share code found in " + MAX_SHARE_CODE_ATTEMPTS + " attempts");
+        String shareCode = shareCodes.nextUnused("share code", puzzles::existsByShareCode);
+        return puzzles.save(new Puzzle(generated, shareCode, source));
     }
 }

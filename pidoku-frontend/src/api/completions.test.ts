@@ -6,7 +6,7 @@ import { recordCompletion, sendPendingCompletions } from './completions';
 vi.mock('./client', async (original) => ({ ...(await original<typeof import('./client')>()), completeAttempt: vi.fn() }));
 const complete = vi.mocked(completeAttempt);
 
-const attempt = (id: number): Attempt => ({ id, puzzleId: 5, startedAt: '2026-11-16T10:00:00Z', completedAt: null, elapsedMs: null, mistakes: 0, hintsUsed: 0, activeMs: null, late: false });
+const attempt = (id: number): Attempt => ({ id, puzzleId: 5, startedAt: '2026-11-16T10:00:00Z', completedAt: null, elapsedMs: null, mistakes: 0, hintsUsed: 0, hintPenaltyMs: 0, penaltyMs: 0, activeMs: null, late: false, progress: null, progressUpdatedAt: null, autoNotesUsed: false });
 const unreachable = () => new ApiError("Couldn't reach the Pidoku server.", null);
 const solve = (grid: number[], mistakes: number) => ({ grid, mistakes, activeMs: 60_000 });
 /** A fixed clock: Date.now() as `ms`. */

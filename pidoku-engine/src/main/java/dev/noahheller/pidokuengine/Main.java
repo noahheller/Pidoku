@@ -7,8 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-//TIP To <b>Run</b> code, press <shortcut actionId="Run"/> or
-// click the <icon src="AllIcons.Actions.Execute"/> icon in the gutter.
+/** Writes one puzzle per premade profile, with its stats and solution, to {@code output/}. */
 public class Main {
     public static void main(String[] args) throws IOException {
         Files.createDirectories(Path.of("output"));
@@ -40,7 +39,7 @@ public class Main {
         }
     }
 
-    public static void write2DArrayToCSV(int[][] data, String filePath) {
+    private static void write2DArrayToCSV(int[][] data, String filePath) {
         try (FileWriter writer = new FileWriter(filePath)) {
             for (int[] row : data) {
                 for (int i = 0; i < row.length; i++) {
@@ -53,24 +52,6 @@ public class Main {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static void printGrid(int[][] grid) {
-        for (int row = 0; row < grid.length; row++) {
-            StringBuilder line = new StringBuilder();
-            for (int col = 0; col < grid.length; col++) {
-                int value = grid[row][col];
-                if (value == 0) {
-                    line.append(".");
-                } else {
-                    line.append(value);
-                }
-                if (col < grid.length - 1) {
-                    line.append(' ');
-                }
-            }
-            System.out.println(line);
         }
     }
 }

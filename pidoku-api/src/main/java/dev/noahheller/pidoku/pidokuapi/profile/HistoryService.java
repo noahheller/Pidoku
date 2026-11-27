@@ -1,5 +1,6 @@
 package dev.noahheller.pidoku.pidokuapi.profile;
 
+import dev.noahheller.pidoku.pidokuapi.attempt.AttemptSql;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.player.ProfileVisibility;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Puzzle;
@@ -81,7 +82,7 @@ public class HistoryService {
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.puzzle_id)
                                    a.puzzle_id, a.player_id, NULL::text AS display_name, a.completed_at,
-                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.penalty_ms, a.mistakes,
+                                   %s AS elapsed_ms, a.penalty_ms, a.mistakes,
                                    a.hints_used, a.auto_notes_used, a.late
                             FROM attempts a
                             WHERE a.player_id = :playerId AND a.completed_at IS NOT NULL
@@ -89,7 +90,7 @@ public class HistoryService {
                         )
                         SELECT * FROM firsts f
                         WHERE true
-                        """ + (inCommon ? """
+                        """.formatted(AttemptSql.GAME_MS) + (inCommon ? """
                           AND EXISTS (SELECT 1 FROM attempts o
                                       WHERE o.puzzle_id = f.puzzle_id AND o.player_id IN (:company)
                                         AND o.completed_at IS NOT NULL)
@@ -170,13 +171,13 @@ public class HistoryService {
         return jdbc.sql("""
                         SELECT DISTINCT ON (a.puzzle_id, a.player_id)
                                a.puzzle_id, a.player_id, p.display_name, a.completed_at,
-                               COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.penalty_ms, a.mistakes,
+                               %s AS elapsed_ms, a.penalty_ms, a.mistakes,
                                a.hints_used, a.auto_notes_used, a.late
                         FROM attempts a
                         JOIN players p ON p.id = a.player_id
                         WHERE a.puzzle_id IN (:puzzleIds) AND a.player_id IN (:playerIds) AND a.completed_at IS NOT NULL
                         ORDER BY a.puzzle_id, a.player_id, a.completed_at, a.id
-                        """)
+                        """.formatted(AttemptSql.GAME_MS))
                 .param("puzzleIds", puzzleIds)
                 .param("playerIds", playerIds)
                 .query(SolveRow.class)

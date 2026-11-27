@@ -17,7 +17,7 @@ public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
 
     @Override
     protected Move evaluateSubset(SolverSearchState state, PidokuRules rules, List<BoardPosition> empty,
-                                  List<Integer> subset, UnitType type, int index) {
+                                  List<Integer> subset, Unit unit) {
         Set<Integer> cellSet = new LinkedHashSet<>();
         for (int v : subset) {
             boolean found = false;
@@ -33,7 +33,7 @@ public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
 
         int totalRemainingFreq = 0;
         for (int digit : subset) {
-            totalRemainingFreq += getRemainingFrequency(state, rules, digit, type, index);
+            totalRemainingFreq += SearchUtils.remaining(state, unit, digit);
         }
         if (totalRemainingFreq != cellSet.size()) {
             return null;
@@ -52,7 +52,7 @@ public class HiddenSubsetStrategy extends SubsetSearchStrategy<Integer> {
         Move move = Move.eliminating(eliminations);
         if (move == null) return null;
         List<BoardPosition> cells = cellSet.stream().map(empty::get).toList();
-        return move.because(List.of(new Unit(type, index)), cells, subset.stream().sorted().toList());
+        return move.because(List.of(unit), cells, subset.stream().sorted().toList());
     }
 
     @Override

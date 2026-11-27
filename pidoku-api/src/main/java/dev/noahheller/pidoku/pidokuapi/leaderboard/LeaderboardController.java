@@ -4,12 +4,11 @@ import dev.noahheller.pidoku.pidokuapi.daily.DailySlot;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.player.PlayerService;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
+import dev.noahheller.pidoku.pidokuapi.web.ApiException;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -70,8 +69,7 @@ public class LeaderboardController {
     /** The signed-in player, if any. A friends-only board needs one. */
     private Optional<Player> viewer(Jwt token, boolean friends) {
         if (friends && token == null) {
-            throw new ErrorResponseException(HttpStatus.UNAUTHORIZED,
-                    ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Sign in to see your friends' times."), null);
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Sign in to see your friends' times.");
         }
         return playerService.find(token);
     }

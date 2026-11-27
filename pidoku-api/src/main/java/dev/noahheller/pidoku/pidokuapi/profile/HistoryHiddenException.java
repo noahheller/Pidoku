@@ -1,8 +1,7 @@
 package dev.noahheller.pidoku.pidokuapi.profile;
 
+import dev.noahheller.pidoku.pidokuapi.web.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
-import org.springframework.web.ErrorResponseException;
 
 /**
  * The viewer may see a player's profile but not the puzzle history on it (the player's
@@ -10,12 +9,9 @@ import org.springframework.web.ErrorResponseException;
  * ({@code historyVisible}), so this only reaches a client that asks anyway. Rendered as a 404
  * problem detail.
  */
-public class HistoryHiddenException extends ErrorResponseException {
+public class HistoryHiddenException extends ApiException {
 
     public HistoryHiddenException(long playerId) {
-        super(HttpStatus.NOT_FOUND,
-                ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND,
-                        "Player " + playerId + " doesn't show you their puzzle history."),
-                null);
+        super(HttpStatus.NOT_FOUND, "Player " + playerId + " doesn't show you their puzzle history.");
     }
 }

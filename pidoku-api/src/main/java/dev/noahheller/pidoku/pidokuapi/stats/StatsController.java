@@ -32,8 +32,8 @@ public class StatsController {
     @GetMapping("/api/players/me/stats")
     public PlayerStats stats(@AuthenticationPrincipal Jwt token,
                              @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today,
-                             @RequestParam(defaultValue = "all") String source,
+                             @RequestParam(defaultValue = "all") StatsSource source,
                              @RequestParam(defaultValue = "false") boolean assisted) {
-        return statsService.forPlayer(playerService.forToken(token), StatsSource.fromId(source), assisted, today);
+        return statsService.forPlayer(playerService.forToken(token), source, assisted, today);
     }
 }

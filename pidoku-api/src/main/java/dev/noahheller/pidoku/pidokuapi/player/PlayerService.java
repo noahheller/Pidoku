@@ -15,9 +15,6 @@ import java.util.Optional;
 @Service
 public class PlayerService {
 
-    /** Tries at drawing an unused friend code; see PuzzleService's share codes for the odds. */
-    private static final int MAX_FRIEND_CODE_ATTEMPTS = 5;
-
     private final PlayerRepository players;
     private final ShareCodeGenerator codes;
     private final JdbcClient jdbc;
@@ -72,21 +69,9 @@ public class PlayerService {
         if (player.getFriendCode() != null) {
             return player;
         }
-        players.assignFriendCode(player.getId(), unusedFriendCode());
+        players.assignFriendCode(player.getId(), codes.nextUnused("friend code", players::existsByFriendCode));
         // Assigned now or by a request that got there first; either way it's set.
         return players.findById(player.getId()).orElseThrow();
-    }
-
-    // Like share codes: checking first keeps the common case free of constraint violations, and
-    // the unique constraint catches two players drawing the same code at once.
-    private String unusedFriendCode() {
-        for (int attempt = 0; attempt < MAX_FRIEND_CODE_ATTEMPTS; attempt++) {
-            String code = codes.next();
-            if (!players.existsByFriendCode(code)) {
-                return code;
-            }
-        }
-        throw new IllegalStateException("No unused friend code found in " + MAX_FRIEND_CODE_ATTEMPTS + " attempts");
     }
 
     /**

@@ -1,5 +1,7 @@
 package dev.noahheller.pidoku.pidokuapi.profile;
 
+import dev.noahheller.pidoku.pidokuapi.attempt.AttemptSql;
+import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.player.ProfileVisibility;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
@@ -55,7 +57,7 @@ public class ProfileService {
     @Transactional(readOnly = true)
     public PlayerProfile profile(Player viewer, boolean viewerUsesGoogle, long playerId, LocalDate today) {
         ProfileAccess.Target target = access.target(viewer, viewerUsesGoogle, playerId);
-        Streak streak = streakService.forPlayers(List.of(playerId), today).get(playerId);
+        Streak streak = streakService.forPlayer(playerId, today);
 
         record Solve(LocalDate puzzleDate, String difficulty, long elapsedMs, long penaltyMs, int mistakes,
                      int hintsUsed, boolean late) {
@@ -64,7 +66,7 @@ public class ProfileService {
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.puzzle_id)
                                    d.puzzle_date, d.difficulty, a.started_at,
-                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.penalty_ms, a.mistakes,
+                                   %s AS elapsed_ms, a.penalty_ms, a.mistakes,
                                    a.hints_used, a.late
                             FROM attempts a
                             JOIN daily_puzzles d ON d.puzzle_id = a.puzzle_id
@@ -73,9 +75,9 @@ public class ProfileService {
                         )
                         SELECT puzzle_date, difficulty, elapsed_ms, penalty_ms, mistakes, hints_used, late
                         FROM firsts
-                        WHERE started_at >= (puzzle_date - interval '14 hours') AT TIME ZONE 'UTC'
+                        WHERE started_at >= %s
                         ORDER BY puzzle_date DESC
-                        """)
+                        """.formatted(AttemptSql.GAME_MS, DailyPuzzleService.opensAtSql("puzzle_date")))
                 .param("playerId", playerId)
                 .query(Solve.class)
                 .list();

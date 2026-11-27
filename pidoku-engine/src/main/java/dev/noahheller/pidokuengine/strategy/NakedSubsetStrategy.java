@@ -17,7 +17,7 @@ public class NakedSubsetStrategy extends SubsetSearchStrategy<BoardPosition> {
 
     @Override
     protected Move evaluateSubset(SolverSearchState state, PidokuRules rules, List<BoardPosition> empty,
-                                  List<BoardPosition> subset, UnitType type, int index) {
+                                  List<BoardPosition> subset, Unit unit) {
         Set<Integer> union = new HashSet<>();
         for (BoardPosition pos : subset) {
             union.addAll(SearchUtils.getCandidates(state, pos.getRow(), pos.getCol()));
@@ -25,7 +25,7 @@ public class NakedSubsetStrategy extends SubsetSearchStrategy<BoardPosition> {
 
         int totalRemainingFreq = 0;
         for (int digit : union) {
-            totalRemainingFreq += getRemainingFrequency(state, rules, digit, type, index);
+            totalRemainingFreq += SearchUtils.remaining(state, unit, digit);
         }
         if (totalRemainingFreq != getSubsetSize()) {
             return null;
@@ -42,7 +42,7 @@ public class NakedSubsetStrategy extends SubsetSearchStrategy<BoardPosition> {
             }
         }
         Move move = Move.eliminating(eliminations);
-        return move == null ? null : move.because(List.of(new Unit(type, index)), subset, union.stream().sorted().toList());
+        return move == null ? null : move.because(List.of(unit), subset, union.stream().sorted().toList());
     }
 
     @Override

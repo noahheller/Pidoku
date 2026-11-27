@@ -30,6 +30,6 @@ public class StreakController {
     @GetMapping("/api/players/me/streak")
     public Streak streak(@AuthenticationPrincipal Jwt token,
                          @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today) {
-        return streakService.forPlayer(playerService.forToken(token), today);
+        return streakService.forPlayer(playerService.forToken(token).getId(), today);
     }
 }

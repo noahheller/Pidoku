@@ -112,9 +112,7 @@ function PuzzleGame({ puzzle, replay = false, notice = null, timeToBeat = null, 
         if (!started || !live.current) return;
         attemptId.current = started.id;
         // The server counts hints, also ones taken on another device.
-        if (started.hintPenaltyMs !== undefined) {
-          dispatch({ type: 'hinted', hintsUsed: started.hintsUsed, hintPenaltyMs: started.hintPenaltyMs });
-        }
+        dispatch({ type: 'hinted', hintsUsed: started.hintsUsed, hintPenaltyMs: started.hintPenaltyMs });
         // Signed in now, so any analytics waiting for an account can go.
         void flushEvents();
         // Played on another device since this browser last saved: carry on from there.

@@ -194,8 +194,7 @@ export function gameReducer(state: GameState, action: GameAction): GameState {
     case 'hinted':
       return state.completed ? state : { ...state, hintsUsed: action.hintsUsed, hintPenaltyMs: action.hintPenaltyMs };
 
-    case 'restart':
-    {
+    case 'restart': {
       // A daily is ranked, so restarting one only clears the board: its time, mistakes and hints
       // carry on (the server keeps its clock running too).
       const fresh = { ...newGame(state.puzzle), selected: state.selected };

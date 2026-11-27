@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mistakePenaltyMs, penaltyMs } from './penalties';
+import { mistakePenaltyMs, penaltyMs, rankedMs } from './penalties';
 
 describe('mistakePenaltyMs', () => {
   it('is 5 s times the mistakes squared, so each one costs more', () => {
@@ -10,5 +10,11 @@ describe('mistakePenaltyMs', () => {
 describe('penaltyMs', () => {
   it('adds the hints', () => {
     expect(penaltyMs(2, 30_000)).toBe(50_000);
+  });
+});
+
+describe('rankedMs', () => {
+  it('adds the penalties to the time', () => {
+    expect(rankedMs({ elapsedMs: 60_000, penaltyMs: 20_000 })).toBe(80_000);
   });
 });

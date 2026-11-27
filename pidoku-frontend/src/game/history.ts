@@ -1,10 +1,6 @@
 import type { HistoryEntry, OtherSolve, ProfileVisibility } from '../api/client';
 import type { TimeToBeat } from './leaderboardStats';
-
-/** What a leaderboard ranks a solve by: the game's time plus the penalties for mistakes and hints. */
-export function rankedMs(solve: { elapsedMs: number; penaltyMs: number }): number {
-  return solve.elapsedMs + solve.penaltyMs;
-}
+import { rankedMs } from './penalties';
 
 /** The signed-in player's own first solve of a history's puzzle, if they've solved it. */
 export function yourSolve(entry: HistoryEntry): OtherSolve | undefined {

@@ -1,40 +1,30 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { currentAccount, type Account } from '../api/auth';
 import { fetchPlayer, type Player } from '../api/client';
+import { useLoad } from '../api/useLoad';
 import { clearPlayerCaches } from '../game/storage';
 import { reloadCosmetics, setSupporter } from './cosmetics';
 
-export type PlayerState =
-  | { status: 'loading' }
-  | { status: 'loaded'; account: Account | null; player: Player }
-  | { status: 'failed'; message: string };
+interface SignedIn {
+  account: Account | null;
+  player: Player;
+}
+
+export type PlayerState = { status: 'loading' } | ({ status: 'loaded' } & SignedIn) | { status: 'failed'; message: string };
 
 /**
  * The player and their account, for the You pages (`/me` and the pages under it). Signs the player
  * in (anonymously) when opened, like starting a puzzle does, and refreshes their supporter badge.
  */
 export function usePlayer() {
-  const [state, setState] = useState<PlayerState>({ status: 'loading' });
-  const [reloads, setReloads] = useState(0);
-  const reload = useCallback(() => {
-    setState({ status: 'loading' });
-    setReloads((n) => n + 1);
-  }, []);
+  const { state: load, reload, update } = useLoad<SignedIn>('me', async (signal) => {
+    const [account, player] = await Promise.all([currentAccount(), fetchPlayer(signal)]);
+    setSupporter(player.supporterSince !== null);
+    return { account, player };
+  });
+  const state: PlayerState = load.status === 'loaded' ? { status: 'loaded', ...load.value } : load;
 
-  useEffect(() => {
-    const controller = new AbortController();
-    Promise.all([currentAccount(), fetchPlayer(controller.signal)])
-      .then(([account, player]) => {
-        setState({ status: 'loaded', account, player });
-        setSupporter(player.supporterSince !== null);
-      })
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e) });
-      });
-    return () => controller.abort();
-  }, [reloads]);
-
-  const setPlayer = useCallback((player: Player) => setState((s) => (s.status === 'loaded' ? { ...s, player } : s)), []);
+  const setPlayer = useCallback((player: Player) => update((s) => ({ ...s, player })), [update]);
 
   /** Another player is signed in here now (signed out, or a Google account that was already a player): what was cached for the old one no longer applies. */
   const playerChanged = useCallback(() => {
@@ -52,7 +42,7 @@ export function usePlayer() {
         playerChanged();
         return;
       }
-      setState((s) => (s.status === 'loaded' && s.account ? { ...s, account: { ...s.account, isAnonymous: false } } : s));
+      update((s) => (s.account ? { ...s, account: { ...s.account, isAnonymous: false } } : s));
       // A player with no name takes their Google account's on the next request: show it.
       fetchPlayer()
         .then((player) => {
@@ -63,7 +53,7 @@ export function usePlayer() {
           // The old name stays on screen until the page is opened again.
         });
     },
-    [playerChanged, setPlayer],
+    [playerChanged, setPlayer, update],
   );
 
   return { state, reload, setPlayer, afterSignIn, playerChanged };

@@ -1,5 +1,7 @@
 package dev.noahheller.pidoku.pidokuapi.stats;
 
+import dev.noahheller.pidoku.pidokuapi.attempt.AttemptSql;
+import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
 import dev.noahheller.pidoku.pidokuapi.player.Player;
 import dev.noahheller.pidoku.pidokuapi.puzzle.Difficulty;
 import dev.noahheller.pidoku.pidokuapi.streak.InvalidTodayException;
@@ -70,12 +72,12 @@ public class StatsService {
      */
     @Transactional(readOnly = true)
     public PlayerStats forPlayer(Player player, StatsSource source, boolean includeAssisted, LocalDate today) {
-        Streak streak = streakService.forPlayers(List.of(player.getId()), today).get(player.getId());
+        Streak streak = streakService.forPlayer(player.getId(), today);
         List<Solve> solves = jdbc.sql("""
                         WITH firsts AS (
                             SELECT DISTINCT ON (a.puzzle_id)
                                    p.difficulty, d.puzzle_date, p.source, a.started_at, a.completed_at,
-                                   COALESCE(a.active_ms, a.elapsed_ms) + a.penalty_ms AS ranked_ms,
+                                   %s AS ranked_ms,
                                    a.mistakes, a.hints_used, a.auto_notes_used
                             FROM attempts a
                             JOIN puzzles p ON p.id = a.puzzle_id
@@ -88,8 +90,8 @@ public class StatsService {
                         FROM firsts
                         -- A daily counts from when its date began in the earliest time zone (UTC+14).
                         WHERE puzzle_date IS NULL
-                           OR started_at >= (puzzle_date - interval '14 hours') AT TIME ZONE 'UTC'
-                        """)
+                           OR started_at >= %s
+                        """.formatted(AttemptSql.RANKED_MS, DailyPuzzleService.opensAtSql("puzzle_date")))
                 .param("playerId", player.getId())
                 .query(Solve.class)
                 .list();
@@ -118,7 +120,7 @@ public class StatsService {
                     median(times),
                     times.isEmpty() ? null : times.getFirst(),
                     (int) counted.stream().filter(Solve::clean).count(),
-                    counted.isEmpty() ? 0 : counted.stream().mapToInt(Solve::mistakes).average().orElse(0),
+                    counted.stream().mapToInt(Solve::mistakes).average().orElse(0),
                     recent.size(),
                     average(recent)));
         });

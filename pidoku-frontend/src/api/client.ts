@@ -1,3 +1,4 @@
+import { capitalize } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { cachedIdToken, existingIdToken, idToken } from './auth';
 
@@ -47,20 +48,20 @@ export interface Attempt {
   mistakes: number;
   /** Hint steps revealed. */
   hintsUsed: number;
-  /** Time added for hints so far. Missing from older API versions. */
-  hintPenaltyMs?: number;
-  /** What leaderboards add to the time: 5 s x recorded mistakes² plus `hintPenaltyMs`. Missing from older API versions. */
-  penaltyMs?: number;
+  /** Time added for hints so far. */
+  hintPenaltyMs: number;
+  /** What leaderboards add to the time: 5 s x recorded mistakes² plus `hintPenaltyMs`. */
+  penaltyMs: number;
   /** The client's own timer as sent on completion; null if it wasn't sent. */
   activeMs: number | null;
   /** The completion was sent some time after the solve, and the server took that delay off. */
   late: boolean;
-  /** The board as last saved from any device (see `saveProgress`), or null if none was. Missing from older API versions. */
-  progress?: AttemptProgress | null;
+  /** The board as last saved from any device (see `saveProgress`), or null if none was. */
+  progress: AttemptProgress | null;
   /** When the server got `progress` (ISO timestamp), so a device can tell whose copy is newer. */
-  progressUpdatedAt?: string | null;
+  progressUpdatedAt: string | null;
   /** The player used Auto notes during the attempt. */
-  autoNotesUsed?: boolean;
+  autoNotesUsed: boolean;
 }
 
 /** An unfinished board, so it follows the player to another device (pidoku-api's AttemptProgress). */
@@ -82,8 +83,8 @@ export interface Player {
   friendCode: string;
   /** Who can see their profile. */
   profileVisibility: ProfileVisibility;
-  /** Who can see their puzzle history on it. Missing from older API versions. */
-  historyVisibility?: ProfileVisibility;
+  /** Who can see their puzzle history on it. */
+  historyVisibility: ProfileVisibility;
   createdAt: string;
   /** When they first supported Pidoku on Ko-fi (ISO timestamp); null if they don't have a supporter badge. */
   supporterSince: string | null;
@@ -140,8 +141,8 @@ export interface Leaderboard {
   /** The date the puzzle is the daily for; null if it isn't a daily. */
   date: string | null;
   difficulty: Difficulty;
-  /** The puzzle's share code. Missing from older API versions. */
-  shareCode?: string;
+  /** The puzzle's share code. */
+  shareCode: string;
   friendsOnly: boolean;
   /** Only solves with no mistakes and no hints are ranked. */
   cleanOnly: boolean;
@@ -202,17 +203,23 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * The daily puzzles for the player's own date, so a new day starts at their local midnight.
- * Everyone gets the same puzzles for the same calendar date.
- */
-export async function fetchDaily(signal?: AbortSignal, now: Date = new Date()): Promise<DailyPuzzles> {
-  return fetchDailyOn(localDate(now), signal);
+/** What to tell the player about a failed call: an ApiError's message is written for them. */
+export function errorMessage(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 /**
- * One date's daily puzzles (YYYY-MM-DD). The API only serves dates that are today somewhere in the
- * world, so this is for today's, or a daily opened around midnight.
+ * Whether the API refused a request for good (a 4xx), so sending it again won't help, as opposed
+ * to not being reachable, timing out, being busy (429) or not accepting the sign-in right now (401).
+ */
+export function isRefusedForGood(e: unknown): boolean {
+  return e instanceof ApiError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 408 && e.status !== 429;
+}
+
+/**
+ * One date's daily puzzles (YYYY-MM-DD): everyone gets the same puzzles for the same calendar
+ * date. The API only serves dates that are today somewhere in the world, so this is for the
+ * player's own date (see useDaily), or a daily opened around midnight.
  */
 export async function fetchDailyOn(date: string, signal?: AbortSignal): Promise<DailyPuzzles> {
   // No ID token here: the response is the same for everyone and comes from the CDN's cache.
@@ -240,8 +247,8 @@ export interface DailyStats {
   friendsSolved: number | null;
   /** The fastest solve by the player or a friend; null when signed out or none of them has. */
   friendsFastest: SummaryTime | null;
-  /** The player's own first solve, from any device; null when signed out or not solved. Missing from older API versions. */
-  yours?: YourSolve | null;
+  /** The player's own first solve, from any device; null when signed out or not solved. */
+  yours: YourSolve | null;
 }
 
 /** The player's own solve of a daily (pidoku-api's DailySummary.YourSolve). */
@@ -261,14 +268,7 @@ export interface YourSolve {
  */
 export async function fetchDailySummary(date: string, signal?: AbortSignal): Promise<DailyStats[]> {
   const url = `/api/puzzles/daily/${encodeURIComponent(date)}/summary`;
-  const token = await existingIdToken();
-  try {
-    return (await request<{ date: string; dailies: DailyStats[] }>(url, { token, signal }, BUSY)).dailies;
-  } catch (e) {
-    // Like fetchLeaderboard: a refused token still gets everyone's numbers.
-    if (!(token && e instanceof ApiError && e.status === 401)) throw e;
-    return (await request<{ date: string; dailies: DailyStats[] }>(url, { signal }, BUSY)).dailies;
-  }
+  return (await withOptionalToken<{ date: string; dailies: DailyStats[] }>(url, await existingIdToken(), signal, BUSY)).dailies;
 }
 
 /** The puzzle behind a share link (/p/{shareCode}). */
@@ -298,14 +298,7 @@ export interface RandomPuzzle {
 export async function fetchRandom(difficulty: Difficulty, signal?: AbortSignal): Promise<RandomPuzzle> {
   const url = `/api/puzzles/random?difficulty=${encodeURIComponent(difficulty)}`;
   const unavailable = `There are no ${difficulty} puzzles ready right now. Try another difficulty or come back later.`;
-  const token = await idToken();
-  let body: ApiPuzzle & { repeat?: boolean };
-  try {
-    body = await request<typeof body>(url, { signal, token }, unavailable);
-  } catch (e) {
-    if (!(e instanceof ApiError && e.status === 401)) throw e;
-    body = await request<typeof body>(url, { signal }, unavailable);
-  }
+  const body = await withOptionalToken<ApiPuzzle & { repeat?: boolean }>(url, await idToken(), signal, unavailable);
   return { puzzle: toPuzzleDef(body), repeat: body.repeat === true };
 }
 
@@ -326,13 +319,19 @@ export async function completeAttempt(attemptId: number, completion: Completion,
   return request<Attempt>(`/api/attempts/${attemptId}/complete`, { method: 'POST', body: completion, token: await requireToken(), signal }, BUSY);
 }
 
+/** A row, column or box, 0-based (pidoku-engine's Unit). */
+export interface UnitRef {
+  type: 'row' | 'column' | 'box';
+  index: number;
+}
+
 /**
  * One hint step (pidoku-api's HintResponse), in the shape of the tutorial's explained steps. Only
  * what the step reveals is there: 1 the units, 2 also the technique and its pattern, 3 the answer.
  */
 export interface Hint {
   step: 1 | 2 | 3;
-  units: { type: 'row' | 'column' | 'box'; index: number }[];
+  units: UnitRef[];
   strategy?: string;
   pattern?: number[];
   blockers?: number[];
@@ -377,10 +376,10 @@ export interface RecentPuzzle {
   /** The solve's time, or the timer as last saved for an unfinished one; null if unknown. */
   timeMs: number | null;
   mistakes: number;
-  /** What the leaderboards add to `timeMs` for its mistakes and hints. Missing from older API versions. */
-  penaltyMs?: number;
-  /** Auto notes was used on the attempt shown. Missing from older API versions. */
-  autoNotesUsed?: boolean;
+  /** What the leaderboards add to `timeMs` for its mistakes and hints. */
+  penaltyMs: number;
+  /** Auto notes was used on the attempt shown. */
+  autoNotesUsed: boolean;
   /** ISO timestamp. */
   lastPlayedAt: string;
 }
@@ -523,10 +522,10 @@ export interface PlayerProfile {
   you: boolean;
   /** Who can see this profile. */
   visibility: ProfileVisibility;
-  /** Who can see their puzzle history on it. Missing from older API versions. */
-  historyVisibility?: ProfileVisibility;
-  /** Whether this player may see that history (`fetchHistory`). Missing from older API versions, which have none. */
-  historyVisible?: boolean;
+  /** Who can see their puzzle history on it. */
+  historyVisibility: ProfileVisibility;
+  /** Whether this player may see that history (`fetchHistory`). */
+  historyVisible: boolean;
   /** When you became friends (ISO timestamp); null if you aren't. */
   friendsSince: string | null;
   currentStreak: number;
@@ -644,13 +643,19 @@ async function leaderboardAt(path: string, params: string[], { friendsOnly, clea
   const query = [...params, ...(friendsOnly ? ['friends=true'] : []), ...(cleanOnly ? ['clean=true'] : [])].join('&');
   const url = query ? `${path}?${query}` : path;
   if (friendsOnly) return request<Leaderboard>(url, { token: await requireToken(), signal }, BUSY);
-  const token = await idToken();
+  return withOptionalToken<Leaderboard>(url, await idToken(), signal, BUSY);
+}
+
+/**
+ * A GET for which sign-in is optional: sent with `token` if there is one, and again without it if
+ * the token is refused (401), so a sign-in problem still gets the answer everyone gets.
+ */
+async function withOptionalToken<T>(url: string, token: string | null, signal: AbortSignal | undefined, unavailableMessage: string): Promise<T> {
   try {
-    return await request<Leaderboard>(url, { token, signal }, BUSY);
+    return await request<T>(url, { token, signal }, unavailableMessage);
   } catch (e) {
-    // Like fetchRandom: a refused token still gets everyone's times.
     if (!(token && e instanceof ApiError && e.status === 401)) throw e;
-    return request<Leaderboard>(url, { signal }, BUSY);
+    return request<T>(url, { signal }, unavailableMessage);
   }
 }
 
@@ -741,8 +746,4 @@ async function problemDetail(response: Response): Promise<string | null> {
     // Not JSON (e.g. an HTML error page from a proxy).
   }
   return null;
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
