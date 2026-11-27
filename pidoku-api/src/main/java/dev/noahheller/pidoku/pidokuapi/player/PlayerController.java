@@ -34,23 +34,26 @@ public class PlayerController {
     }
 
     /**
-     * Either or both may be given; a field left out (or null) stays as it is. A request with neither
-     * is refused like an empty name.
+     * Any of them may be given; a field left out (or null) stays as it is. A request with none is
+     * refused like an empty name.
      *
      * @param displayName       checked by {@link DisplayName}
      * @param profileVisibility a {@link ProfileVisibility} id: "public", "friends" or "private"
+     * @param historyVisibility who can see the puzzle history on the profile, as a
+     *                          {@link ProfileVisibility} id
      */
-    public record UpdateRequest(String displayName, String profileVisibility) {
+    public record UpdateRequest(String displayName, String profileVisibility, String historyVisibility) {
     }
 
     /**
      * Changes the signed-in player's details: the display name friends see (trimmed, 1–40
-     * characters) and who can see their profile. 400 if either isn't allowed, and then neither
-     * changes.
+     * characters), who can see their profile, and who can see their puzzle history. 400 if any
+     * isn't allowed, and then none changes.
      */
     @PatchMapping("/api/players/me")
     public PlayerResponse update(@AuthenticationPrincipal Jwt token, @RequestBody UpdateRequest request) {
-        return PlayerResponse.from(playerService.update(token, request.displayName(), request.profileVisibility()));
+        return PlayerResponse.from(playerService.update(token, request.displayName(), request.profileVisibility(),
+                request.historyVisibility()));
     }
 
     /** @param anonymousToken the Firebase ID token of the anonymous account to move in */

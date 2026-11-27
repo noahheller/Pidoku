@@ -1,13 +1,22 @@
-import { ArrowLeft, CircleAlert, CloudOff, Flame, Lock, RotateCw, Target, Trophy } from 'lucide-react';
+import { ArrowLeft, ChevronRight, CircleAlert, CloudOff, Flame, History as HistoryIcon, Lock, RotateCw, Swords, Target, Trophy, UserPlus } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router';
-import { ApiError, DAILY_DIFFICULTIES, fetchProfile, type PlayerProfile } from '../api/client';
+import { ApiError, DAILY_DIFFICULTIES, fetchHistory, fetchProfile, type HistoryEntry, type PlayerProfile } from '../api/client';
 import { dailyLabel } from '../game/daily';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
+import { challengeFrom, historyShownTo, versus, type HistoryOwner } from '../game/history';
+import { formatGap } from '../game/leaderboardStats';
+import type { PuzzleDef } from '../game/puzzleFile';
 import { clearPlayerCaches } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
 import { GoogleButton } from './GoogleButton';
+import { Switch } from './Leaderboard';
+import type { PlayOptions } from './PuzzlePicker';
+import { Failed, Loading } from './SubPage';
 import { VISIBILITY } from './visibility';
+
+/** Opens a puzzle the way the home screen does (it goes on Recent), with a time to beat if there is one. */
+type OnPlay = (puzzle: PuzzleDef, options?: PlayOptions) => void;
 
 type State =
   | { status: 'loading' }
@@ -18,10 +27,12 @@ type State =
 
 /**
  * `/players/{playerId}` (and `/friends/{playerId}`, its older address): a player's streaks,
- * totals, best times and last week of dailies. The player's own, a friend's, or a public one; the
- * server says which it may show. Someone else's needs a Google sign-in, which it offers.
+ * totals, best times, last week of dailies and puzzle history. The player's own, a friend's, or a
+ * public one; the server says which it may show, and whether the history is shown too. Someone
+ * else's needs a Google sign-in, which it offers. A puzzle in someone else's history opens with
+ * their time to beat.
  */
-export function PlayerPage() {
+export function PlayerPage({ onPlay }: { onPlay: OnPlay }) {
   const { id = '' } = useParams();
   const playerId = Number(id);
   const [state, setState] = useState<State & { key?: string }>({ status: 'loading' });
@@ -71,7 +82,7 @@ export function PlayerPage() {
           }}
         />
       )}
-      {current.status === 'loaded' && <Profile profile={current.profile} />}
+      {current.status === 'loaded' && <Profile profile={current.profile} onPlay={onPlay} />}
     </main>
   );
 }
@@ -137,7 +148,7 @@ function Subtitle({ profile }: { profile: PlayerProfile }) {
   return <p className="text-sm text-base-content/60">Public profile</p>;
 }
 
-function Profile({ profile }: { profile: PlayerProfile }) {
+function Profile({ profile, onPlay }: { profile: PlayerProfile; onPlay: OnPlay }) {
   const name = profile.displayName ?? 'Anonymous';
   const cleanPercent = profile.dailiesSolved > 0 ? Math.round((profile.cleanSolves / profile.dailiesSolved) * 100) : null;
   const bests = DAILY_DIFFICULTIES.filter((d) => profile.bestTimes[d] !== undefined);
@@ -208,7 +219,203 @@ function Profile({ profile }: { profile: PlayerProfile }) {
           )}
         </div>
       </section>
+
+      {profile.historyVisible !== undefined && <History profile={profile} onPlay={onPlay} />}
     </>
+  );
+}
+
+type HistoryState =
+  | { status: 'loading' }
+  | { status: 'loaded'; entries: HistoryEntry[]; hasMore: boolean; more: 'idle' | 'loading' | 'failed' }
+  | { status: 'failed'; message: string };
+
+/**
+ * Every puzzle the player has solved, newest first, a page at a time, if they show it to this
+ * player. "In common" keeps the ones this player or their friends have solved too. Opening one of
+ * someone else's puzzles puts their time up to beat.
+ */
+function History({ profile, onPlay }: { profile: PlayerProfile; onPlay: OnPlay }) {
+  const [inCommon, setInCommon] = useState(false);
+  const [retries, setRetries] = useState(0);
+  const key = `${profile.id}/${inCommon}/${retries}`;
+  const [state, setState] = useState<HistoryState & { key?: string }>({ status: 'loading' });
+  const visible = profile.historyVisible === true;
+
+  useEffect(() => {
+    if (!visible) return;
+    const controller = new AbortController();
+    fetchHistory(profile.id, { inCommon }, controller.signal)
+      .then((page) => setState({ status: 'loaded', entries: page.entries, hasMore: page.hasMore, more: 'idle', key }))
+      .catch((e: unknown) => {
+        if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e), key });
+      });
+    return () => controller.abort();
+  }, [visible, profile.id, inCommon, key]);
+
+  const current: HistoryState = state.key === key ? state : { status: 'loading' };
+  const name = profile.displayName ?? 'Anonymous';
+  const owner: HistoryOwner = { displayName: profile.displayName, you: profile.you, friend: profile.friendsSince !== null };
+
+  const loadMore = () => {
+    if (current.status !== 'loaded' || current.more === 'loading') return;
+    setState({ ...current, more: 'loading', key });
+    const update = (change: (s: Extract<HistoryState, { status: 'loaded' }>) => HistoryState) =>
+      setState((s) => (s.key === key && s.status === 'loaded' ? { ...change(s), key } : s));
+    fetchHistory(profile.id, { offset: current.entries.length, inCommon })
+      .then((page) => update((s) => ({ ...s, entries: [...s.entries, ...page.entries], hasMore: page.hasMore, more: 'idle' })))
+      .catch(() => update((s) => ({ ...s, more: 'failed' })));
+  };
+
+  return (
+    <section className="card border border-base-300 bg-base-100 shadow-sm" aria-labelledby="history-title">
+      <div className="card-body gap-3 p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="history-title" className="flex items-center gap-1.5 font-semibold">
+            <HistoryIcon className="size-4 text-primary" aria-hidden="true" /> Puzzle history
+          </h2>
+          {visible && (
+            <Switch
+              label="Which puzzles"
+              options={[
+                ['all', 'All'],
+                ['common', 'In common'],
+              ]}
+              value={inCommon ? 'common' : 'all'}
+              onChange={(v) => setInCommon(v === 'common')}
+            />
+          )}
+        </div>
+        {!visible ? (
+          <p className="text-sm text-base-content/60">
+            {profile.historyVisibility === 'friends' ? `${name} only shows their puzzle history to friends.` : `${name} keeps their puzzle history to themselves.`}
+          </p>
+        ) : (
+          <>
+            <HistoryCaption profile={profile} inCommon={inCommon} />
+            {current.status === 'loading' && <Loading />}
+            {current.status === 'failed' && <Failed message={current.message} onRetry={() => setRetries((n) => n + 1)} />}
+            {current.status === 'loaded' && current.entries.length === 0 && <EmptyHistory profile={profile} inCommon={inCommon} />}
+            {current.status === 'loaded' && current.entries.length > 0 && (
+              <ul className="grid gap-2" aria-label={profile.you ? 'Puzzles you solved' : `Puzzles ${name} solved`}>
+                {current.entries.map((entry) => (
+                  <li key={entry.puzzle.id}>
+                    <HistoryRow entry={entry} owner={owner} onPlay={onPlay} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {current.status === 'loaded' && current.hasMore && (
+              <button type="button" className="btn btn-plain btn-sm w-fit" onClick={loadMore} disabled={current.more === 'loading'}>
+                {current.more === 'loading' && <span className="loading loading-spinner loading-xs" aria-hidden="true" />}
+                {current.more === 'failed' ? "Couldn't load more. Try again" : 'Show more'}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** What the tab shows, and on the player's own profile who else can see it. */
+function HistoryCaption({ profile, inCommon }: { profile: PlayerProfile; inCommon: boolean }) {
+  if (inCommon) {
+    return <p className="text-sm text-base-content/60">{profile.you ? 'Puzzles a friend has solved too.' : 'Puzzles you or your friends have solved too.'}</p>;
+  }
+  if (!profile.you) return null;
+  const { label, Icon } = VISIBILITY[historyShownTo(profile.visibility, profile.historyVisibility ?? 'friends')];
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-base-content/60">
+      <span className="flex items-center gap-1">
+        <Icon className="size-4" aria-hidden="true" /> Seen by: {label}
+      </span>
+      <Link to="/me/account" className="link link-primary">
+        Change who can see it
+      </Link>
+    </p>
+  );
+}
+
+function EmptyHistory({ profile, inCommon }: { profile: PlayerProfile; inCommon: boolean }) {
+  const name = profile.displayName ?? 'Anonymous';
+  if (!inCommon) {
+    return <p className="text-sm text-base-content/60">{profile.you ? "You haven't solved a puzzle yet." : `${name} hasn't solved a puzzle yet.`}</p>;
+  }
+  return (
+    <p className="text-sm text-base-content/60">
+      {profile.you ? "None of your friends has solved one of your puzzles yet." : `You and your friends haven't solved any of ${name}'s puzzles yet.`}{' '}
+      <Link to="/friends" className="link link-primary inline-flex items-center gap-1">
+        <UserPlus className="size-4" aria-hidden="true" /> Add friends
+      </Link>
+    </p>
+  );
+}
+
+/**
+ * One solved puzzle: what it is, the owner's time, and the player's and their friends' times on
+ * it. The whole row opens the puzzle.
+ */
+function HistoryRow({ entry, owner, onPlay }: { entry: HistoryEntry; owner: HistoryOwner; onPlay: OnPlay }) {
+  const { puzzle, solve, others } = entry;
+  const challenge = challengeFrom(entry, owner);
+  const vs = owner.you ? null : versus(entry);
+  const date = puzzle.dailyDate;
+  const solvedOn = new Date(solve.completedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+  return (
+    <button
+      type="button"
+      className="grid w-full cursor-pointer gap-1.5 rounded-box border border-base-300 p-3 text-left transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary"
+      onClick={() => onPlay(puzzle, { timeToBeat: challenge })}
+    >
+      <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="grid">
+          <span className="font-semibold">
+            {puzzle.difficulty} <span className="font-normal text-base-content/60">· {date ? `${dailyLabel(date) || 'Daily · '}${formatDate(date)}` : 'Random'}</span>
+          </span>
+          <span className="text-xs text-base-content/60">Solved {solvedOn}</span>
+        </span>{' '}
+        <span className="flex items-center gap-2 text-sm">
+          <span className="font-semibold tabular-nums">
+            {formatTime(solve.elapsedMs)}
+            {solve.penaltyMs > 0 && <span className="ml-1 text-xs font-normal text-warning">{formatPenalty(solve.penaltyMs)}</span>}
+          </span>{' '}
+          <span className={solve.mistakes === 0 ? 'text-success' : 'text-base-content/60'}>{solve.mistakes === 0 ? '✓' : `${solve.mistakes}✗`}</span>
+          {solve.late && <CloudOff className="size-3.5 text-base-content/50" aria-label="Sent late" />}
+        </span>
+      </span>
+      {others.length > 0 && (
+        <span className="flex flex-wrap gap-1.5">
+          {others.map((o) => (
+            <span key={o.playerId} className={`flex items-center gap-1 rounded-field px-2 py-0.5 text-xs ${o.you ? 'bg-primary/10 font-semibold' : 'bg-base-200'}`}>
+              <span className={o.displayName || o.you ? '' : 'italic'}>{o.you ? 'You' : (o.displayName ?? 'Anonymous')}</span>{' '}
+              <span className="tabular-nums">
+                {formatTime(o.elapsedMs)}
+                {o.penaltyMs > 0 && <span className="text-warning"> {formatPenalty(o.penaltyMs)}</span>}
+              </span>
+              {o.you && vs && ' '}
+              {o.you && vs && (
+                <span className={vs.outcome === 'faster' ? 'text-success' : vs.outcome === 'slower' ? 'text-base-content/60' : ''}>
+                  · {vs.outcome === 'tied' ? 'tied' : `${formatGap(vs.byMs)} ${vs.outcome}`}
+                </span>
+              )}
+            </span>
+          ))}
+        </span>
+      )}{' '}
+      <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+        {challenge ? (
+          <>
+            <Swords className="size-3.5" aria-hidden="true" /> Try to beat {owner.displayName ?? 'their time'}
+          </>
+        ) : (
+          <>
+            Open puzzle <ChevronRight className="size-3.5" aria-hidden="true" />
+          </>
+        )}
+      </span>
+    </button>
   );
 }
 

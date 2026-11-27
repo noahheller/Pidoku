@@ -13,8 +13,10 @@ import java.util.Map;
  * each daily, the same solves that rank on leaderboards.
  *
  * @param you           this is the viewer's own profile
- * @param visibility    who can see this profile
- * @param friendsSince  when the viewer and this player became friends; null if they aren't
+ * @param visibility        who can see this profile
+ * @param historyVisibility who can see the player's puzzle history on it
+ * @param historyVisible    whether the viewer may see that history ({@link HistoryService})
+ * @param friendsSince      when the viewer and this player became friends; null if they aren't
  * @param currentStreak as of the viewer's date
  * @param dailiesSolved how many daily puzzles they've solved, all time
  * @param cleanSolves   how many of those had no mistakes and no hints
@@ -25,6 +27,7 @@ import java.util.Map;
  *                      newest date first, easiest first within a date
  */
 public record PlayerProfile(long id, String displayName, boolean you, ProfileVisibility visibility,
+                            ProfileVisibility historyVisibility, boolean historyVisible,
                             Instant friendsSince,
                             int currentStreak, int bestStreak,
                             int dailiesSolved, int cleanSolves,

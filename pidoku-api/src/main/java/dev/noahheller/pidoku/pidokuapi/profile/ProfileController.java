@@ -17,10 +17,12 @@ import java.time.LocalDate;
 public class ProfileController {
 
     private final ProfileService profileService;
+    private final HistoryService historyService;
     private final PlayerService playerService;
 
-    public ProfileController(ProfileService profileService, PlayerService playerService) {
+    public ProfileController(ProfileService profileService, HistoryService historyService, PlayerService playerService) {
         this.profileService = profileService;
+        this.historyService = historyService;
         this.playerService = playerService;
     }
 
@@ -34,5 +36,20 @@ public class ProfileController {
     public PlayerProfile profile(@AuthenticationPrincipal Jwt token, @PathVariable long playerId,
                                  @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate today) {
         return profileService.profile(playerService.forToken(token), FirebaseTokens.isGoogle(token), playerId, today);
+    }
+
+    /**
+     * A page of a player's puzzle history, e.g. {@code GET /api/players/12/history?offset=20}: the
+     * puzzles they've solved (dailies and random ones, never unfinished ones), newest first, each
+     * with their first solve and the viewer's and the viewer's friends' solves of it.
+     * {@code inCommon=true} keeps only puzzles the viewer or a friend of theirs has solved too.
+     * 403 and 404 as for the profile, and 404 too if the profile is visible but the history isn't.
+     */
+    @GetMapping("/api/players/{playerId}/history")
+    public PuzzleHistory history(@AuthenticationPrincipal Jwt token, @PathVariable long playerId,
+                                 @RequestParam(defaultValue = "0") int offset,
+                                 @RequestParam(defaultValue = "false") boolean inCommon) {
+        return historyService.history(playerService.forToken(token), FirebaseTokens.isGoogle(token), playerId,
+                offset, inCommon);
     }
 }

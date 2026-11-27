@@ -78,7 +78,8 @@ own difficulty and the puzzle has to be generated on demand.
 
    Then ~~the player stats page~~ (done 2026-11-26), built after hints so assisted solves can be
    filtered from the start. Streak reminders are postponed until analytics show streaks breaking because people
-   forget.
+   forget. ~~Puzzle history on profiles~~ (done 2026-11-26, see "After v1"). Party races are an
+   idea, not scheduled (see "After v1").
 
    Before milestone 7, engine work: the shared-candidate speedup (done 2026-11-26), then
    Pidoku-only techniques (the twin X-Wing), both in "Engine follow-ups", and the Trivial tune.
@@ -127,7 +128,7 @@ Decisions made while building it:
 |---|---|---|
 | `puzzles` | id, share_code, source, size, givens and solution (81-character strings), clue_count, difficulty, score, dependency, max_step_cost, bottleneck_steps, hardest_strategy, strategy_uses, engine_version, seed, created_at | V1 (milestone 1) |
 | `daily_puzzles` | (puzzle_date, difficulty) → puzzle_id | V2 (milestone 1) |
-| `players` | id, firebase_uid, display_name (null until chosen), created_at; friend_code added in V6 | V3 (milestone 3), V6 (milestone 5) |
+| `players` | id, firebase_uid, display_name (null until chosen), created_at; friend_code added in V6; profile_visibility in V11; supporter_since and supporter_until in V13; history_visibility in V14 | V3 (milestone 3), V6 (milestone 5), V11, V13, V14 (after v1) |
 | `friendships` | (player_id, friend_id), both directions, created_at | V6 (milestone 5) |
 | `attempts` | id, player_id, puzzle_id, started_at, completed_at, elapsed_ms, mistakes, hints_used; active_ms and late added in V4 | V3 (milestone 3), V4 (milestone 4) |
 | `campaign_levels` | level number → puzzle_id. Fixed forever once published. | milestone 8 |
@@ -209,6 +210,7 @@ the public read endpoints (and `/actuator/health`). Milestone 3 added Firebase t
 | `GET /api/players/me/stats?today=…&source=all\|daily\|random&assisted=true` | The player's own stats per difficulty (solved, average, median, best, clean, mistakes, last 30 days), each puzzle's first solve, ranked times. Assisted solves (hints or auto notes) left out unless `assisted=true` | after v1 (done) |
 | `POST /api/attempts/{id}/hint` | The board in, the next hint step out (where, what to look for, the answer), charged to the attempt | 6 (done) |
 | `POST /api/events` | Up to 50 analytics events (share, share_arrival, abandoned, tutorial_completed, tutorial_skipped) | after v1 (done) |
+| `GET /api/players/{id}/history?offset=…&inCommon=true` | A page (20) of the puzzles a player has solved, newest first, each with their first solve and the viewer's and the viewer's friends' solves of it. As the player's `history_visibility` allows | after v1 (done) |
 | `GET /api/players/me/stats?source=all\|daily\|random&today=…` | The player's stats page: solves, average and best times per difficulty, clean rate, streaks | after 6 |
 | `GET /api/puzzles/{shareCode}/leaderboard` | Fastest times for any puzzle, not just dailies (challenge links) | after 6 |
 | `POST /api/puzzles/{id}/hint` | Current grid in → easiest next move from the human solver, or "this cell is wrong" | 6 |
@@ -661,6 +663,73 @@ detailed about themselves.
 - Once hints and auto notes exist, show assisted solves separately (or a filter for them), so
   averages compare like with like.
 
+### Puzzle history on profiles
+**Done 2026-11-26.** As built:
+- **What it lists.** Every puzzle the player has solved, dailies and random (pool) ones, newest
+  first, 20 at a time with "Show more". Unfinished puzzles never show. Each puzzle shows the
+  player's first solve, the one leaderboards rank (time, penalty, mistakes), not a faster replay.
+- **Who sees it.** A setting of its own, `players.history_visibility` (V14): public, friends only
+  (the default) or private, on Account & privacy under the profile's. The history is only shown on
+  the profile, so it's never seen more widely than the profile: a friends-only profile with a
+  public history is still friends only, and the page says so. The profile response carries
+  `historyVisible`, so the page doesn't ask for a history it can't see; the history endpoint
+  refuses it anyway (404).
+- **Beat their time.** Opening a puzzle from someone else's history goes to `/p/{shareCode}` with
+  their solve as the time to beat (the start screen of a challenge link, and now also on a
+  daily's start screen), rather than the leaderboard's fastest. It goes through the same `play`
+  as the home screen, so it lands on Recent. A puzzle the viewer has already solved just opens
+  (only a first solve ranks, so there's nothing to race).
+- **In common.** Each puzzle also lists the first solves of the viewer and of the viewer's friends
+  whose history the viewer may see, fastest first; never anyone else's, even with a public
+  history. On someone else's profile the viewer's own time shows how far ahead or behind they
+  were. An "In common" tab keeps only the puzzles with any of those solves: on your own profile,
+  puzzles a friend solved too; on someone else's, ones you or your friends solved too.
+- **Cost.** Per page: the viewer's friends, a page of the player's first solves (on
+  `attempts (player_id, puzzle_id)`), the others' first solves of those 20 puzzles, and the
+  puzzles. Offset paging, fine at friend scale.
+- **Testing other players' profiles end to end.** The e2e token decoder now signs uids starting
+  `e2e-google-` in as Google players (`newPlayer(browser, { google: true })`), since only they may
+  see other players' profiles.
+
+Left for later: a head-to-head tally on a friend's profile ("you've both solved 12: you were
+faster on 7"), which is one more aggregate query over the same rows.
+
+### Party races (idea, not scheduled)
+A host opens a party, friends join it, and everyone races through the same gauntlet of puzzles
+at the same moment. The most social thing Pidoku could do, and the first feature where players
+see each other live.
+- **Lobby.** The host creates a party and gets a code and link (`/r/{code}`, share-code alphabet).
+  Friends join until the host starts it or the lobby expires (say 30 minutes); a cap of about 8.
+  Anyone who opens the link can join, not just friends, like a challenge link.
+- **The gauntlet.** The host picks how many puzzles (3 to 5) and their difficulties, e.g. easy,
+  medium, hard. Puzzles come from the pool, never generated on request (Expert and Fiendish take
+  seconds), and preferably ones no one in the party has started, by the random endpoint's rule.
+  Every member gets the same puzzles in the same order.
+- **The race.** A countdown, then the first board shows for everyone at the server's start time
+  (the board stays hidden until then, as on a daily's start screen). Solving one opens the next.
+  Unlike other games the clock doesn't pause when a tab is hidden: it's wall-clock time from the
+  shared start, which is also simpler to check on the server. Mistakes and hints cost what they
+  do on the leaderboards (`Penalties`), added to each player's total.
+- **Live progress.** Each member sees the others' progress: which puzzle they're on and how much of
+  it is filled, not their digits. Polling every 2 to 3 seconds is the simplest fit for Cloud Run
+  (scales to zero, no sticky connections); server-sent events could replace it later.
+- **Results.** Finish order, total time with penalties, and each puzzle's split. Each solve is also
+  an ordinary attempt, so it shows in history and on the puzzle's leaderboard (a first solve like
+  any other).
+- **Schema sketch.** `parties` (id, code, host_id, status lobby/running/finished, starts_at,
+  settings JSONB, created_at), `party_members` (party_id, player_id, joined_at, finished_at),
+  `party_puzzles` (party_id, position, puzzle_id), and `attempts.party_id` (nullable) to tie a
+  race's attempts to it. Progress could live on the attempt's existing `progress` column.
+- **Hosting as a supporter perk.** Only Ko-fi supporters (`Player.isSupporter`) can create a party;
+  anyone can join one. It fits "never sell an advantage" (hosting doesn't change a ranking), and
+  races are the one feature with a running cost per use: a party's polling keeps a Cloud Run
+  instance busy for the whole race. The risk is that it limits how far races spread, since one
+  supporter per friend group is needed. A middle way if that shows: everyone may host a race or
+  two a week, supporters as many as they like.
+- **Open questions.** Whether a member who leaves mid-race can rejoin; what a race's attempts do to
+  streaks if a gauntlet includes today's daily (simplest: never use dailies); whether to keep a
+  party's results page after it ends, and for how long.
+
 ### Streak reminders
 Streaks are the reason to come back, but nothing reminds a player that today's is unsolved.
 - Opt-in, asked once there's a streak worth keeping: "Remind me in the evening if I haven't
@@ -858,6 +927,8 @@ Principles, for every step below:
   small one-time purchase ($2–3), or one ad on the menu or result screen, never during play.
   Ads (very roughly $1–5 per 1,000 page views) only pay with thousands of regular players and
   bring a consent banner for EU and UK players and a privacy policy, so they're the last resort.
+- **Party races, if built: supporter perk.** Only supporters host a race; anyone joins (see
+  "Party races" under "After v1").
 - **Review:** three months after the tip jar goes live, and again before milestone 7 ships.
 
 **Supporter badge, as built (2026-11-26).** A player asks for a single-use code on `/me/support` (`PI-`

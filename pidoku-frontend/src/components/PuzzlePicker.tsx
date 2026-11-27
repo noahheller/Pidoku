@@ -7,6 +7,7 @@ import { useDaily } from '../api/useDaily';
 import { cardStats, solvedElsewhere } from '../game/dailyStats';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import type { PuzzleDef } from '../game/puzzleFile';
+import type { TimeToBeat } from '../game/leaderboardStats';
 import { localEntries, recentList, serverEntries, type RecentEntry } from '../game/recent';
 import { canAutoNote } from '../game/game';
 import { PI_DIGITS } from '../game/rules';
@@ -19,6 +20,8 @@ export interface PlayOptions {
   replay?: boolean;
   /** Shown above the board when it opens. */
   notice?: string | null;
+  /** Someone's solve to race, e.g. from their puzzle history: the puzzle waits on a start screen showing it. */
+  timeToBeat?: TimeToBeat | null;
 }
 
 interface PuzzlePickerProps {

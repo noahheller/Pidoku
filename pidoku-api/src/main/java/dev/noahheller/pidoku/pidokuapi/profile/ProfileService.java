@@ -10,7 +10,6 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -22,7 +21,8 @@ import java.util.Map;
 /**
  * Player profiles, as their {@link ProfileVisibility} allows: everyone sees their own, friends see
  * a 'friends' one, and any player sees a 'public' one. Other players' profiles are only shown to
- * players signed in with Google.
+ * players signed in with Google. The puzzle history on a profile has its own visibility (see
+ * {@link HistoryService}).
  */
 @Service
 public class ProfileService {
@@ -32,10 +32,12 @@ public class ProfileService {
 
     private final JdbcClient jdbc;
     private final StreakService streakService;
+    private final ProfileAccess access;
 
-    public ProfileService(JdbcClient jdbc, StreakService streakService) {
+    public ProfileService(JdbcClient jdbc, StreakService streakService, ProfileAccess access) {
         this.jdbc = jdbc;
         this.streakService = streakService;
+        this.access = access;
     }
 
     /**
@@ -52,27 +54,7 @@ public class ProfileService {
      */
     @Transactional(readOnly = true)
     public PlayerProfile profile(Player viewer, boolean viewerUsesGoogle, long playerId, LocalDate today) {
-        if (viewer.getId() != playerId && !viewerUsesGoogle) {
-            throw new GoogleSignInRequiredException();
-        }
-        record Target(String displayName, String profileVisibility, Instant friendsSince) {
-        }
-        Target target = jdbc.sql("""
-                        SELECT p.display_name, p.profile_visibility, f.created_at AS friends_since
-                        FROM players p
-                        LEFT JOIN friendships f ON f.player_id = :viewerId AND f.friend_id = p.id
-                        WHERE p.id = :playerId
-                        """)
-                .param("viewerId", viewer.getId())
-                .param("playerId", playerId)
-                .query(Target.class)
-                .optional()
-                .orElseThrow(() -> new ProfileNotFoundException(playerId));
-        boolean you = viewer.getId() == playerId;
-        ProfileVisibility visibility = ProfileVisibility.fromId(target.profileVisibility());
-        if (!visibility.visibleTo(you, target.friendsSince() != null)) {
-            throw new ProfileNotFoundException(playerId);
-        }
+        ProfileAccess.Target target = access.target(viewer, viewerUsesGoogle, playerId);
         Streak streak = streakService.forPlayers(List.of(playerId), today).get(playerId);
 
         record Solve(LocalDate puzzleDate, String difficulty, long elapsedMs, long penaltyMs, int mistakes,
@@ -118,7 +100,8 @@ public class ProfileService {
                 .thenComparing(PlayerProfile.RecentSolve::difficulty));
         Map<String, Long> bestById = new LinkedHashMap<>();
         bestTimes.forEach((difficulty, ms) -> bestById.put(difficulty.id(), ms));
-        return new PlayerProfile(playerId, target.displayName(), you, visibility, target.friendsSince(),
+        return new PlayerProfile(playerId, target.displayName(), target.you(), target.visibility(),
+                target.historyVisibility(), target.historyVisible(), target.friendsSince(),
                 streak.current(), streak.best(), solves.size(), clean, bestById, List.copyOf(recent));
     }
 }

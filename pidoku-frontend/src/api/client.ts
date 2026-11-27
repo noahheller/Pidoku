@@ -82,6 +82,8 @@ export interface Player {
   friendCode: string;
   /** Who can see their profile. */
   profileVisibility: ProfileVisibility;
+  /** Who can see their puzzle history on it. Missing from older API versions. */
+  historyVisibility?: ProfileVisibility;
   createdAt: string;
   /** When they first supported Pidoku on Ko-fi (ISO timestamp); null if they don't have a supporter badge. */
   supporterSince: string | null;
@@ -94,7 +96,7 @@ export interface SupporterCode {
   expiresAt: string;
 }
 
-/** Who can see a player's profile: any player, only their friends, or no one else. */
+/** Who can see a player's profile (or their puzzle history on it): any player, only their friends, or no one else. */
 export type ProfileVisibility = 'public' | 'friends' | 'private';
 
 /** One of the player's friends (pidoku-api's Friend). */
@@ -433,9 +435,9 @@ export async function updateDisplayName(displayName: string): Promise<Player> {
   return request<Player>('/api/players/me', { method: 'PATCH', body: { displayName }, token: await requireToken() }, BUSY);
 }
 
-/** Sets who can see the player's profile. */
-export async function updateProfileVisibility(profileVisibility: ProfileVisibility): Promise<Player> {
-  return request<Player>('/api/players/me', { method: 'PATCH', body: { profileVisibility }, token: await requireToken() }, BUSY);
+/** Sets who can see the player's profile, or the puzzle history on it. */
+export async function updateVisibility(change: { profileVisibility: ProfileVisibility } | { historyVisibility: ProfileVisibility }): Promise<Player> {
+  return request<Player>('/api/players/me', { method: 'PATCH', body: change, token: await requireToken() }, BUSY);
 }
 
 /**
@@ -521,6 +523,10 @@ export interface PlayerProfile {
   you: boolean;
   /** Who can see this profile. */
   visibility: ProfileVisibility;
+  /** Who can see their puzzle history on it. Missing from older API versions. */
+  historyVisibility?: ProfileVisibility;
+  /** Whether this player may see that history (`fetchHistory`). Missing from older API versions, which have none. */
+  historyVisible?: boolean;
   /** When you became friends (ISO timestamp); null if you aren't. */
   friendsSince: string | null;
   currentStreak: number;
@@ -541,6 +547,67 @@ export interface PlayerProfile {
  */
 export async function fetchProfile(playerId: number, signal?: AbortSignal, now: Date = new Date()): Promise<PlayerProfile> {
   return request<PlayerProfile>(`/api/players/${playerId}/profile?today=${localDate(now)}`, { token: await requireToken(), signal }, BUSY);
+}
+
+/** A first solve of a puzzle, as a player's history shows it (pidoku-api's PuzzleHistory.Solve). */
+export interface HistorySolve {
+  /** ISO timestamp. */
+  completedAt: string;
+  /** The game's time. */
+  elapsedMs: number;
+  /** Added for mistakes and hints; `elapsedMs` plus this is what leaderboards rank. */
+  penaltyMs: number;
+  mistakes: number;
+  hintsUsed: number;
+  autoNotesUsed: boolean;
+  /** Sent late, so the time is partly what the player's device claimed. */
+  late: boolean;
+}
+
+/** Someone else's first solve of a puzzle in a history: the player's own, or a friend's (pidoku-api's PuzzleHistory.OtherSolve). */
+export interface OtherSolve {
+  playerId: number;
+  displayName: string | null;
+  /** The signed-in player's own solve. */
+  you: boolean;
+  elapsedMs: number;
+  penaltyMs: number;
+  mistakes: number;
+  hintsUsed: number;
+  late: boolean;
+}
+
+/** One puzzle a player has solved (pidoku-api's PuzzleHistory.Entry). */
+export interface HistoryEntry {
+  puzzle: PuzzleDef;
+  /** Their first solve: the one leaderboards rank. */
+  solve: HistorySolve;
+  /** The signed-in player's and their friends' first solves of it, fastest first; never the history's owner. */
+  others: OtherSolve[];
+}
+
+/** One page of a player's puzzle history, newest solve first (pidoku-api's PuzzleHistory). */
+export interface PuzzleHistory {
+  entries: HistoryEntry[];
+  /** There are older solves: ask again with `offset` moved past these. */
+  hasMore: boolean;
+}
+
+/**
+ * A page of the puzzles a player has solved (never unfinished ones), dailies and random ones,
+ * newest first. `inCommon` keeps only those the signed-in player or a friend of theirs has solved too.
+ *
+ * @throws ApiError 404 if the profile or the history isn't shown to this player; 403 for someone
+ *         else's when not signed in with Google
+ */
+export async function fetchHistory(playerId: number, { offset = 0, inCommon = false }: { offset?: number; inCommon?: boolean } = {}, signal?: AbortSignal): Promise<PuzzleHistory> {
+  const query = [`offset=${offset}`, ...(inCommon ? ['inCommon=true'] : [])].join('&');
+  const body = await request<{ entries: (Omit<HistoryEntry, 'puzzle'> & { puzzle: ApiPuzzle })[]; hasMore: boolean }>(
+    `/api/players/${playerId}/history?${query}`,
+    { token: await requireToken(), signal },
+    BUSY,
+  );
+  return { entries: body.entries.map((e) => ({ ...e, puzzle: toPuzzleDef(e.puzzle) })), hasMore: body.hasMore };
 }
 
 /**

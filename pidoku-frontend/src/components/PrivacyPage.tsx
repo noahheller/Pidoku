@@ -67,6 +67,11 @@ export function PrivacyPage() {
             Your profile (your streak, best times and recent dailies): your friends by default. Under <strong>You › Account &amp; privacy</strong> you can make it public, so any player can see
             it, or private, so only you can. Only players signed in with Google can see other players' profiles.
           </li>
+          <li>
+            Your puzzle history (every puzzle you've solved, random ones included, with your times) is shown on your profile: to your friends by default. It has its own setting under{' '}
+            <strong>You › Account &amp; privacy</strong>, and is never seen by more people than your profile is. Next to each puzzle, the person looking sees their own time and their friends'
+            times on it, from those whose history they're allowed to see.
+          </li>
           <li>Nobody else sees your email, and no one but you sees your unfinished games.</li>
         </ul>
         <p>

@@ -30,8 +30,9 @@ interface GameProps {
   /** Shown above the board, e.g. "You've played every hard puzzle. Here's one again." */
   notice?: string | null;
   /**
-   * Someone else's solve, for a puzzle opened from a challenge link: the puzzle then waits on a
-   * start screen showing it, like a daily, so the race starts when the player is ready.
+   * Someone else's solve, for a puzzle opened from a challenge link or from their puzzle history:
+   * the puzzle then waits on a start screen showing it, like a daily, so the race starts when the
+   * player is ready. A daily shows it on its own start screen.
    */
   timeToBeat?: TimeToBeat | null;
   onExit: () => void;
@@ -614,7 +615,7 @@ function StartScreen({ puzzle, timeToBeat, onStart }: { puzzle: PuzzleDef; timeT
           {puzzle.difficulty}
         </h2>
         <p className="text-sm text-base-content/60">{countClues(puzzle.givens)} clues</p>
-        {!date && timeToBeat && (
+        {timeToBeat && (
           <p className="rounded-box bg-primary/10 px-4 py-2 text-lg">
             <span className="font-semibold">{timeToBeat.name ?? (timeToBeat.friend ? 'A friend' : 'Someone')}</span> solved this in{' '}
             <span className="font-semibold tabular-nums">{formatTime(timeToBeat.elapsedMs)}</span>

@@ -144,6 +144,34 @@ class PlayerControllerTest extends IntegrationTest {
     }
 
     @Test
+    void historiesAreForFriendsUntilChanged() {
+        assertThat(mvc.get().uri("/api/players/me").with(player("alice")))
+                .bodyJson().extractingPath("$.historyVisibility").isEqualTo("friends");
+    }
+
+    @Test
+    void theHistoryVisibilityCanBeChangedOnItsOwn() {
+        rename("alice", "{\"displayName\": \"Alice\"}");
+
+        assertThat(rename("alice", "{\"historyVisibility\": \"private\"}")).hasStatusOk().bodyJson().satisfies(json -> {
+            assertThat(json).extractingPath("$.historyVisibility").isEqualTo("private");
+            assertThat(json).extractingPath("$.profileVisibility").isEqualTo("friends");
+            assertThat(json).extractingPath("$.displayName").isEqualTo("Alice");
+        });
+        Player alice = players.findByFirebaseUid("alice").orElseThrow();
+        assertThat(alice.getHistoryVisibility()).isEqualTo(ProfileVisibility.PRIVATE);
+        assertThat(alice.getProfileVisibility()).isEqualTo(ProfileVisibility.FRIENDS);
+    }
+
+    @Test
+    void anUnknownHistoryVisibilityChangesNothing() {
+        assertThat(rename("alice", "{\"profileVisibility\": \"public\", \"historyVisibility\": \"everyone\"}"))
+                .hasStatus(HttpStatus.BAD_REQUEST);
+
+        assertThat(players.findByFirebaseUid("alice").map(Player::getProfileVisibility)).isEmpty();
+    }
+
+    @Test
     void aGooglePlayerWithoutANameTakesTheirGoogleName() {
         assertThat(mvc.get().uri("/api/players/me").with(player("alice")))
                 .bodyJson().extractingPath("$.displayName").isNull();

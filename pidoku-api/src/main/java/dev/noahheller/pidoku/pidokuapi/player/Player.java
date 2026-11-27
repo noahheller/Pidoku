@@ -14,7 +14,8 @@ import java.time.Instant;
 /**
  * One Firebase account (table {@code players}, created in V3). Rows are inserted by
  * {@link PlayerRepository#insertIfAbsent}, never through JPA; afterwards JPA only changes the
- * display name and profile visibility. Supporter status is only ever written by SupporterService.
+ * display name and the profile and history visibility. Supporter status is only ever written by
+ * SupporterService.
  */
 @Getter
 @Entity
@@ -44,6 +45,14 @@ public class Player {
     @Getter(AccessLevel.NONE)
     @Column(name = "profile_visibility", nullable = false, insertable = false, length = 10)
     private String profileVisibility;
+
+    /**
+     * Who can see the player's puzzle history on their profile, by {@link ProfileVisibility#id()};
+     * 'friends' until changed (V14).
+     */
+    @Getter(AccessLevel.NONE)
+    @Column(name = "history_visibility", nullable = false, insertable = false, length = 10)
+    private String historyVisibility;
 
     @Column(name = "created_at", nullable = false, insertable = false, updatable = false)
     private Instant createdAt;
@@ -75,5 +84,13 @@ public class Player {
 
     public void setProfileVisibility(ProfileVisibility visibility) {
         this.profileVisibility = visibility.id();
+    }
+
+    public ProfileVisibility getHistoryVisibility() {
+        return ProfileVisibility.fromId(historyVisibility);
+    }
+
+    public void setHistoryVisibility(ProfileVisibility visibility) {
+        this.historyVisibility = visibility.id();
     }
 }

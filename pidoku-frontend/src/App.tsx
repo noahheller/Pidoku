@@ -40,8 +40,8 @@ const firstVisit = !hasAccount();
  * - `/me/look`: Look & feel (board theme, ink, digits, solve celebration).
  * - `/me/support`: Support Pidoku (a tip on Ko-fi for a supporter badge).
  * - `/me/account`: Account & privacy (Google sign-in, profile visibility, deleting the account).
- * - `/players/{playerId}`: a player's streaks, best times and recent dailies: their own, a
- *   friend's, or a public one. `/friends/{playerId}` is its older address.
+ * - `/players/{playerId}`: a player's streaks, best times, recent dailies and puzzle history:
+ *   their own, a friend's, or a public one. `/friends/{playerId}` is its older address.
  * - `/f/{friendCode}`: a friend's invite link.
  * - `/privacy`: what Pidoku keeps about players, and how to delete it.
  * - `/tutorial`: how to play, a short guided puzzle.
@@ -72,7 +72,7 @@ function App() {
   // it again. A share link opened cold has no state and fetches it. Every puzzle opened goes on
   // this browser's Recent list; the oldest drop off it, with their saved progress (but a daily's
   // is kept: it's what marks today's cards as solved).
-  const play = (puzzle: PuzzleDef, { replay = false, notice = null }: PlayOptions = {}) => {
+  const play = (puzzle: PuzzleDef, { replay = false, notice = null, timeToBeat = null }: PlayOptions = {}) => {
     const { list, dropped } = addRecent(recent, puzzle);
     setRecent(list);
     saveRecentPuzzles(list);
@@ -82,7 +82,7 @@ function App() {
       clearResult(old.id);
     }
     const path = puzzle.shareCode ? `/p/${puzzle.shareCode}` : `/local/${encodeURIComponent(puzzle.id)}`;
-    void navigate(path, { state: { puzzle, replay, notice } satisfies HistoryState });
+    void navigate(path, { state: { puzzle, replay, notice, timeToBeat } satisfies HistoryState });
   };
 
   return (
@@ -102,8 +102,8 @@ function App() {
       <Route path="/me/look" element={<LookAndFeelPage />} />
       <Route path="/me/support" element={<SupportPage />} />
       <Route path="/me/account" element={<AccountPage />} />
-      <Route path="/players/:id" element={<PlayerPage />} />
-      <Route path="/friends/:id" element={<PlayerPage />} />
+      <Route path="/players/:id" element={<PlayerPage onPlay={play} />} />
+      <Route path="/friends/:id" element={<PlayerPage onPlay={play} />} />
       <Route path="/f/:code" element={<AddFriendPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/tutorial" element={<TutorialPage />} />
@@ -161,11 +161,13 @@ function useShareArrival() {
   }, [location, navigate]);
 }
 
-/** What opening a puzzle from the home screen puts in the history entry. */
+/** What opening a puzzle from the home screen (or a profile) puts in the history entry. */
 interface HistoryState {
   puzzle: PuzzleDef;
   replay?: boolean;
   notice?: string | null;
+  /** Opened from someone's puzzle history: their solve, to race on a start screen. */
+  timeToBeat?: TimeToBeat | null;
 }
 
 function useHistoryState(): Partial<HistoryState> {
@@ -187,7 +189,7 @@ function useOpenedWith(): { replay: boolean; notice: string | null } {
   const location = useLocation();
   const [openedWith] = useState(() => ({ replay: state.replay === true, notice: state.notice ?? null }));
   useEffect(() => {
-    if (state.replay || state.notice) void navigate(location, { replace: true, state: { puzzle: state.puzzle } });
+    if (state.replay || state.notice) void navigate(location, { replace: true, state: { puzzle: state.puzzle, timeToBeat: state.timeToBeat } });
   }, [state, navigate, location]);
   return openedWith;
 }
@@ -220,6 +222,9 @@ async function challengeFor(puzzle: PuzzleDef, signal: AbortSignal): Promise<Tim
 function SharedPuzzle() {
   const { shareCode = '' } = useParams();
   const fromHistory = usePuzzleFromHistory();
+  // Opened from someone's puzzle history: their time, rather than the leaderboard's. Once Start is
+  // pressed the saved progress takes over, so it no longer shows.
+  const historyChallenge = useHistoryState().timeToBeat ?? null;
   const { replay, notice } = useOpenedWith();
   const exit = useExit();
   const known = fromHistory?.shareCode?.toUpperCase() === shareCode.toUpperCase() ? fromHistory : null;
@@ -240,7 +245,7 @@ function SharedPuzzle() {
     return () => controller.abort();
   }, [known, shareCode, retries]);
 
-  const state: Loaded = known ? { status: 'loaded', puzzle: known } : fetched.code === shareCode ? fetched : { status: 'loading' };
+  const state: Loaded = known ? { status: 'loaded', puzzle: known, timeToBeat: historyChallenge } : fetched.code === shareCode ? fetched : { status: 'loading' };
 
   if (state.status === 'loaded') {
     // key resets all game state when switching puzzles.
