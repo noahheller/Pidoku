@@ -35,6 +35,210 @@
   --color-success: #69db7c;
 }
 
+
+/*
+ * Themes for /me's "Look & feel" (game/cosmetics.ts). High contrast is free; the rest thank
+ * supporters. In each one primary is the pen and secondary is notes mode, and they must stay
+ * clearly apart. Error (mistakes) must stay apart from the pen too.
+ */
+@plugin 'daisyui/theme' {
+  name: 'high-contrast';
+  color-scheme: light;
+  --color-base-100: #ffffff;
+  --color-base-200: #f1f3f5;
+  --color-base-300: #868e96;
+  --color-base-content: #000000;
+  --color-primary: #0b3fd1;
+  --color-primary-content: #ffffff;
+  --color-secondary: #6200c4;
+  --color-secondary-content: #ffffff;
+  --color-accent: #00626b;
+  --color-accent-content: #ffffff;
+  --color-neutral: #000000;
+  --color-neutral-content: #ffffff;
+  --color-info: #00599e;
+  --color-info-content: #ffffff;
+  --color-success: #006b1f;
+  --color-success-content: #ffffff;
+  --color-warning: #c25e00;
+  --color-warning-content: #000000;
+  --color-error: #c4001a;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'chalkboard';
+  color-scheme: dark;
+  --color-base-100: #2e4a3a;
+  --color-base-200: #24392d;
+  --color-base-300: #4b6b58;
+  --color-base-content: #f1f5ec;
+  --color-primary: #a5d8ff;
+  --color-primary-content: #10202b;
+  --color-secondary: #e5b3fe;
+  --color-secondary-content: #2a1533;
+  --color-accent: #ffe08a;
+  --color-accent-content: #2b2100;
+  --color-neutral: #1a2b21;
+  --color-neutral-content: #f1f5ec;
+  --color-info: #99e9f2;
+  --color-info-content: #0b2a2e;
+  --color-success: #b2f2bb;
+  --color-success-content: #0f2a14;
+  --color-warning: #ffd43b;
+  --color-warning-content: #2b2100;
+  --color-error: #ffa8a8;
+  --color-error-content: #2f0b0b;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'graph-paper';
+  color-scheme: light;
+  --color-base-100: #fffdf6;
+  --color-base-200: #f4f1e6;
+  --color-base-300: #c5d9ec;
+  --color-base-content: #2b2b2b;
+  --color-primary: #1d4ed8;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7c3aed;
+  --color-secondary-content: #ffffff;
+  --color-accent: #0f766e;
+  --color-accent-content: #ffffff;
+  --color-neutral: #2b2b2b;
+  --color-neutral-content: #fffdf6;
+  --color-info: #0369a1;
+  --color-info-content: #ffffff;
+  --color-success: #2f9e44;
+  --color-success-content: #0b2a12;
+  --color-warning: #d97706;
+  --color-warning-content: #1f1300;
+  --color-error: #d6336c;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'blueprint';
+  color-scheme: dark;
+  --color-base-100: #1d3a66;
+  --color-base-200: #152c50;
+  --color-base-300: #3a5f94;
+  --color-base-content: #eaf2ff;
+  --color-primary: #7ee0ff;
+  --color-primary-content: #08223a;
+  --color-secondary: #ffb3e6;
+  --color-secondary-content: #3a0f2c;
+  --color-accent: #ffe066;
+  --color-accent-content: #2b2100;
+  --color-neutral: #0f2140;
+  --color-neutral-content: #eaf2ff;
+  --color-info: #a5d8ff;
+  --color-info-content: #0b2440;
+  --color-success: #8ce99a;
+  --color-success-content: #0f2a14;
+  --color-warning: #ffc078;
+  --color-warning-content: #2b1600;
+  --color-error: #ff8787;
+  --color-error-content: #2f0b0b;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'pumpkin-pie';
+  color-scheme: light;
+  --color-base-100: #fff8ee;
+  --color-base-200: #fbe8d0;
+  --color-base-300: #e8c9a2;
+  --color-base-content: #2e1a0c;
+  --color-primary: #c2410c;
+  --color-primary-content: #ffffff;
+  --color-secondary: #7c3aed;
+  --color-secondary-content: #ffffff;
+  --color-accent: #a16207;
+  --color-accent-content: #ffffff;
+  --color-neutral: #4a2a12;
+  --color-neutral-content: #fff8ee;
+  --color-info: #0369a1;
+  --color-info-content: #ffffff;
+  --color-success: #3f7d20;
+  --color-success-content: #ffffff;
+  --color-warning: #e0a100;
+  --color-warning-content: #2b1a00;
+  --color-error: #be123c;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin 'daisyui/theme' {
+  name: 'sepia';
+  color-scheme: light;
+  --color-base-100: #f8f1e3;
+  --color-base-200: #eee3cc;
+  --color-base-300: #d6c4a2;
+  --color-base-content: #3a2e21;
+  --color-primary: #1f4e79;
+  --color-primary-content: #ffffff;
+  --color-secondary: #8e44ad;
+  --color-secondary-content: #ffffff;
+  --color-accent: #7a5c2e;
+  --color-accent-content: #ffffff;
+  --color-neutral: #3a2e21;
+  --color-neutral-content: #f8f1e3;
+  --color-info: #2b6c99;
+  --color-info-content: #ffffff;
+  --color-success: #2f7d32;
+  --color-success-content: #ffffff;
+  --color-warning: #c98a1a;
+  --color-warning-content: #2b1a00;
+  --color-error: #b4232c;
+  --color-error-content: #ffffff;
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.5rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
 @theme {
   --font-sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --font-hand: 'Recursive Variable', system-ui, sans-serif;
@@ -47,12 +251,115 @@
       transform: translateY(0.35em);
     }
   }
+
+  /* Solve celebrations (components/Celebration.tsx). */
+  --animate-pi-fall: pi-fall 1700ms cubic-bezier(0.45, 0, 0.75, 1) both;
+  --animate-pie-burst: pie-burst 1800ms cubic-bezier(0.15, 0.7, 0.3, 1) both;
+  --animate-pie-pop: pie-pop 3300ms ease-out both;
+  --animate-pie-slice: pie-slice 2300ms cubic-bezier(0.25, 0.6, 0.35, 1) both;
+
+  /* A full-height stream of digits, from just above the board to just below it. */
+  @keyframes pi-fall {
+    from {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    15%,
+    75% {
+      opacity: 0.9;
+    }
+    to {
+      transform: translateY(100%);
+      opacity: 0;
+    }
+  }
+
+  /* The whole pie: pops up, settles, then wobbles just before it bursts (at 30%, 1s in). */
+  @keyframes pie-pop {
+    from {
+      transform: scale(0.2) rotate(-25deg);
+      opacity: 0;
+    }
+    14% {
+      transform: scale(1.06) rotate(3deg);
+      opacity: 1;
+    }
+    20% {
+      transform: scale(1) rotate(0deg);
+    }
+    24% {
+      transform: rotate(-3deg);
+    }
+    27% {
+      transform: rotate(3deg);
+    }
+    30%,
+    to {
+      transform: rotate(0deg);
+      opacity: 1;
+    }
+  }
+
+  /* One slice: the cut opens a little, then it flies off by --dx and --dy, turning by --spin. */
+  @keyframes pie-slice {
+    from {
+      transform: translate(0, 0) rotate(0deg);
+      opacity: 1;
+    }
+    10% {
+      transform: translate(calc(var(--dx) * 0.05), calc(var(--dy) * 0.05)) rotate(0deg);
+    }
+    65% {
+      opacity: 1;
+    }
+    to {
+      transform: translate(var(--dx), var(--dy)) rotate(var(--spin));
+      opacity: 0;
+    }
+  }
+
+  /* From the board's centre outwards by --dx and --dy, turning by --spin. */
+  @keyframes pie-burst {
+    from {
+      transform: translate(-50%, -50%) scale(0.3) rotate(0deg);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    to {
+      transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--spin));
+      opacity: 0;
+    }
+  }
 }
 
 /* Handwritten digits: the number pad and what the player writes on the board. */
 @utility casual {
-  font-family: var(--font-hand);
-  font-variation-settings: 'CASL' 1;
+  font-family: var(--digit-font, var(--font-hand));
+  font-variation-settings: var(--digit-variation, 'CASL' 1);
+}
+
+/*
+ * Digit styles for supporters (game/cosmetics.ts), on <html> or on a preview. Handwritten is the
+ * default. Each one sets both variables, so a preview never picks up half of the page's style.
+ */
+[data-digits='handwritten'] {
+  --digit-font: var(--font-hand);
+  --digit-variation: 'CASL' 1;
+}
+[data-digits='print'] {
+  --digit-font: var(--font-hand);
+  --digit-variation: 'CASL' 0;
+}
+[data-digits='mono'] {
+  /* Loaded on demand (components/cosmetics.ts); the casual font stands in until it arrives. */
+  --digit-font: 'Pidoku Mono', var(--font-hand);
+  --digit-variation: 'MONO' 1;
+}
+[data-digits='serif'] {
+  --digit-font: ui-serif, Georgia, 'Times New Roman', serif;
+  --digit-variation: normal;
 }
 
 @layer base {

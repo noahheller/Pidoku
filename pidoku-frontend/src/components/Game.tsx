@@ -7,6 +7,7 @@ import { dailyNumber } from '../game/daily';
 import { countClues, formatDate, formatPenalty, formatTime } from '../game/format';
 import { gameReducer, isMistake, newGame, toSaved, type GameAction, type GameState, type SavedProgress } from '../game/game';
 import { hintHighlight, hintText, hintUsed } from '../game/hints';
+import type { CelebrationId } from '../game/cosmetics';
 import type { TimeToBeat } from '../game/leaderboardStats';
 import { HINT_STEP_PENALTY_MS, penaltyMs } from '../game/penalties';
 import { actionForKey } from '../game/keys';
@@ -17,6 +18,8 @@ import { boardChanged, newerOnServer, SYNC_INTERVAL_MS } from '../game/sync';
 import { Board } from './Board';
 import { Controls } from './Controls';
 import { NumberPad } from './NumberPad';
+import { Celebration } from './Celebration';
+import { useCosmetics } from './cosmetics';
 import { Result, type Recorded } from './Result';
 import { Tutorial } from './Tutorial';
 
@@ -202,9 +205,22 @@ function PuzzleGame({ puzzle, replay = false, notice = null, timeToBeat = null, 
   useAbandonedEvent({ puzzle, running, stateRef });
 
   /** Every move first counts the time up to it, so a solve's time ends at the last digit. */
+  // A solve in this visit, by the player's own move (not a board synced from another device),
+  // plays their celebration once, if they picked one.
+  const { active: cosmetics } = useCosmetics();
+  const [playerActed, setPlayerActed] = useState(false);
+  const [wasCompleted, setWasCompleted] = useState(completed);
+  const [celebration, setCelebration] = useState<CelebrationId | null>(null);
+  if (completed !== wasCompleted) {
+    setWasCompleted(completed);
+    if (completed && playerActed && cosmetics.celebration !== 'none') setCelebration(cosmetics.celebration);
+  }
+  const endCelebration = useCallback(() => setCelebration(null), []);
+
   const play = useCallback(
     (action: GameAction) => {
       flushClock();
+      setPlayerActed(true);
       dispatch(action);
     },
     [flushClock],
@@ -347,7 +363,13 @@ function PuzzleGame({ puzzle, replay = false, notice = null, timeToBeat = null, 
       )}
 
       {ready && <div className="flex flex-wrap items-start justify-center gap-6">
-        <Board state={state} onSelect={onSelect} highlight={highlight} />
+        <Board
+          state={state}
+          onSelect={onSelect}
+          highlight={highlight}
+          wave={celebration === 'wave'}
+          overlay={celebration && <Celebration kind={celebration} onDone={endCelebration} />}
+        />
         <div className="grid w-full gap-4 sm:w-[min(100%,360px)]">
           {shownNotice ? (
             <HintPanel key="notice" message={shownNotice.message} hintPenaltyMs={hintPenaltyMs} onClose={() => setHintNotice(null)} />

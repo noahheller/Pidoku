@@ -1,4 +1,5 @@
 import type { Hint, StatsSource } from '../api/client';
+import type { Cosmetics } from './cosmetics';
 import type { SavedProgress } from './game';
 import type { PuzzleDef } from './puzzleFile';
 
@@ -16,6 +17,8 @@ const STATS_SOURCE_KEY = 'pidoku:stats-source';
 const STATS_ASSISTED_KEY = 'pidoku:stats-assisted';
 const HAS_ACCOUNT_KEY = 'pidoku:has-account';
 const TUTORIAL_SEEN_KEY = 'pidoku:tutorial-seen';
+const COSMETICS_KEY = 'pidoku:cosmetics';
+const SUPPORTER_KEY = 'pidoku:supporter';
 
 function read<T>(key: string): T | null {
   try {
@@ -237,6 +240,27 @@ export function saveStatsIncludeAssisted(include: boolean): void {
   write(STATS_ASSISTED_KEY, include);
 }
 
+/** The player's theme, ink, digit style and celebration, as saved (see game/cosmetics.ts). */
+export function loadCosmetics(): unknown {
+  return read<unknown>(COSMETICS_KEY);
+}
+
+export function saveCosmetics(cosmetics: Cosmetics): void {
+  write(COSMETICS_KEY, cosmetics);
+}
+
+/**
+ * Whether the player had a supporter badge when the API last said: so a supporter's theme shows
+ * straight away, and offline, without waiting for `/api/players/me`.
+ */
+export function loadSupporterFlag(): boolean {
+  return read<boolean>(SUPPORTER_KEY) === true;
+}
+
+export function saveSupporterFlag(supporter: boolean): void {
+  write(SUPPORTER_KEY, supporter);
+}
+
 /** Forgets everything Pidoku keeps in this browser: progress, results, puzzles, settings. */
 export function clearAllLocalData(): void {
   try {
@@ -249,10 +273,10 @@ export function clearAllLocalData(): void {
 
 /**
  * Forgets what belongs to the player rather than to this browser, after switching to another
- * account: its streak, and whether it said no to picking a name.
+ * account: its streak, whether it said no to picking a name, and whether it's a supporter.
  */
 export function clearPlayerCaches(): void {
-  for (const key of [STREAK_KEY, NAME_PROMPT_DISMISSED_KEY, GOOGLE_PROMPT_DISMISSED_KEY]) {
+  for (const key of [STREAK_KEY, NAME_PROMPT_DISMISSED_KEY, GOOGLE_PROMPT_DISMISSED_KEY, SUPPORTER_KEY]) {
     try {
       localStorage.removeItem(key);
     } catch {

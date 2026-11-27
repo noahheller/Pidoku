@@ -10,6 +10,7 @@ import { canAutoNote } from '../game/game';
 import { mistakePenaltyMs } from '../game/penalties';
 import type { PuzzleDef } from '../game/puzzleFile';
 import { clearPlayerCaches, dismissGooglePrompt, dismissNamePrompt, isGooglePromptDismissed, isNamePromptDismissed, loadProgress, saveStreak } from '../game/storage';
+import { reloadCosmetics } from './cosmetics';
 import { LeaderboardView } from './Leaderboard';
 import { GoogleButton } from './Profile';
 
@@ -294,7 +295,10 @@ function GooglePrompt({ streak }: { streak: number }) {
         <GoogleButton
           className="btn btn-sm"
           onDone={(result) => {
-            if (result === 'switched') clearPlayerCaches();
+            if (result === 'switched') {
+              clearPlayerCaches();
+              reloadCosmetics();
+            }
             setState({ status: 'done', switched: result === 'switched' });
           }}
         />
