@@ -154,8 +154,7 @@ public class SolveTrace {
     }
 
     public boolean usedTierOrHigher(Tier tier) {
-        if (hardestStrategy == null) return false;
-        return hardestStrategy.getTier().ordinal() >= tier.ordinal();
+        return hardestStrategy != null && !tier.isHarderThan(hardestStrategy.getTier());
     }
 
     @Override

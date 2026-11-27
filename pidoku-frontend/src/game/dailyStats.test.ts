@@ -9,6 +9,7 @@ const stats = (overrides: Partial<DailyStats> = {}): DailyStats => ({
   fastest: { displayName: 'Sam', elapsedMs: 178_000, you: false },
   friendsSolved: null,
   friendsFastest: null,
+  yours: null,
   ...overrides,
 });
 

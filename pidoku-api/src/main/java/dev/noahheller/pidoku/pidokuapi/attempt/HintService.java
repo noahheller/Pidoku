@@ -68,7 +68,7 @@ public class HintService {
         int size = puzzle.getSize();
         int[] givens = Grids.toCells(puzzle.getGivens());
         int[] solution = Grids.toCells(puzzle.getSolution());
-        checkFits(values, notes, givens);
+        Boards.checkFits(values, notes, givens);
 
         List<Integer> wrong = new ArrayList<>();
         boolean full = true;
@@ -182,21 +182,6 @@ public class HintService {
                 answer ? explanation.text() : null,
                 attempt.getHintsUsed(),
                 attempt.getHintPenaltyMs());
-    }
-
-    /** The board has the puzzle's size, keeps its givens, and holds only digits and note bits. */
-    private static void checkFits(int[] values, int[] notes, int[] givens) {
-        if (values.length != givens.length || (notes != null && notes.length != givens.length)) {
-            throw new InvalidProgressException("The board must have " + givens.length + " cells.");
-        }
-        for (int i = 0; i < givens.length; i++) {
-            if (values[i] < 0 || values[i] > 9 || (givens[i] != 0 && values[i] != givens[i])) {
-                throw new InvalidProgressException("Cell " + i + " doesn't fit the puzzle.");
-            }
-            if (notes != null && (notes[i] < 0 || notes[i] >= 1 << 10)) {
-                throw new InvalidProgressException("Cell " + i + " has notes that aren't digits.");
-            }
-        }
     }
 
     private static List<Integer> indices(List<BoardPosition> positions, int size) {

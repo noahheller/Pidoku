@@ -170,7 +170,7 @@ class MoveExplainerTest {
                     boolean candidate = SearchUtils.isCandidate(state, cell, e.digit());
                     if (candidate != e.pattern().contains(cell)) return "pattern isn't every spot for " + e.digit() + " in " + unit;
                 }
-                if (MoveExplainer.remaining(state, RULES, unit, e.digit()) != e.pattern().size()) return "spots don't match what's needed";
+                if (SearchUtils.remaining(state, unit, e.digit()) != e.pattern().size()) return "spots don't match what's needed";
             }
             case NAKED_PAIR, NAKED_TRIPLE, NAKED_QUAD -> {
                 List<Integer> digits = move.getReason().digits();

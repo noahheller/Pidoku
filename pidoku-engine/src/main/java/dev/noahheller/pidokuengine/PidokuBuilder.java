@@ -75,12 +75,11 @@ public class PidokuBuilder {
             for (int i = 0; i < genAttempts; i++) {
                 if (System.nanoTime() - deadline >= 0) return null;
                 PidokuPuzzle puzzle = generator.buildPuzzle(solution.getSolution(), profile, random);
-                if (puzzle != null && puzzle.getPuzzle() != null) {
+                if (puzzle != null) {
                     return puzzle;
                 }
             }
         }
         return null;
     }
-
 }

@@ -34,30 +34,37 @@ public class HumanPidokuGenerator implements PidokuGenerator {
         int size = solution.length;
         int total = size * size;
 
-        int[][] bestPuzzle = null;
-        long bestDistance = Long.MAX_VALUE;
+        Candidate best = null;
 
         for (int pass = 0; pass < GREEDY_PASSES; pass++) {
             List<Integer> indices = new ArrayList<>(total);
             for (int i = 0; i < total; i++) indices.add(i);
             Collections.shuffle(indices, random);
 
-            int[][] candidate = greedyReduce(ArrayUtils.copy(solution), indices, size, profile);
-            if (candidate == null) continue;
-
-            SolveTrace trace = humanSolver.solve(ArrayUtils.copy(candidate)).getSolveTrace();
-            long distance = profile.distanceToTarget(trace.getTotalScore());
-            if (distance < bestDistance) {
-                bestPuzzle = candidate;
-                bestDistance = distance;
+            Candidate candidate = greedyReduce(ArrayUtils.copy(solution), indices, size, profile);
+            if (candidate != null && (best == null || candidate.distance() < best.distance())) {
+                best = candidate;
             }
         }
 
-        if (bestPuzzle == null) return null;
+        if (best == null) return null;
 
-        bestPuzzle = swapRefine(bestPuzzle, solution, profile, random);
+        return swapRefine(best, solution, profile, random).solved();
+    }
 
-        return humanSolver.solve(ArrayUtils.copy(bestPuzzle));
+    /**
+     * A puzzle the human solver has been run on, with how far its score is from the profile's
+     * target. Its grid ({@code solved.getPuzzle()}) is never changed: each stage works on copies.
+     */
+    private record Candidate(PidokuPuzzle solved, long distance) {
+
+        Candidate(PidokuPuzzle solved, DifficultyProfile profile) {
+            this(solved, profile.distanceToTarget(solved.getSolveTrace().getTotalScore()));
+        }
+
+        int[][] grid() {
+            return solved.getPuzzle();
+        }
     }
 
     /**
@@ -69,9 +76,8 @@ public class HumanPidokuGenerator implements PidokuGenerator {
      * Returns the accepted intermediate puzzle closest to the profile's target score,
      * or null if the profile never accepted any intermediate state.
      */
-    private int[][] greedyReduce(int[][] puzzle, List<Integer> indices, int size, DifficultyProfile profile) {
-        int[][] bestAccepted = null;
-        long bestDistance = Long.MAX_VALUE;
+    private Candidate greedyReduce(int[][] puzzle, List<Integer> indices, int size, DifficultyProfile profile) {
+        Candidate bestAccepted = null;
         int clues = countClues(puzzle);
 
         for (int index : indices) {
@@ -94,27 +100,26 @@ public class HumanPidokuGenerator implements PidokuGenerator {
             }
 
             // Hard constraint: must still be solvable by human strategies alone.
-            SolveTrace trace = humanSolver.solve(ArrayUtils.copy(puzzle)).getSolveTrace();
+            PidokuPuzzle solved = humanSolver.solve(ArrayUtils.copy(puzzle));
+            SolveTrace trace = solved.getSolveTrace();
             if (!trace.solved) {
                 puzzle[row][col] = saved;
                 continue;
             }
 
-            // Soft constraint: do not exceed the difficulty ceiling.
-            // We still commit the removal even when the profile doesn't accept
-            // the current state, because further removals may bring the score
-            // back into the acceptable window.
+            // Hard constraint: must not need a strategy above the profile's ceiling.
             if (trace.getHardestStrategy() != null
                     && trace.getHardestStrategy().getTier().isHarderThan(profile.strategyTierCeiling)) {
                 puzzle[row][col] = saved;
                 continue;
             }
 
+            // The removal is kept even when the profile doesn't accept this state, because
+            // further removals may bring the score back into the acceptable window.
             clues--;
-            long distance = profile.distanceToTarget(trace.getTotalScore());
-            if (profile.accepts(trace, clues) && distance < bestDistance) {
-                bestAccepted = ArrayUtils.copy(puzzle);
-                bestDistance = distance;
+            Candidate candidate = new Candidate(solved, profile);
+            if (profile.accepts(trace, clues) && (bestAccepted == null || candidate.distance() < bestAccepted.distance())) {
+                bestAccepted = candidate;
             }
         }
 
@@ -132,7 +137,7 @@ public class HumanPidokuGenerator implements PidokuGenerator {
     }
 
     /**
-     * Tries to move {@code puzzle}'s score towards the profile's target by swapping a
+     * Tries to move {@code start}'s score towards the profile's target by swapping a
      * revealed cell for a hidden one (the hidden cell's value is taken from
      * {@code solution}). A swap is kept whenever:
      *   1. the puzzle after the swap has a unique solution,
@@ -144,22 +149,19 @@ public class HumanPidokuGenerator implements PidokuGenerator {
      * of puzzles with the same sparsity as the greedy result. Equal-distance swaps
      * are kept so the search can drift across plateaus.
      */
-    private int[][] swapRefine(int[][] puzzle, int[][] solution, DifficultyProfile profile, RandomGenerator random) {
-        int size = puzzle.length;
-        int[][] current = ArrayUtils.copy(puzzle);
-
-        SolveTrace currentTrace = humanSolver.solve(ArrayUtils.copy(current)).getSolveTrace();
-        long currentDistance = profile.distanceToTarget(currentTrace.getTotalScore());
+    private Candidate swapRefine(Candidate start, int[][] solution, DifficultyProfile profile, RandomGenerator random) {
+        int size = solution.length;
+        Candidate current = start;
 
         List<int[]> hiddenCells = new ArrayList<>();
         List<int[]> revealedCells = new ArrayList<>();
 
-        for (int iter = 0; iter < SWAP_ITERATIONS && currentDistance > 0; iter++) {
+        for (int iter = 0; iter < SWAP_ITERATIONS && current.distance() > 0; iter++) {
             hiddenCells.clear();
             revealedCells.clear();
             for (int r = 0; r < size; r++) {
                 for (int c = 0; c < size; c++) {
-                    if (current[r][c] == 0) {
+                    if (current.grid()[r][c] == 0) {
                         hiddenCells.add(new int[]{r, c});
                     } else {
                         revealedCells.add(new int[]{r, c});
@@ -172,14 +174,15 @@ public class HumanPidokuGenerator implements PidokuGenerator {
             int[] toReveal = hiddenCells.get(random.nextInt(hiddenCells.size()));
             int[] toHide   = revealedCells.get(random.nextInt(revealedCells.size()));
 
-            // Build the swapped candidate without permanently modifying current.
-            int[][] candidate = ArrayUtils.copy(current);
-            candidate[toReveal[0]][toReveal[1]] = solution[toReveal[0]][toReveal[1]];
-            candidate[toHide[0]][toHide[1]]     = 0;
+            // The swapped grid is a new copy, so current's stays as it was.
+            int[][] swapped = ArrayUtils.copy(current.grid());
+            swapped[toReveal[0]][toReveal[1]] = solution[toReveal[0]][toReveal[1]];
+            swapped[toHide[0]][toHide[1]]     = 0;
 
-            if (solver.countSolutions(candidate) != 1) continue;
+            if (solver.countSolutions(swapped) != 1) continue;
 
-            SolveTrace trace = humanSolver.solve(ArrayUtils.copy(candidate)).getSolveTrace();
+            PidokuPuzzle solved = humanSolver.solve(swapped);
+            SolveTrace trace = solved.getSolveTrace();
             if (!trace.solved) continue;
 
             if (trace.getHardestStrategy() != null
@@ -188,17 +191,13 @@ public class HumanPidokuGenerator implements PidokuGenerator {
             }
 
             int clues = size * size - trace.getPlacementCount();
-            long distance = profile.distanceToTarget(trace.getTotalScore());
-            if (profile.accepts(trace, clues) && distance <= currentDistance) {
+            Candidate candidate = new Candidate(solved, profile);
+            if (profile.accepts(trace, clues) && candidate.distance() <= current.distance()) {
                 current = candidate;
-                currentDistance = distance;
             }
         }
 
-        // double check still human solvable
-        SolveTrace finalTrace = humanSolver.solve(ArrayUtils.copy(current)).getSolveTrace();
-        int clues = size * size - finalTrace.getPlacementCount();
-        return profile.accepts(finalTrace, clues) ? current : puzzle;
+        // Every candidate kept (the greedy result included) was accepted, so this one is too.
+        return current;
     }
-
 }

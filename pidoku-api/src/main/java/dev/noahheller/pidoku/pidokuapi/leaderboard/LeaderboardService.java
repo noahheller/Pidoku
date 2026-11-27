@@ -1,5 +1,6 @@
 package dev.noahheller.pidoku.pidokuapi.leaderboard;
 
+import dev.noahheller.pidoku.pidokuapi.attempt.AttemptSql;
 import dev.noahheller.pidoku.pidokuapi.daily.DailyProperties;
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzle;
 import dev.noahheller.pidoku.pidokuapi.daily.DailyPuzzleService;
@@ -79,7 +80,7 @@ public class LeaderboardService {
                             SELECT DISTINCT ON (a.puzzle_id, a.player_id)
                                    a.puzzle_id, a.player_id, a.started_at, a.completed_at,
                                    -- The ranked time, penalties included (see forDaily).
-                                   COALESCE(a.active_ms, a.elapsed_ms) + a.penalty_ms AS elapsed_ms
+                                   %s AS elapsed_ms
                             FROM attempts a
                             JOIN dailies d ON d.puzzle_id = a.puzzle_id
                             WHERE a.completed_at IS NOT NULL
@@ -107,7 +108,7 @@ public class LeaderboardService {
                         -- The viewer's own first solve, even one started before the date began.
                         mine AS (
                             SELECT DISTINCT ON (a.puzzle_id)
-                                   a.puzzle_id, COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.mistakes,
+                                   a.puzzle_id, %s AS elapsed_ms, a.mistakes,
                                    a.hints_used, a.hint_penalty_ms, a.auto_notes_used, a.late
                             FROM attempts a
                             JOIN dailies d ON d.puzzle_id = a.puzzle_id
@@ -127,7 +128,7 @@ public class LeaderboardService {
                         LEFT JOIN fastest f ON f.puzzle_id = d.puzzle_id
                         LEFT JOIN friends_fastest ff ON ff.puzzle_id = d.puzzle_id
                         LEFT JOIN mine m ON m.puzzle_id = d.puzzle_id
-                        """)
+                        """.formatted(AttemptSql.RANKED_MS, AttemptSql.GAME_MS))
                 .param("date", date)
                 .param("opensAt", OffsetDateTime.ofInstant(DailyPuzzleService.opensAt(date), ZoneOffset.UTC))
                 .param("viewerId", viewerId)
@@ -215,8 +216,8 @@ public class LeaderboardService {
                             SELECT DISTINCT ON (a.player_id)
                                    a.player_id, a.started_at, a.completed_at,
                                    -- The game's time (it goes out as elapsedMs) and what's added to it.
-                                   COALESCE(a.active_ms, a.elapsed_ms) AS elapsed_ms, a.penalty_ms,
-                                   COALESCE(a.active_ms, a.elapsed_ms) + a.penalty_ms AS ranked_ms,
+                                   %s AS elapsed_ms, a.penalty_ms,
+                                   %s AS ranked_ms,
                                    a.mistakes, a.hints_used, a.late
                             FROM attempts a
                             WHERE a.puzzle_id = :puzzleId AND a.completed_at IS NOT NULL
@@ -238,7 +239,7 @@ public class LeaderboardService {
                             FROM firsts f
                             JOIN players p ON p.id = f.player_id
                             WHERE true
-                        """ + (opensAt != null ? """
+                        """.formatted(AttemptSql.GAME_MS, AttemptSql.RANKED_MS) + (opensAt != null ? """
                               AND f.started_at >= :opensAt
                         """ : "") + (cleanOnly ? """
                               AND f.mistakes = 0 AND f.hints_used = 0

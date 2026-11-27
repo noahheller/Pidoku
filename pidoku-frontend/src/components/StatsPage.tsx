@@ -1,14 +1,14 @@
-import { ArrowLeft, BarChart3, CircleAlert, Flame, Lightbulb, RotateCw, Target, TrendingDown, TrendingUp, Trophy } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { BarChart3, Flame, Lightbulb, Target, TrendingDown, TrendingUp, Trophy } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { fetchStats, type DifficultyStats, type PlayerStats, type StatsSource } from '../api/client';
+import { useLoad } from '../api/useLoad';
 import { formatTime } from '../game/format';
 import { cleanPercent, formatMistakes, trendLine } from '../game/stats';
 import { loadStatsIncludeAssisted, loadStatsSource, saveStatsIncludeAssisted, saveStatsSource } from '../game/storage';
 import { Switch } from './Leaderboard';
 import { Tile } from './PlayerPage';
-
-type State = { status: 'loading' } | { status: 'loaded'; stats: PlayerStats } | { status: 'failed'; message: string };
+import { LoadStatus, SubPage } from './SubPage';
 
 const SOURCES: [StatsSource, string][] = [
   ['all', 'All'],
@@ -25,33 +25,10 @@ const SOURCES: [StatsSource, string][] = [
 export function StatsPage() {
   const [source, setSource] = useState<StatsSource>(loadStatsSource);
   const [includeAssisted, setIncludeAssisted] = useState(loadStatsIncludeAssisted);
-  const [state, setState] = useState<State & { key?: string }>({ status: 'loading' });
-  const [retries, setRetries] = useState(0);
-  const key = `${source}/${includeAssisted}/${retries}`;
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchStats(source, includeAssisted, controller.signal)
-      .then((stats) => setState({ status: 'loaded', stats, key }))
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e), key });
-      });
-    return () => controller.abort();
-  }, [source, includeAssisted, key]);
-
-  const current: State = state.key === key ? state : { status: 'loading' };
+  const { state, reload } = useLoad(`${source}/${includeAssisted}`, (signal) => fetchStats(source, includeAssisted, signal));
 
   return (
-    <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
-      <header className="grid gap-3">
-        <Link to="/me" className="back-link btn btn-ghost btn-sm w-fit text-primary">
-          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> You
-        </Link>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <BarChart3 className="size-6 text-primary" aria-hidden="true" /> Your stats
-        </h1>
-      </header>
-
+    <SubPage back={{ to: '/me', label: 'You' }} icon={BarChart3} title="Your stats">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Switch
           label="Which puzzles"
@@ -80,22 +57,9 @@ export function StatsPage() {
         {includeAssisted ? 'Solves with hints or auto notes are counted.' : 'Solves with hints or auto notes are left out.'}
       </p>
 
-      {current.status === 'loading' && (
-        <p className="flex items-center gap-2 text-base-content/60" role="status">
-          <span className="loading loading-spinner loading-sm" aria-hidden="true" /> Loading…
-        </p>
-      )}
-      {current.status === 'failed' && (
-        <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
-          <CircleAlert className="size-5" aria-hidden="true" />
-          <span>{current.message}</span>
-          <button type="button" className="btn btn-plain btn-sm" onClick={() => setRetries((n) => n + 1)}>
-            <RotateCw className="size-4" aria-hidden="true" /> Retry
-          </button>
-        </div>
-      )}
-      {current.status === 'loaded' && <Stats stats={current.stats} />}
-    </main>
+      <LoadStatus state={state} onRetry={reload} />
+      {state.status === 'loaded' && <Stats stats={state.value} />}
+    </SubPage>
   );
 }
 

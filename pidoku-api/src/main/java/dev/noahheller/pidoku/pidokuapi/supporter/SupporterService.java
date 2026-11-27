@@ -36,9 +36,6 @@ public class SupporterService {
     /** What every code starts with, so one can be picked out of a free-text message. */
     static final String PREFIX = "PI-";
 
-    /** Tries at drawing an unused code; see PuzzleService's share codes for the odds. */
-    private static final int MAX_CODE_ATTEMPTS = 5;
-
     /**
      * A code anywhere in a message, whatever its case, also with a space or a dash that a phone
      * turned into an en or em dash in place of the hyphen.
@@ -78,7 +75,7 @@ public class SupporterService {
     @Transactional
     public SupporterCode newCode(Player player) {
         Instant expiresAt = clock.instant().plus(CODE_LIFETIME);
-        String code = unusedCode();
+        String code = PREFIX + codes.nextUnused("supporter code", c -> exists(PREFIX + c));
         jdbc.sql("""
                         INSERT INTO supporter_codes (player_id, code, expires_at) VALUES (:playerId, :code, :expiresAt)
                         ON CONFLICT (player_id) DO UPDATE SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at
@@ -90,18 +87,9 @@ public class SupporterService {
         return new SupporterCode(code, expiresAt);
     }
 
-    // Like friend codes: checking first keeps the common case free of constraint violations, and
-    // the unique constraint catches two players drawing the same code at once.
-    private String unusedCode() {
-        for (int attempt = 0; attempt < MAX_CODE_ATTEMPTS; attempt++) {
-            String code = PREFIX + codes.next();
-            boolean taken = jdbc.sql("SELECT EXISTS (SELECT 1 FROM supporter_codes WHERE code = :code)")
-                    .param("code", code).query(Boolean.class).single();
-            if (!taken) {
-                return code;
-            }
-        }
-        throw new IllegalStateException("No unused supporter code found in " + MAX_CODE_ATTEMPTS + " attempts");
+    private boolean exists(String code) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM supporter_codes WHERE code = :code)")
+                .param("code", code).query(Boolean.class).single();
     }
 
     /**

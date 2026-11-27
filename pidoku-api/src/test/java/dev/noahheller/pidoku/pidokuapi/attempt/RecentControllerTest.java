@@ -117,6 +117,20 @@ class RecentControllerTest extends IntegrationTest {
     }
 
     @Test
+    void anUnfinishedPuzzlesPenaltyIncludesItsHints() {
+        Puzzle puzzle = pool(1);
+        attempt("alice", puzzle, 5, null);
+        jdbc.update("""
+                UPDATE attempts SET progress = '{"values": [], "notes": [], "mistakes": 2, "activeMs": 42000}', progress_updated_at = now(),
+                                    hints_used = 1, hint_penalty_ms = 30000
+                """);
+
+        // 5 s x 2² for the mistakes so far, plus the hint.
+        assertThat(mvc.get().uri("/api/players/me/recent").with(player("alice"))).hasStatusOk()
+                .bodyJson().extractingPath("$[0].penaltyMs").asNumber().isEqualTo(50_000);
+    }
+
+    @Test
     void aReplayInProgressShowsAsUnfinished() {
         Puzzle puzzle = pool(1);
         attempt("alice", puzzle, 60, 100_000L);

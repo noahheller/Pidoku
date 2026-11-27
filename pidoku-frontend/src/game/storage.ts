@@ -1,4 +1,4 @@
-import type { Hint, StatsSource } from '../api/client';
+import type { Hint, StatsSource, Streak } from '../api/client';
 import type { Cosmetics } from './cosmetics';
 import type { SavedProgress } from './game';
 import type { PuzzleDef } from './puzzleFile';
@@ -20,7 +20,7 @@ const TUTORIAL_SEEN_KEY = 'pidoku:tutorial-seen';
 const COSMETICS_KEY = 'pidoku:cosmetics';
 const SUPPORTER_KEY = 'pidoku:supporter';
 
-function read<T>(key: string): T | null {
+export function read<T>(key: string): T | null {
   try {
     const raw = localStorage.getItem(key);
     return raw === null ? null : (JSON.parse(raw) as T);
@@ -29,11 +29,19 @@ function read<T>(key: string): T | null {
   }
 }
 
-function write(key: string, value: unknown): void {
+export function write(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
   } catch {
     // Storage full or disabled (private mode): the game still works, it just won't persist.
+  }
+}
+
+export function remove(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Storage disabled: there was nothing saved to remove.
   }
 }
 
@@ -46,11 +54,7 @@ export function saveProgress(puzzleId: string, progress: SavedProgress): void {
 }
 
 export function clearProgress(puzzleId: string): void {
-  try {
-    localStorage.removeItem(PROGRESS_PREFIX + puzzleId);
-  } catch {
-    // Storage disabled: there was nothing saved to clear.
-  }
+  remove(PROGRESS_PREFIX + puzzleId);
 }
 
 /**
@@ -104,11 +108,7 @@ export function saveResult(puzzleId: string, result: RecordedResult): void {
 }
 
 export function clearResult(puzzleId: string): void {
-  try {
-    localStorage.removeItem(RESULT_PREFIX + puzzleId);
-  } catch {
-    // Storage disabled: there was nothing saved to clear.
-  }
+  remove(RESULT_PREFIX + puzzleId);
 }
 
 /** The hint on screen and the board it was given for, kept so it's still there after leaving the puzzle. */
@@ -123,25 +123,15 @@ export function loadHint(puzzleId: string): SavedHint | null {
 
 /** Saves the hint on screen, or forgets it (null). */
 export function saveHint(puzzleId: string, hint: SavedHint | null): void {
-  if (hint) {
-    write(HINT_PREFIX + puzzleId, hint);
-    return;
-  }
-  try {
-    localStorage.removeItem(HINT_PREFIX + puzzleId);
-  } catch {
-    // Storage disabled: there was nothing saved to clear.
-  }
+  if (hint) write(HINT_PREFIX + puzzleId, hint);
+  else remove(HINT_PREFIX + puzzleId);
 }
 
-/** The streak as last fetched, shown on the home screen while it's fetched again. */
-export interface CachedStreak {
-  current: number;
-  best: number;
-  solvedToday: boolean;
-  /** The player's local date when it was fetched (YYYY-MM-DD). */
-  asOf: string;
-}
+/**
+ * The streak as last fetched, shown on the home screen while it's fetched again, with the
+ * player's local date when it was fetched (YYYY-MM-DD).
+ */
+export type CachedStreak = Streak & { asOf: string };
 
 /**
  * Whether this browser has signed in before, so it has an account worth sending a token for. Lets
@@ -276,11 +266,5 @@ export function clearAllLocalData(): void {
  * account: its streak, whether it said no to picking a name, and whether it's a supporter.
  */
 export function clearPlayerCaches(): void {
-  for (const key of [STREAK_KEY, NAME_PROMPT_DISMISSED_KEY, GOOGLE_PROMPT_DISMISSED_KEY, SUPPORTER_KEY]) {
-    try {
-      localStorage.removeItem(key);
-    } catch {
-      // Storage disabled: nothing was cached.
-    }
-  }
+  for (const key of [STREAK_KEY, NAME_PROMPT_DISMISSED_KEY, GOOGLE_PROMPT_DISMISSED_KEY, SUPPORTER_KEY]) remove(key);
 }

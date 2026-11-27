@@ -103,31 +103,13 @@ public class AttemptService {
      * @throws InvalidProgressException if the grids don't fit the puzzle
      */
     @Transactional
-    public Attempt saveProgress(Player player, long attemptId, AttemptProgress progress, boolean autoNotesUsed) {
+    public void saveProgress(Player player, long attemptId, AttemptProgress progress, boolean autoNotesUsed) {
         Attempt attempt = attempts.findForUpdate(attemptId, player)
                 .orElseThrow(() -> new AttemptNotFoundException(attemptId));
         if (attempt.isCompleted()) {
-            return attempt;
+            return;
         }
-        checkFits(progress, attempt.getPuzzle());
+        Boards.checkFits(progress.values(), progress.notes(), Grids.toCells(attempt.getPuzzle().getGivens()));
         attempt.saveProgress(progress, autoNotesUsed, clock.instant());
-        return attempt;
-    }
-
-    /** The grids are the puzzle's size, keep its givens, and hold only digits and note bits. */
-    private static void checkFits(AttemptProgress progress, Puzzle puzzle) {
-        int[] givens = Grids.toCells(puzzle.getGivens());
-        if (progress.values().length != givens.length || progress.notes().length != givens.length) {
-            throw new InvalidProgressException("The board must have " + givens.length + " cells.");
-        }
-        for (int i = 0; i < givens.length; i++) {
-            int value = progress.values()[i];
-            if (value < 0 || value > 9 || (givens[i] != 0 && value != givens[i])) {
-                throw new InvalidProgressException("Cell " + i + " doesn't fit the puzzle.");
-            }
-            if (progress.notes()[i] < 0 || progress.notes()[i] >= 1 << 10) {
-                throw new InvalidProgressException("Cell " + i + " has notes that aren't digits.");
-            }
-        }
     }
 }

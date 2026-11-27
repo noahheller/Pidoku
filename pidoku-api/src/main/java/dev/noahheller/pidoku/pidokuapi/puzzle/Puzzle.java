@@ -15,7 +15,6 @@ import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.Map;
-import java.util.SplittableRandom;
 
 /**
  * A stored puzzle (table {@code puzzles}, created in V1). Fixed once stored, so share codes and
@@ -23,70 +22,50 @@ import java.util.SplittableRandom;
  */
 @Entity
 @Table(name = "puzzles")
+@Getter
 public class Puzzle {
 
-    @Getter
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Getter
     @Column(name = "share_code", nullable = false, updatable = false, unique = true, length = 8)
     private String shareCode;
 
-    @Getter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false, length = 16)
     private PuzzleSource source;
 
-    @Getter
     @Column(nullable = false, updatable = false)
     private int size;
 
-    /**
-     * -- GETTER --
-     * Encoded with
-     * ; 0 is an empty cell.
-     */
-    @Getter
+    /** Encoded with {@link Grids#encode}; 0 is an empty cell. */
     @Column(nullable = false, updatable = false, columnDefinition = "text")
     private String givens;
 
-    /**
-     * -- GETTER --
-     * Encoded with
-     * .
-     */
-    @Getter
+    /** Encoded with {@link Grids#encode}. */
     @Column(nullable = false, updatable = false, columnDefinition = "text")
     private String solution;
 
-    @Getter
     @Column(name = "clue_count", nullable = false, updatable = false)
     private int clueCount;
 
-    @Getter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, updatable = false, length = 16)
     private Difficulty difficulty;
 
-    @Getter
     @Column(nullable = false, updatable = false)
     private int score;
 
-    @Getter
     @Column(nullable = false, updatable = false)
     private double dependency;
 
-    @Getter
     @Column(name = "max_step_cost", nullable = false, updatable = false)
     private double maxStepCost;
 
-    @Getter
     @Column(name = "bottleneck_steps", nullable = false, updatable = false)
     private int bottleneckSteps;
 
-    @Getter
     @Column(name = "hardest_strategy", nullable = false, updatable = false, length = 32)
     private String hardestStrategy;
 
@@ -94,15 +73,12 @@ public class Puzzle {
     @Column(name = "strategy_uses", nullable = false, updatable = false)
     private Map<String, Integer> strategyUses;
 
-    @Getter
     @Column(name = "engine_version", nullable = false, updatable = false, length = 32)
     private String engineVersion;
 
-    @Getter
     @Column(nullable = false, updatable = false)
     private long seed;
 
-    @Getter
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -132,5 +108,4 @@ public class Puzzle {
     public Map<String, Integer> getStrategyUses() {
         return Map.copyOf(strategyUses);
     }
-
 }

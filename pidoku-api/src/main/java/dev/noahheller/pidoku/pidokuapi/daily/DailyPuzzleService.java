@@ -27,6 +27,11 @@ import java.util.Set;
 @Service
 public class DailyPuzzleService {
 
+    /** The first time zone to reach each date. Time zones run from UTC-12 to UTC+14. */
+    private static final ZoneOffset EARLIEST_ZONE = ZoneOffset.ofHours(14);
+    /** The last time zone to leave each date. */
+    private static final ZoneOffset LATEST_ZONE = ZoneOffset.ofHours(-12);
+
     private final DailyPuzzleRepository dailies;
     private final PuzzleService puzzleService;
     private final List<Difficulty> difficulties;
@@ -52,8 +57,8 @@ public class DailyPuzzleService {
      */
     public boolean isCurrentSomewhere(LocalDate date) {
         Instant now = clock.instant();
-        LocalDate earliest = LocalDate.ofInstant(now, ZoneOffset.ofHours(-12));
-        LocalDate latest = LocalDate.ofInstant(now, ZoneOffset.ofHours(14));
+        LocalDate earliest = LocalDate.ofInstant(now, LATEST_ZONE);
+        LocalDate latest = LocalDate.ofInstant(now, EARLIEST_ZONE);
         return !date.isBefore(earliest) && !date.isAfter(latest);
     }
 
@@ -63,12 +68,27 @@ public class DailyPuzzleService {
      * leaderboards; only future ones are hidden.
      */
     public boolean hasBegunSomewhere(LocalDate date) {
-        return !date.isAfter(LocalDate.ofInstant(clock.instant(), ZoneOffset.ofHours(14)));
+        return !date.isAfter(LocalDate.ofInstant(clock.instant(), EARLIEST_ZONE));
     }
 
     /** When {@code date} begins in the earliest time zone, so the first moment anyone could play its dailies. */
     public static Instant opensAt(LocalDate date) {
-        return date.atStartOfDay(ZoneOffset.ofHours(14)).toInstant();
+        return date.atStartOfDay(EARLIEST_ZONE).toInstant();
+    }
+
+    /** When {@code date} ends in the latest time zone, so the last moment it's today for anyone. */
+    public static Instant closesAt(LocalDate date) {
+        return date.plusDays(1).atStartOfDay(LATEST_ZONE).toInstant();
+    }
+
+    /** {@link #opensAt} in SQL, for a {@code date} expression: a {@code timestamptz}. */
+    public static String opensAtSql(String date) {
+        return "(" + date + " - interval '14 hours') AT TIME ZONE 'UTC'";
+    }
+
+    /** {@link #closesAt} in SQL, for a {@code date} expression: a {@code timestamptz}. */
+    public static String closesAtSql(String date) {
+        return "(" + date + " + interval '36 hours') AT TIME ZONE 'UTC'";
     }
 
     /**

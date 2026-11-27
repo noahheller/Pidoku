@@ -7,15 +7,32 @@ export function SubPage({ back, icon: Icon, title, children }: { back: { to: str
   return (
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
       <header className="grid gap-3">
-        <Link to={back.to} className="back-link btn btn-ghost btn-sm w-fit text-primary">
-          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> {back.label}
-        </Link>
+        <BackLink {...back} />
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Icon className="size-6 text-primary" aria-hidden="true" /> {title}
         </h1>
       </header>
       {children}
     </main>
+  );
+}
+
+/** The link at the top of a page, back to where it was opened from: a route, or a click handler. */
+export function BackLink(props: { to: string; label: string } | { label: string; onClick: () => void }) {
+  const className = 'back-link btn btn-ghost btn-sm w-fit text-primary';
+  const content = (
+    <>
+      <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> {props.label}
+    </>
+  );
+  return 'to' in props ? (
+    <Link to={props.to} className={className}>
+      {content}
+    </Link>
+  ) : (
+    <button type="button" className={className} onClick={props.onClick}>
+      {content}
+    </button>
   );
 }
 

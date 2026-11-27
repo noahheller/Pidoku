@@ -1,3 +1,5 @@
+import { capitalize } from './format';
+
 /**
  * Player-facing names and descriptions for the engine's solving techniques (pidoku-engine's
  * StrategyEnum), as the puzzles' `hardestStrategy` sends them.
@@ -111,7 +113,7 @@ export function strategyInfo(strategy: string | null | undefined): StrategyInfo 
   const known = TECHNIQUES[strategy];
   if (known) return known;
   const words = strategy.toLowerCase().split('_').filter(Boolean).join(' ');
-  return { name: words.charAt(0).toUpperCase() + words.slice(1), lookFor: '', explanation: '' };
+  return { name: capitalize(words), lookFor: '', explanation: '' };
 }
 
 /** "Hidden pair" for HIDDEN_PAIR, or null for no technique. */

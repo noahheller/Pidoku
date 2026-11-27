@@ -1,4 +1,5 @@
-import { ApiError, postEvents, type ApiEvent } from './client';
+import { read, remove, write } from '../game/storage';
+import { isRefusedForGood, postEvents, type ApiEvent } from './client';
 
 /**
  * Analytics events (see "Analytics" in docs/ROADMAP.md): a few things `attempts` doesn't record,
@@ -16,22 +17,14 @@ const QUEUE_KEY = 'pidoku:pending-events';
 const MAX_QUEUED = 50;
 
 function loadQueue(): ApiEvent[] {
-  try {
-    const raw = localStorage.getItem(QUEUE_KEY);
-    const queue: unknown = raw === null ? [] : JSON.parse(raw);
-    return Array.isArray(queue) ? (queue as ApiEvent[]) : [];
-  } catch {
-    return [];
-  }
+  const queue = read<ApiEvent[]>(QUEUE_KEY);
+  return Array.isArray(queue) ? queue : [];
 }
 
+/** Keeps the newest events. With storage full or disabled they're lost, which analytics can live with. */
 function saveQueue(queue: ApiEvent[]): void {
-  try {
-    if (queue.length === 0) localStorage.removeItem(QUEUE_KEY);
-    else localStorage.setItem(QUEUE_KEY, JSON.stringify(queue.slice(-MAX_QUEUED)));
-  } catch {
-    // Storage full or disabled: the event is lost, which analytics can live with.
-  }
+  if (queue.length === 0) remove(QUEUE_KEY);
+  else write(QUEUE_KEY, queue.slice(-MAX_QUEUED));
 }
 
 /**
@@ -63,8 +56,7 @@ export function flushEvents(keepalive = false): Promise<void> {
     try {
       if (!(await postEvents(batch, keepalive))) return;
     } catch (e) {
-      const permanent = e instanceof ApiError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 408 && e.status !== 429;
-      if (!permanent) return;
+      if (!isRefusedForGood(e)) return;
     }
     // Sent (or refused for good): drop them, keeping any recorded meanwhile.
     const sent = new Set(batch.map((e) => JSON.stringify(e)));

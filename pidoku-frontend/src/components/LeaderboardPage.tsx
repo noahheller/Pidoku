@@ -1,10 +1,11 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Trophy } from 'lucide-react';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
+import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router';
 import { DAILY_DIFFICULTIES, localDate, type Difficulty } from '../api/client';
 import { addDays, clampDate, dailyLabel, LAUNCH_DATE } from '../game/daily';
 import { formatDate } from '../game/format';
 import { LeaderboardView } from './Leaderboard';
+import { BackLink } from './SubPage';
 
 /**
  * `/leaderboard/{date}?difficulty=hard`: one date's daily leaderboards, a tab per difficulty.
@@ -30,9 +31,7 @@ export function LeaderboardPage() {
   return (
     <main className="mx-auto grid max-w-xl gap-5 px-4 pt-4 pb-16">
       <header className="grid gap-3">
-        <Link to="/" className="back-link btn btn-ghost btn-sm w-fit text-primary">
-          <ArrowLeft className="size-4 shrink-0" aria-hidden="true" /> Puzzles
-        </Link>
+        <BackLink to="/" label="Puzzles" />
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
             <Trophy className="size-6 text-warning" aria-hidden="true" /> Leaderboards

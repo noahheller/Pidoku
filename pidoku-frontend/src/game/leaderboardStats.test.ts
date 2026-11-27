@@ -19,6 +19,7 @@ const entry = (rank: number, displayName: string | null, seconds: number, you = 
 const board = (entries: LeaderboardEntry[], overrides: Partial<Leaderboard> = {}): Leaderboard => ({
   date: '2026-11-17',
   difficulty: 'hard',
+  shareCode: 'ABC234',
   friendsOnly: false,
   cleanOnly: false,
   total: entries.length,

@@ -20,12 +20,9 @@ export function countClues(givens: readonly number[]): number {
   return givens.filter((v) => v !== 0).length;
 }
 
-/** Describes the engine's dependency metric for players, e.g. "About 5 moves open at a time". */
-export function describeOpenMoves(dependency: number | null | undefined): string | null {
-  if (dependency === null || dependency === undefined) return null;
-  const rounded = Math.round(dependency);
-  if (rounded <= 1) return 'Usually just one move open at a time';
-  return `About ${rounded} moves open at a time`;
+/** The text with its first letter in upper case: "hard" → "Hard". */
+export function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /**

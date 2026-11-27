@@ -2,10 +2,7 @@ package dev.noahheller.pidoku.pidokuapi.event;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.stream.Collectors;
+import dev.noahheller.pidoku.pidokuapi.web.ApiIds;
 
 /**
  * What an analytics event records (table {@code events}, V8). Each answers a question in
@@ -33,18 +30,12 @@ public enum EventType {
 
     @JsonValue
     public String id() {
-        return name().toLowerCase(Locale.ROOT);
+        return ApiIds.of(this);
     }
 
-    /** @throws IllegalArgumentException naming the valid types, if {@code id} isn't one */
+    /** @throws IllegalArgumentException naming the valid ids, if {@code id} isn't one */
     @JsonCreator
     public static EventType fromId(String id) {
-        for (EventType type : values()) {
-            if (type.id().equalsIgnoreCase(id.strip())) {
-                return type;
-            }
-        }
-        throw new IllegalArgumentException("Unknown event type '" + id + "'. Valid types: "
-                + Arrays.stream(values()).map(EventType::id).collect(Collectors.joining(", ")));
+        return ApiIds.parse(EventType.class, id, "event type");
     }
 }

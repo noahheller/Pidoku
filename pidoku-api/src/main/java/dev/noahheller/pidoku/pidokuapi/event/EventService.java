@@ -1,13 +1,14 @@
 package dev.noahheller.pidoku.pidokuapi.event;
 
 import dev.noahheller.pidoku.pidokuapi.player.Player;
+import dev.noahheller.pidoku.pidokuapi.web.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
 import tools.jackson.databind.json.JsonMapper;
 
+import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -45,7 +46,7 @@ public class EventService {
      * Records the player's events. A puzzle id that doesn't exist is recorded as no puzzle rather
      * than refused, so one stale event doesn't sink the batch.
      *
-     * @throws ResponseStatusException 400 if a detail is too long
+     * @throws ApiException 400 if a detail is too long
      */
     @Transactional
     public void record(Player player, List<NewEvent> events) {
@@ -53,7 +54,7 @@ public class EventService {
         for (NewEvent event : events) {
             String detail = json.writeValueAsString(event.detail() == null ? Map.of() : event.detail());
             if (detail.length() > MAX_DETAIL_LENGTH) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                throw new ApiException(HttpStatus.BAD_REQUEST,
                         "An event's detail can be at most " + MAX_DETAIL_LENGTH + " characters of JSON.");
             }
             jdbc.sql("""
@@ -64,7 +65,7 @@ public class EventService {
                     .param("type", event.type().id())
                     .param("puzzle", event.puzzleId())
                     .param("detail", detail)
-                    .param("at", java.sql.Timestamp.from(occurredAt(event.occurredAt(), now)))
+                    .param("at", Timestamp.from(occurredAt(event.occurredAt(), now)))
                     .update();
         }
     }

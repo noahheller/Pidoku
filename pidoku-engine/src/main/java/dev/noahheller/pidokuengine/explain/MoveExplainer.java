@@ -2,6 +2,7 @@ package dev.noahheller.pidokuengine.explain;
 
 import dev.noahheller.pidokuengine.BoardPosition;
 import dev.noahheller.pidokuengine.PidokuRules;
+import dev.noahheller.pidokuengine.searching.SearchUtils;
 import dev.noahheller.pidokuengine.searching.SolverSearchState;
 import dev.noahheller.pidokuengine.strategy.Move;
 import dev.noahheller.pidokuengine.strategy.StrategyEnum;
@@ -15,6 +16,7 @@ import java.util.Set;
 
 import static dev.noahheller.pidokuengine.explain.Words.a;
 import static dev.noahheller.pidokuengine.explain.Words.and;
+import static dev.noahheller.pidokuengine.explain.Words.article;
 import static dev.noahheller.pidokuengine.explain.Words.capitalize;
 import static dev.noahheller.pidokuengine.explain.Words.copies;
 import static dev.noahheller.pidokuengine.explain.Words.kind;
@@ -65,7 +67,7 @@ public final class MoveExplainer {
         Unit unit = reason.units().getFirst();
         int digit = move.getValue();
         int frequency = rules.getDigitFrequency(digit);
-        int needed = remaining(state, rules, unit, digit);
+        int needed = SearchUtils.remaining(state, unit, digit);
         String name = capitalize(unit(unit, rules));
 
         String text;
@@ -124,8 +126,7 @@ public final class MoveExplainer {
         if (repeated.length == 0) return "";
         boolean allTwice = Arrays.stream(repeated).allMatch(d -> rules.getDigitFrequency(d) == 2);
         if (!allTwice) return " (a repeated digit only once it's there as many times as π allows)";
-        String article = repeated[0] == 8 ? "an " : "a ";
-        return " (" + article + or(Arrays.stream(repeated).boxed().toList(), String::valueOf) + " only once there are two)";
+        return " (" + article(repeated[0]) + or(Arrays.stream(repeated).boxed().toList(), String::valueOf) + " only once there are two)";
     }
 
     // --- Eliminations -----------------------------------------------------------------------
@@ -137,7 +138,7 @@ public final class MoveExplainer {
     private static String nakedSubset(Move.Reason reason, SolverSearchState state, PidokuRules rules) {
         Unit unit = reason.units().getFirst();
         List<Integer> digits = reason.digits();
-        String needs = and(digits, d -> copies(d, remaining(state, rules, unit, d)));
+        String needs = and(digits, d -> copies(d, SearchUtils.remaining(state, unit, d)));
         return "These " + number(reason.cells().size()) + " cells in " + unit(unit, rules) + " can only take "
                 + or(digits, String::valueOf) + ", and " + unitKind(unit) + " needs " + needs
                 + ", so those go here: no other cell in " + unit(unit, rules) + " can be " + or(digits, Words::a) + ".";
@@ -145,7 +146,7 @@ public final class MoveExplainer {
 
     private static String hiddenSubset(Move.Reason reason, SolverSearchState state, PidokuRules rules) {
         Unit unit = reason.units().getFirst();
-        String needs = and(reason.digits(), d -> copies(d, remaining(state, rules, unit, d)));
+        String needs = and(reason.digits(), d -> copies(d, SearchUtils.remaining(state, unit, d)));
         return capitalize(unit(unit, rules)) + " still needs " + needs + ", and they can only go in these "
                 + number(reason.cells().size()) + " cells, so those cells can't hold anything else.";
     }
@@ -154,7 +155,7 @@ public final class MoveExplainer {
         Unit source = reason.units().get(0);
         Unit target = reason.units().get(1);
         int digit = reason.digits().getFirst();
-        int needed = remaining(state, rules, source, digit);
+        int needed = SearchUtils.remaining(state, source, digit);
         String goes = needed == 1 ? "it goes" : "they go";
         return "In " + unit(source, rules) + ", every cell that can take " + a(digit) + " is in " + unit(target, rules)
                 + ". " + capitalize(unitKind(source)) + " needs " + copies(digit, needed) + " and so does " + unitKind(target)
@@ -191,16 +192,6 @@ public final class MoveExplainer {
 
     // --- Board facts ------------------------------------------------------------------------
 
-    /** How many more copies of a digit a unit needs. */
-    static int remaining(SolverSearchState state, PidokuRules rules, Unit unit, int digit) {
-        int placed = switch (unit.type()) {
-            case ROW -> state.getRowDigitCount(unit.index(), digit);
-            case COLUMN -> state.getColDigitCount(unit.index(), digit);
-            case BOX -> state.getBoxDigitCount(unit.index(), digit);
-        };
-        return rules.getDigitFrequency(digit) - placed;
-    }
-
     /**
      * The filled cells that rule {@code digit} out of each of {@code cells}: for each cell, the
      * copies in a row, column or box through it (other than {@code skip}) that already holds as
@@ -234,7 +225,7 @@ public final class MoveExplainer {
                                                          int digit, Unit skip) {
         List<List<BoardPosition>> full = new ArrayList<>();
         for (Unit unit : Unit.unitsOf(cell, rules)) {
-            if (unit.equals(skip) || remaining(state, rules, unit, digit) > 0) continue;
+            if (unit.equals(skip) || SearchUtils.remaining(state, unit, digit) > 0) continue;
             List<BoardPosition> copies = new ArrayList<>();
             for (BoardPosition p : unit.cells(rules)) {
                 if (state.getValue(p) == digit) copies.add(p);

@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 import java.util.Locale;
+import java.util.function.Predicate;
 import java.util.random.RandomGenerator;
 
 /**
@@ -19,6 +20,12 @@ public class ShareCodeGenerator {
 
     public static final String ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
     public static final int LENGTH = 8;
+
+    /**
+     * How many codes {@link #nextUnused} draws before giving up. With a few thousand codes in use,
+     * one clashes far less than once in a million draws, so running out means something is broken.
+     */
+    static final int MAX_ATTEMPTS = 5;
 
     private final RandomGenerator random;
 
@@ -37,6 +44,25 @@ public class ShareCodeGenerator {
             code[i] = ALPHABET.charAt(random.nextInt(ALPHABET.length()));
         }
         return new String(code);
+    }
+
+    /**
+     * A new code that isn't {@code taken}, for a column with a unique constraint. Checking first
+     * keeps the common case free of constraint violations; two callers drawing the same unused code
+     * at once are still caught by the constraint.
+     *
+     * @param what what the code is for, e.g. "share code", for the error
+     * @throws IllegalStateException if {@link #MAX_ATTEMPTS} codes in a row were taken, which with
+     *                               this many codes means something else is wrong
+     */
+    public String nextUnused(String what, Predicate<String> taken) {
+        for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            String code = next();
+            if (!taken.test(code)) {
+                return code;
+            }
+        }
+        throw new IllegalStateException("No unused " + what + " found in " + MAX_ATTEMPTS + " attempts");
     }
 
     /** The stored form of a code typed or pasted by a player. */

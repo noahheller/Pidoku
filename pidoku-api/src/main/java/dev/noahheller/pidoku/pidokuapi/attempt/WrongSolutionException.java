@@ -1,16 +1,12 @@
 package dev.noahheller.pidoku.pidokuapi.attempt;
 
+import dev.noahheller.pidoku.pidokuapi.web.ApiException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
-import org.springframework.web.ErrorResponseException;
 
 /** The grid sent to complete an attempt isn't the puzzle's solution. Rendered as a 422 problem detail. */
-public class WrongSolutionException extends ErrorResponseException {
+public class WrongSolutionException extends ApiException {
 
     public WrongSolutionException() {
-        super(HttpStatus.UNPROCESSABLE_CONTENT,
-                ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_CONTENT,
-                        "That grid isn't the puzzle's solution."),
-                null);
+        super(HttpStatus.UNPROCESSABLE_CONTENT, "That grid isn't the puzzle's solution.");
     }
 }

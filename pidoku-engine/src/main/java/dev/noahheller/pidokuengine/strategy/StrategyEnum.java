@@ -1,7 +1,5 @@
 package dev.noahheller.pidokuengine.strategy;
 
-import dev.noahheller.pidokuengine.strategy.AbstractUnitStrategy.UnitType;
-
 /**
  * Strategies in the order a person tends to look for them, cheapest first.
  * {@code cost} is how hard one use is to spot; see DifficultyScorer for how
@@ -13,10 +11,11 @@ public enum StrategyEnum {
     HIDDEN_SINGLE_BOX(1.0, Tier.BEGINNER, new HiddenSingleStrategy(UnitType.BOX)),
     // The same, in a row or column, which is harder to scan than a compact box.
     HIDDEN_SINGLE_LINE(1.5, Tier.BEGINNER, new HiddenSingleStrategy(UnitType.ROW, UnitType.COLUMN)),
-    // occurs when a specific CELL on has only one candidate left.
+    // A cell with only one candidate left.
     NAKED_SINGLE(2.0, Tier.BEGINNER, new NakedSingleStrategy()),
 
-    // occurs when there are two cells in the same group have the same two candidates and only those candidates
+    // Easy
+    // Two cells in a unit whose only candidates are the same two digits, clearing those digits from the unit's other cells.
     NAKED_PAIR(5, Tier.EASY, new NakedSubsetStrategy(2)),
     // Locked candidates / intersection removal (pointing/claiming).
     INTERSECTION_REMOVAL(6, Tier.EASY, new IntersectionRemovalStrategy()),

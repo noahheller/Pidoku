@@ -1,3 +1,4 @@
+import type { UnitRef } from '../api/client';
 import type { BoardHighlight } from '../components/Board';
 import type { GameState } from '../game/game';
 import { cellsOfUnits } from '../game/hints';
@@ -20,7 +21,7 @@ export interface ExplainedStep {
   /** The cell a digit goes in; null for a step that only clears candidates. */
   cell: number | null;
   digit: number;
-  units: { type: 'row' | 'column' | 'box'; index: number }[];
+  units: UnitRef[];
   pattern: number[];
   blockers: number[];
   eliminations: { cell: number; digit: number }[];

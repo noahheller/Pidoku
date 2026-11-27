@@ -1,10 +1,10 @@
-import { CircleAlert, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { existingIdToken } from './api/auth';
 import { fetchByShareCode, fetchPlayer, fetchPuzzleLeaderboard } from './api/client';
 import { sendPendingCompletions } from './api/completions';
 import { flushEvents, recordEvent } from './api/events';
+import { useLoad } from './api/useLoad';
 import { Game } from './components/Game';
 import { LeaderboardPage } from './components/LeaderboardPage';
 import { PlayerPage } from './components/PlayerPage';
@@ -15,6 +15,7 @@ import { AddFriendPage, FriendsPage } from './components/FriendsPage';
 import { LookAndFeelPage } from './components/LookAndFeel';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
 import { StatsPage } from './components/StatsPage';
+import { Failed } from './components/SubPage';
 import { SupportPage } from './components/Support';
 import { Tutorial } from './components/Tutorial';
 import { YouPage } from './components/YouPage';
@@ -200,8 +201,6 @@ function useExit(): () => void {
   return () => void navigate('/');
 }
 
-type Loaded = { status: 'loading' } | { status: 'loaded'; puzzle: PuzzleDef; timeToBeat?: TimeToBeat | null } | { status: 'failed'; message: string };
-
 /**
  * The time to beat for a challenge link: someone else's solve of a shared puzzle that isn't a
  * daily (a daily has its own start screen and leaderboard). Null when there's none, when the
@@ -228,50 +227,25 @@ function SharedPuzzle() {
   const { replay, notice } = useOpenedWith();
   const exit = useExit();
   const known = fromHistory?.shareCode?.toUpperCase() === shareCode.toUpperCase() ? fromHistory : null;
-  const [fetched, setFetched] = useState<Loaded & { code?: string }>({ status: 'loading' });
-  const [retries, setRetries] = useState(0);
+  // A puzzle that came with the link needs no fetching.
+  const { state: fetched, reload } = useLoad(known ? null : shareCode, async (signal) => {
+    const puzzle = await fetchByShareCode(shareCode, signal);
+    return { puzzle, timeToBeat: await challengeFor(puzzle, signal) };
+  });
+  const opened = known ? { puzzle: known, timeToBeat: historyChallenge } : fetched.status === 'loaded' ? fetched.value : null;
 
-  useEffect(() => {
-    if (known) return;
-    const controller = new AbortController();
-    fetchByShareCode(shareCode, controller.signal)
-      .then(async (puzzle) => {
-        const toBeat = await challengeFor(puzzle, controller.signal);
-        if (!controller.signal.aborted) setFetched({ status: 'loaded', puzzle, timeToBeat: toBeat, code: shareCode });
-      })
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setFetched({ status: 'failed', message: e instanceof Error ? e.message : String(e), code: shareCode });
-      });
-    return () => controller.abort();
-  }, [known, shareCode, retries]);
-
-  const state: Loaded = known ? { status: 'loaded', puzzle: known, timeToBeat: historyChallenge } : fetched.code === shareCode ? fetched : { status: 'loading' };
-
-  if (state.status === 'loaded') {
+  if (opened) {
     // key resets all game state when switching puzzles.
-    return <Game key={state.puzzle.id} puzzle={state.puzzle} timeToBeat={state.timeToBeat ?? null} replay={replay} notice={notice} onExit={exit} />;
+    return <Game key={opened.puzzle.id} puzzle={opened.puzzle} timeToBeat={opened.timeToBeat} replay={replay} notice={notice} onExit={exit} />;
   }
   return (
     <main className="mx-auto grid max-w-xl gap-4 px-4 pt-12">
-      {state.status === 'loading' ? (
+      {fetched.status === 'failed' ? (
+        <Failed message={fetched.message} onRetry={reload} />
+      ) : (
         <p className="flex items-center gap-2 text-base-content/60" role="status">
           <span className="loading loading-spinner loading-sm" aria-hidden="true" /> Loading puzzle {shareCode.toUpperCase()}…
         </p>
-      ) : (
-        <div role="alert" className="alert alert-soft alert-warning flex flex-wrap">
-          <CircleAlert className="size-5" aria-hidden="true" />
-          <span>{state.message}</span>
-          <button
-            type="button"
-            className="btn btn-plain btn-sm"
-            onClick={() => {
-              setFetched({ status: 'loading' });
-              setRetries((n) => n + 1);
-            }}
-          >
-            <RotateCw className="size-4" aria-hidden="true" /> Retry
-          </button>
-        </div>
       )}
       <Link to="/" className="link link-primary">
         Go to today's puzzles

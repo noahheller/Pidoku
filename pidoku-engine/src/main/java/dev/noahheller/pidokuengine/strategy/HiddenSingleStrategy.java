@@ -22,9 +22,9 @@ public class HiddenSingleStrategy extends AbstractUnitStrategy {
 
     @Override
     protected void processUnit(SolverSearchState state, PidokuRules rules, List<BoardPosition> cells,
-                               UnitType type, int index, List<Move> out) {
+                               Unit unit, List<Move> out) {
         for (int digit : rules.getUniqueDigits()) {
-            int remaining = getRemainingFrequency(state, rules, digit, type, index);
+            int remaining = SearchUtils.remaining(state, unit, digit);
             if (remaining <= 0) continue;
 
             List<BoardPosition> positions = new ArrayList<>();
@@ -36,7 +36,7 @@ public class HiddenSingleStrategy extends AbstractUnitStrategy {
 
             if (positions.size() == remaining) {
                 for (BoardPosition p : positions) {
-                    out.add(Move.placement(p, digit).because(List.of(new Unit(type, index)), positions, List.of(digit)));
+                    out.add(Move.placement(p, digit).because(List.of(unit), positions, List.of(digit)));
                 }
             }
         }

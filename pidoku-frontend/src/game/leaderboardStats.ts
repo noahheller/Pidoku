@@ -1,15 +1,11 @@
 import type { Leaderboard, LeaderboardEntry } from '../api/client';
-import { formatTime } from './format';
+import { capitalize, formatTime } from './format';
+import { rankedMs } from './penalties';
 
 /**
  * Fun facts about a leaderboard, worked out in the browser from what the API already sent, so
  * they cost no extra database work.
  */
-
-/** The time an entry is ranked by: the game's time plus its penalties. */
-export function rankedMs(entry: Pick<LeaderboardEntry, 'elapsedMs' | 'penaltyMs'>): number {
-  return entry.elapsedMs + (entry.penaltyMs ?? 0);
-}
 
 /** Two solves this close are a photo finish. */
 export const PHOTO_FINISH_MS = 1000;
@@ -87,8 +83,7 @@ export function gapLine(board: Leaderboard): string | null {
   const parts: string[] = [];
   if (g.behind) parts.push(g.behind.ms === 0 ? `tied with ${name(g.behind.name)}` : `${formatGap(g.behind.ms)} behind ${name(g.behind.name)}`);
   if (g.ahead) parts.push(g.ahead.ms === 0 ? `tied with ${name(g.ahead.name)}` : `${formatGap(g.ahead.ms)} ahead of ${name(g.ahead.name)}`);
-  const line = parts.join(' · ');
-  return line.charAt(0).toUpperCase() + line.slice(1);
+  return capitalize(parts.join(' · '));
 }
 
 /** "<0.1s", "0.4s", "12s", "1:05". */
@@ -121,7 +116,7 @@ export interface TimeToBeat {
 export function timeToBeat(everyone: Leaderboard | null, friends: Leaderboard | null): TimeToBeat | null {
   const pick = (board: Leaderboard | null, friend: boolean): TimeToBeat | null => {
     const top = board?.entries.find((e) => !e.you);
-    return top ? { name: top.displayName, elapsedMs: top.elapsedMs, penaltyMs: top.penaltyMs ?? 0, friend } : null;
+    return top ? { name: top.displayName, elapsedMs: top.elapsedMs, penaltyMs: top.penaltyMs, friend } : null;
   };
   return pick(friends, true) ?? pick(everyone, false);
 }

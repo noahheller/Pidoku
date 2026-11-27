@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { HistoryEntry, OtherSolve } from '../api/client';
-import { challengeFrom, historyShownTo, rankedMs, versus, yourSolve } from './history';
+import { challengeFrom, historyShownTo, versus, yourSolve } from './history';
 
 const other = (name: string, seconds: number, { you = false, penaltyMs = 0 } = {}): OtherSolve => ({
   playerId: name.length,
@@ -20,12 +20,6 @@ const entry = (seconds: number, others: OtherSolve[] = [], penaltyMs = 0): Histo
 });
 
 const bob = { displayName: 'Bob', you: false, friend: true };
-
-describe('rankedMs', () => {
-  it('adds the penalties to the time', () => {
-    expect(rankedMs({ elapsedMs: 60_000, penaltyMs: 20_000 })).toBe(80_000);
-  });
-});
 
 describe('yourSolve', () => {
   it("finds the player's own solve among the others", () => {

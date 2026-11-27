@@ -1,4 +1,4 @@
-import type { Hint } from '../api/client';
+import type { Hint, UnitRef } from '../api/client';
 import type { BoardHighlight } from '../components/Board';
 import type { Rules } from './rules';
 import { strategyInfo } from './strategies';
@@ -7,8 +7,6 @@ import { strategyInfo } from './strategies';
  * Hints (milestone 6): the server's next move for the board, a step at a time. These work out what
  * the board shows and what the panel says for each step.
  */
-
-type UnitRef = { type: 'row' | 'column' | 'box'; index: number };
 
 /** Every cell of the given rows, columns and boxes (row-major indices). */
 export function cellsOfUnits(rules: Rules, units: readonly UnitRef[]): number[] {

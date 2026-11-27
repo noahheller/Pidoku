@@ -1,5 +1,5 @@
 import { loadPendingCompletions, savePendingCompletions, type PendingCompletion } from '../game/storage';
-import { ApiError, completeAttempt, type Attempt } from './client';
+import { completeAttempt, isRefusedForGood, type Attempt } from './client';
 
 /**
  * Tells the API a puzzle was solved, and keeps trying if it can't be told right now (offline, the
@@ -79,14 +79,7 @@ async function send({ attemptId, grid, mistakes, activeMs, autoNotesUsed }: Pend
   try {
     return await completeAttempt(attemptId, { grid, mistakes, activeMs, lateByMs, ...(autoNotesUsed ? { autoNotesUsed } : {}) });
   } catch (e) {
-    return isPermanent(e) ? 'rejected' : 'retry';
+    // Refused for good: an unknown attempt, or a grid that isn't the solution.
+    return isRefusedForGood(e) ? 'rejected' : 'retry';
   }
-}
-
-/**
- * Whether the API has refused this completion for good (an unknown attempt, a grid that isn't
- * the solution), as opposed to not being reachable or not accepting the sign-in right now.
- */
-function isPermanent(e: unknown): boolean {
-  return e instanceof ApiError && e.status !== null && e.status >= 400 && e.status < 500 && e.status !== 401 && e.status !== 408 && e.status !== 429;
 }

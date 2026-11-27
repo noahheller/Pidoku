@@ -18,3 +18,8 @@ export function mistakePenaltyMs(count: number): number {
 export function penaltyMs(mistakes: number, hintPenaltyMs: number): number {
   return mistakePenaltyMs(mistakes) + hintPenaltyMs;
 }
+
+/** What a leaderboard ranks a solve by: the game's time plus the penalties for mistakes and hints. */
+export function rankedMs(solve: { elapsedMs: number; penaltyMs: number }): number {
+  return solve.elapsedMs + solve.penaltyMs;
+}

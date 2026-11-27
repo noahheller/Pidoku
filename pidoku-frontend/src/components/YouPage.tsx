@@ -1,7 +1,7 @@
 import { BarChart3, ChevronRight, CircleCheck, Coffee, IdCard, Palette, ShieldCheck, UserRound, type LucideIcon } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router';
-import { updateDisplayName, type Player } from '../api/client';
+import { errorMessage, updateDisplayName, type Player } from '../api/client';
 import { KOFI_URL } from '../support';
 import { GoogleButton } from './GoogleButton';
 import { Card, LoadStatus, SubPage } from './SubPage';
@@ -124,7 +124,7 @@ function NameForm({ player, onSaved }: { player: Player; onSaved: (player: Playe
         setName(saved.displayName ?? '');
         setMessage({ ok: true, text: 'Saved. Friends and leaderboards show this name.' });
       })
-      .catch((err: unknown) => setMessage({ ok: false, text: err instanceof Error ? err.message : String(err) }))
+      .catch((err: unknown) => setMessage({ ok: false, text: errorMessage(err) }))
       .finally(() => setSaving(false));
   };
 

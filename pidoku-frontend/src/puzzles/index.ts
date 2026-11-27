@@ -1,3 +1,4 @@
+import { capitalize } from '../game/format';
 import { hashGivens, parsePuzzleJson, type PuzzleDef } from '../game/puzzleFile';
 
 /**
@@ -16,7 +17,3 @@ export const bundledPuzzles: PuzzleDef[] = Object.entries(files)
     // instead of showing the old puzzle's "Solved" badge on a new grid.
     return { ...puzzle, id: `bundled-${slug}-${hashGivens(puzzle.givens)}` };
   });
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}

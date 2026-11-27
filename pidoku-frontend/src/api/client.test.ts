@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { existingIdToken, idToken } from './auth';
-import { addFriend, ApiError, createSupporterCode, deletePlayer, fetchProfile, completeAttempt, fetchDaily, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, fetchStats, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
+import { addFriend, ApiError, createSupporterCode, deletePlayer, fetchProfile, completeAttempt, fetchDailyOn, fetchDailySummary, fetchLeaderboard, fetchPuzzleLeaderboard, fetchRandom, fetchStats, localDate, removeFriend, startAttempt, toPuzzleDef, type ApiPuzzle, type Attempt, type Leaderboard } from './client';
 
 // Signed out unless a test signs in: no test talks to Firebase.
 vi.mock('./auth', () => ({ idToken: vi.fn(), existingIdToken: vi.fn() }));
@@ -60,30 +60,43 @@ describe('toPuzzleDef', () => {
   });
 });
 
-describe('fetchDaily', () => {
+describe('localDate', () => {
+  it("is the device's own date, not the UTC one", () => {
+    expect(localDate(new Date(2026, 10, 16, 23, 30))).toBe('2026-11-16');
+    expect(localDate(new Date(2026, 0, 5, 0, 10))).toBe('2026-01-05');
+  });
+});
+
+describe('fetchDailyOn', () => {
   it('names each daily after its difficulty, keeping the order', async () => {
     respond(200, { date: '2026-11-16', puzzles: [apiPuzzle(), apiPuzzle({ shareCode: 'ABCDEFGH', difficulty: 'hard' })] });
-    const daily = await fetchDaily(undefined, new Date(2026, 10, 16, 23, 30));
+    const daily = await fetchDailyOn('2026-11-16');
     expect(daily.date).toBe('2026-11-16');
     expect(daily.puzzles.map((p) => p.name)).toEqual(['Daily Easy', 'Daily Hard']);
     expect(fetch).toHaveBeenCalledWith('/api/puzzles/daily/2026-11-16', expect.anything());
   });
 
+  it("gives each puzzle the response's date", async () => {
+    respond(200, { date: '2026-11-15', puzzles: [apiPuzzle()] });
+    const daily = await fetchDailyOn('2026-11-15');
+    expect(daily.puzzles[0].dailyDate).toBe('2026-11-15');
+  });
+
   it('never sends the ID token, so the CDN can cache the response', async () => {
     signIn('token-1');
     const fetchMock = respond(200, { date: '2026-11-16', puzzles: [apiPuzzle()] });
-    await fetchDaily();
+    await fetchDailyOn('2026-11-16');
     expect(fetchMock.mock.calls[0][1]?.headers).not.toHaveProperty('Authorization');
   });
 
   it('explains a 503 as the puzzles not being ready yet', async () => {
     respond(503, { title: 'Service Unavailable', status: 503, detail: 'No daily puzzles for 2026-11-16' });
-    await expect(fetchDaily()).rejects.toMatchObject({ status: 503, message: expect.stringContaining("aren't ready yet") });
+    await expect(fetchDailyOn('2026-11-16')).rejects.toMatchObject({ status: 503, message: expect.stringContaining("aren't ready yet") });
   });
 
   it('reports an unreachable server', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(fetchDaily()).rejects.toMatchObject({ status: null, message: expect.stringContaining("Couldn't reach") });
+    await expect(fetchDailyOn('2026-11-16')).rejects.toMatchObject({ status: null, message: expect.stringContaining("Couldn't reach") });
   });
 });
 
@@ -147,7 +160,7 @@ describe('fetchRandom', () => {
 });
 
 describe('attempts', () => {
-  const attempt: Attempt = { id: 12, puzzleId: 5, startedAt: '2026-11-16T10:00:00Z', completedAt: null, elapsedMs: null, mistakes: 0, hintsUsed: 0, activeMs: null, late: false };
+  const attempt: Attempt = { id: 12, puzzleId: 5, startedAt: '2026-11-16T10:00:00Z', completedAt: null, elapsedMs: null, mistakes: 0, hintsUsed: 0, hintPenaltyMs: 0, penaltyMs: 0, activeMs: null, late: false, progress: null, progressUpdatedAt: null, autoNotesUsed: false };
 
   it('starts an attempt at a puzzle as the signed-in player', async () => {
     signIn('token-1');
@@ -187,15 +200,6 @@ describe('attempts', () => {
   });
 });
 
-describe('fetchDailyOn', () => {
-  it("asks for that date's dailies", async () => {
-    const fetchMock = respond(200, { date: '2026-11-15', puzzles: [apiPuzzle()] });
-    const daily = await fetchDailyOn('2026-11-15');
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/puzzles/daily/2026-11-15');
-    expect(daily.puzzles[0].dailyDate).toBe('2026-11-15');
-  });
-});
-
 describe('fetchDailySummary', () => {
   const dailies = [{ difficulty: 'easy', solved: 3, fastest: { displayName: 'Ada', elapsedMs: 90000, you: false }, friendsSolved: null, friendsFastest: null }];
 
@@ -227,7 +231,7 @@ describe('fetchDailySummary', () => {
 });
 
 describe('fetchLeaderboard', () => {
-  const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, fastestClean: null };
+  const board: Leaderboard = { date: '2026-11-17', difficulty: 'hard', shareCode: 'ABC234', friendsOnly: false, cleanOnly: false, total: 0, entries: [], you: null, fastestClean: null };
 
   it("asks for a daily's leaderboard, signed in if possible", async () => {
     signIn('token-1');

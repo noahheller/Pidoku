@@ -2,7 +2,7 @@ import { Check, ChevronRight, FileText, LogOut, ShieldCheck, Trash2, UserRound }
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { deleteAccount, signOut, type Account } from '../api/auth';
-import { deletePlayer, updateVisibility, type Player, type ProfileVisibility } from '../api/client';
+import { deletePlayer, errorMessage, updateVisibility, type Player, type ProfileVisibility } from '../api/client';
 import { historyShownTo } from '../game/history';
 import { clearAllLocalData } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
@@ -123,7 +123,7 @@ function ProfileSettings({ player, onSaved }: { player: Player; onSaved: (player
 
 /** Who can see the puzzles the player has solved, on their profile. */
 function HistorySettings({ player, onSaved }: { player: Player; onSaved: (player: Player) => void }) {
-  const history = player.historyVisibility ?? 'friends';
+  const history = player.historyVisibility;
   const shownTo = historyShownTo(player.profileVisibility, history);
   return (
     <div className="grid gap-3">
@@ -170,7 +170,7 @@ function VisibilityChoice({
     setError(null);
     save(visibility)
       .then(onSaved)
-      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
+      .catch((err: unknown) => setError(errorMessage(err)))
       .finally(() => setSaving(null));
   };
 
@@ -225,7 +225,7 @@ function DeleteAccount({ account, onDeleted }: { account: Account; onDeleted: ()
         onDeleted();
       })
       .catch((e: unknown) => {
-        setError(e instanceof Error ? e.message : String(e));
+        setError(errorMessage(e));
         setStep('confirming');
       });
   };

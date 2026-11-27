@@ -15,7 +15,7 @@ import java.util.random.RandomGenerator;
  * <p>Thread-safe: it holds only the rules. When a random fill is wanted, the caller passes the
  * random number generator in with the call, so one solver can be shared by any number of threads.
  */
-public class PidokuBacktrackSolver implements PidokuSolver {
+public class PidokuBacktrackSolver {
 
     /** Counting stops here by default: two solutions is enough to know a puzzle isn't unique. */
     public static final int UNIQUENESS_CUTOFF = 2;
@@ -31,7 +31,6 @@ public class PidokuBacktrackSolver implements PidokuSolver {
      *
      * @return the solved puzzle, or null if the grid breaks the rules or has no solution
      */
-    @Override
     public PidokuPuzzle solve(int[][] puzzle) {
         return search(puzzle, null);
     }

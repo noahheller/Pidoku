@@ -22,7 +22,7 @@ import java.util.Set;
  * Solves like a person: at each step it looks at every move available and takes
  * the easiest one, recording how hard it was and how many alternatives existed.
  */
-public class HumanPidokuSolver implements PidokuSolver {
+public class HumanPidokuSolver {
     private final PidokuRules rules;
 
     public HumanPidokuSolver(PidokuRules rules) {
@@ -96,27 +96,6 @@ public class HumanPidokuSolver implements PidokuSolver {
             return Optional.of(new NextMove(strategy, moves.getFirst(), DifficultyScorer.moveCost(strategy, moves.getFirst(), rules), 0));
         }
         return Optional.empty();
-    }
-
-    /**
-     * The easiest way to justify placing {@code digit} at {@code cell} right now: the cheapest
-     * single that finds that placement, or empty if no single does (it may still be right, just
-     * not deducible yet without eliminations).
-     */
-    public static Optional<NextMove> findPlacement(SolverSearchState state, BoardPosition cell, int digit) {
-        PidokuRules rules = state.getRules();
-        NextMove best = null;
-        for (StrategyEnum strategy : StrategyEnum.values()) {
-            if (!strategy.placesDigits()) continue;
-            for (Move move : strategy.getStrategy().findAll(state)) {
-                if (!move.getPosition().equals(cell) || move.getValue() != digit) continue;
-                double cost = DifficultyScorer.moveCost(strategy, move, rules);
-                if (best == null || cost < best.cost()) {
-                    best = new NextMove(strategy, move, cost, 0);
-                }
-            }
-        }
-        return Optional.ofNullable(best);
     }
 
     /** Makes the easiest available move. Returns false if no strategy can make progress. */

@@ -49,7 +49,7 @@ export function localEntries(list: readonly PuzzleDef[]): RecentEntry[] {
 
 /** The server's list as entries. */
 export function serverEntries(recent: readonly RecentPuzzle[]): RecentEntry[] {
-  return recent.map((r) => ({ puzzle: r.puzzle, completed: r.completed, timeMs: r.timeMs, penaltyMs: r.penaltyMs ?? 0, autoNotesUsed: r.autoNotesUsed ?? false, lastPlayedAt: Date.parse(r.lastPlayedAt) || 0 }));
+  return recent.map((r) => ({ puzzle: r.puzzle, completed: r.completed, timeMs: r.timeMs, penaltyMs: r.penaltyMs, autoNotesUsed: r.autoNotesUsed, lastPlayedAt: Date.parse(r.lastPlayedAt) || 0 }));
 }
 
 /**

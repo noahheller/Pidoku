@@ -2,10 +2,7 @@ package dev.noahheller.pidoku.pidokuapi.puzzle;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.stream.Collectors;
+import dev.noahheller.pidoku.pidokuapi.web.ApiIds;
 
 /**
  * The difficulties players can choose from, easiest first.
@@ -25,7 +22,7 @@ public enum Difficulty {
     /** Lower-case name used in the API. */
     @JsonValue
     public String id() {
-        return name().toLowerCase(Locale.ROOT);
+        return ApiIds.of(this);
     }
 
     /**
@@ -35,12 +32,6 @@ public enum Difficulty {
      */
     @JsonCreator
     public static Difficulty fromId(String id) {
-        for (Difficulty difficulty : values()) {
-            if (difficulty.id().equalsIgnoreCase(id.strip())) {
-                return difficulty;
-            }
-        }
-        throw new IllegalArgumentException("Unknown difficulty '" + id + "'. Valid difficulties: "
-                + Arrays.stream(values()).map(Difficulty::id).collect(Collectors.joining(", ")));
+        return ApiIds.parse(Difficulty.class, id, "difficulty");
     }
 }

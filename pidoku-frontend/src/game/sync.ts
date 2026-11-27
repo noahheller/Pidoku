@@ -29,7 +29,7 @@ export function newerOnServer(local: SavedProgress | null, attempt: Attempt): Sa
     mistakes: progress.mistakes,
     elapsedMs: progress.activeMs,
     completed: false,
-    autoNotesUsed: attempt.autoNotesUsed ?? false,
+    autoNotesUsed: attempt.autoNotesUsed,
     savedAt: serverAt,
   };
   // The server stamps its copy when it arrives, which is after this browser's board last changed,

@@ -3,7 +3,8 @@ import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { currentAccount } from '../api/auth';
 import { recordEvent } from '../api/events';
-import { ApiError, DAILY_DIFFICULTIES, fetchDailyOn, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
+import { useLoad } from '../api/useLoad';
+import { DAILY_DIFFICULTIES, errorMessage, fetchDailyOn, fetchPlayer, fetchStreak, localDate, updateDisplayName, type Streak } from '../api/client';
 import { dailyNumber, nextUnsolved, shareLine, shareUrl } from '../game/daily';
 import { formatPenalty, formatTime } from '../game/format';
 import { canAutoNote } from '../game/game';
@@ -324,17 +325,10 @@ function GooglePrompt({ streak }: { streak: number }) {
  */
 function NextDailyButton({ puzzle, onExit }: { puzzle: PuzzleDef; onExit: () => void }) {
   const navigate = useNavigate();
-  const [next, setNext] = useState<{ status: 'loading' } | { status: 'done'; puzzle: PuzzleDef | null }>({ status: 'loading' });
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchDailyOn(puzzle.dailyDate!, controller.signal)
-      .then(({ puzzles }) => setNext({ status: 'done', puzzle: nextUnsolved(puzzles, puzzle.id, (id) => loadProgress(id)?.completed === true) }))
-      .catch(() => {
-        if (!controller.signal.aborted) setNext({ status: 'done', puzzle: null });
-      });
-    return () => controller.abort();
-  }, [puzzle.dailyDate, puzzle.id]);
+  const { state: next } = useLoad(puzzle.id, async (signal) => {
+    const { puzzles } = await fetchDailyOn(puzzle.dailyDate!, signal);
+    return nextUnsolved(puzzles, puzzle.id, (id) => loadProgress(id)?.completed === true);
+  });
 
   if (next.status === 'loading') {
     return (
@@ -343,7 +337,8 @@ function NextDailyButton({ puzzle, onExit }: { puzzle: PuzzleDef; onExit: () => 
       </button>
     );
   }
-  const following = next.puzzle;
+  // Failed: there's no next one to offer.
+  const following = next.status === 'loaded' ? next.value : null;
   if (!following?.shareCode) {
     return (
       <button type="button" className="btn btn-sm btn-primary" onClick={onExit}>
@@ -443,7 +438,7 @@ function NamePrompt() {
     setState({ status: 'asking', saving: true, error: null });
     updateDisplayName(name)
       .then((player) => setState({ status: 'saved', name: player.displayName ?? name.trim() }))
-      .catch((err: unknown) => setState({ status: 'asking', saving: false, error: err instanceof ApiError ? err.message : String(err) }));
+      .catch((err: unknown) => setState({ status: 'asking', saving: false, error: errorMessage(err) }));
   };
 
   return (

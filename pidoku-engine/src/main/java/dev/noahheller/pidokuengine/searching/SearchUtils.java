@@ -2,57 +2,52 @@ package dev.noahheller.pidokuengine.searching;
 
 import dev.noahheller.pidokuengine.BoardPosition;
 import dev.noahheller.pidokuengine.PidokuRules;
+import dev.noahheller.pidokuengine.strategy.Unit;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class SearchUtils {
-    /**
-     * @param state the current state of the board
-     * @param row to check
-     * @return List of all empty cells in the row
-     */
-    public static List<BoardPosition> emptyCellsInRow(SolverSearchState state, int row) {
-        List<BoardPosition> cells = new ArrayList<>();
-        for (int col = 0; col < state.getSize(); col++)
-            if (state.isEmpty(row, col)) {
-                cells.add(new BoardPosition(row, col));
-            }
-        return cells;
+public final class SearchUtils {
+
+    private SearchUtils() {
     }
 
-    /**
-     * @param state the current state of the board
-     * @param col to check
-     * @return List of all empty cells in the col
-     */
-    public static List<BoardPosition> emptyCellsInCol(SolverSearchState state, int col) {
-        List<BoardPosition> cells = new ArrayList<>();
-        for (int row = 0; row < state.getSize(); row++)
-            if (state.isEmpty(row, col)) {
-                cells.add(new BoardPosition(row, col));
-            }
-        return cells;
+    /** The unit's empty cells, in reading order. */
+    public static List<BoardPosition> emptyCells(SolverSearchState state, Unit unit) {
+        return cellsWhere(state, unit, -1);
     }
 
-    /**
-     * @param state the current state of the board
-     * @param boxIndex of the box
-     * @return List of all empty cells in the box
-     */
-    public static List<BoardPosition> emptyCellsInBox(SolverSearchState state, int boxIndex) {
-        List<BoardPosition> cells = new ArrayList<>();
+    /** The unit's cells that can still hold {@code digit}, in reading order. */
+    public static List<BoardPosition> candidateCells(SolverSearchState state, Unit unit, int digit) {
+        return cellsWhere(state, unit, digit);
+    }
+
+    /** The unit's cells that are empty ({@code digit < 0}) or can hold {@code digit}, in reading order. */
+    private static List<BoardPosition> cellsWhere(SolverSearchState state, Unit unit, int digit) {
         PidokuRules rules = state.getRules();
-        int size = state.getSize();
-        int boxSize = rules.boxDim(size);
-        int startRow = (boxIndex / rules.boxesPerRow(size)) * boxSize;
-        int startCol = (boxIndex % rules.boxesPerRow(size)) * boxSize;
-        for (int row = startRow; row < startRow + boxSize; row++)
-            for (int col = startCol; col < startCol + boxSize; col++)
-                if (state.isEmpty(row, col)) {
+        List<BoardPosition> cells = new ArrayList<>();
+        int top = unit.top(rules);
+        int left = unit.left(rules);
+        int bottom = top + unit.height(rules);
+        int right = left + unit.width(rules);
+        for (int row = top; row < bottom; row++) {
+            for (int col = left; col < right; col++) {
+                if (digit < 0 ? state.isEmpty(row, col) : isCandidate(state, row, col, digit)) {
                     cells.add(new BoardPosition(row, col));
                 }
+            }
+        }
         return cells;
+    }
+
+    /** How many more copies of {@code digit} the unit needs: as many as π has, less those placed. */
+    public static int remaining(SolverSearchState state, Unit unit, int digit) {
+        int placed = switch (unit.type()) {
+            case ROW -> state.getRowDigitCount(unit.index(), digit);
+            case COLUMN -> state.getColDigitCount(unit.index(), digit);
+            case BOX -> state.getBoxDigitCount(unit.index(), digit);
+        };
+        return state.getRules().getDigitFrequency(digit) - placed;
     }
 
     /**
