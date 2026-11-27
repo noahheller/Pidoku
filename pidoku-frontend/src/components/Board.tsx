@@ -1,4 +1,4 @@
-import { memo, useMemo, type CSSProperties } from 'react';
+import { memo, useMemo, type CSSProperties, type ReactNode } from 'react';
 import { isGiven, isMistake, type GameState } from '../game/game';
 import { EMPTY, findConflicts, isPeer } from '../game/rules';
 
@@ -23,9 +23,16 @@ interface BoardProps {
   state: GameState;
   onSelect: (index: number) => void;
   highlight?: BoardHighlight | null;
+  /** Redraws every digit in a wave from the top-left: a solve celebration (see Celebration). */
+  wave?: boolean;
+  /** Drawn over the board, e.g. a Celebration. */
+  overlay?: ReactNode;
 }
 
-export function Board({ state, onSelect, highlight = null }: BoardProps) {
+/** Between one diagonal of the write-in wave and the next. */
+const WAVE_STEP_MS = 45;
+
+export function Board({ state, onSelect, highlight = null, wave = false, overlay = null }: BoardProps) {
   const { rules, values, notes, selected } = state;
   const conflicts = useMemo(() => findConflicts(rules, values), [rules, values]);
   const marks = useMemo(() => {
@@ -47,7 +54,7 @@ export function Board({ state, onSelect, highlight = null }: BoardProps) {
         state.notesMode
           ? '[--hl:var(--color-secondary)] [--hl-line:var(--color-secondary)]'
           : '[--hl:var(--color-primary)] [--hl-line:var(--color-primary)]',
-        '@container grid aspect-square w-full min-w-0 overflow-hidden rounded-sm border-3 border-base-content bg-base-100 select-none touch-manipulation',
+        '@container relative grid aspect-square w-full min-w-0 overflow-hidden rounded-sm border-3 border-base-content bg-base-100 select-none touch-manipulation',
         'sm:w-[min(100%,560px,calc(100vh_-_9rem))] sm:min-w-[280px]',
       ].join(' ')}
       role="grid"
@@ -82,11 +89,13 @@ export function Board({ state, onSelect, highlight = null }: BoardProps) {
             boxBottom={(row + 1) % rules.boxDim === 0 && row !== rules.size - 1}
             lastCol={col === rules.size - 1}
             lastRow={row === rules.size - 1}
+            waveDelay={wave ? (row + col) * WAVE_STEP_MS : null}
             label={`Row ${row + 1}, column ${col + 1}`}
             onSelect={onSelect}
           />
         );
       })}
+      {overlay}
     </div>
   );
 }
@@ -110,6 +119,8 @@ interface CellProps {
   boxBottom: boolean;
   lastCol: boolean;
   lastRow: boolean;
+  /** Set during the write-in wave: when this cell's digit redraws. */
+  waveDelay: number | null;
   label: string;
   onSelect: (index: number) => void;
 }
@@ -117,7 +128,7 @@ interface CellProps {
 const NOTE_SLOTS = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 const Cell = memo(function Cell(props: CellProps) {
-  const { index, value, notes, given, selected, peer, sameDigit, highlightNote, error, clash, mark, blocker, boxRight, boxBottom, lastCol, lastRow, label, onSelect } = props;
+  const { index, value, notes, given, selected, peer, sameDigit, highlightNote, error, clash, mark, blocker, boxRight, boxBottom, lastCol, lastRow, waveDelay, label, onSelect } = props;
   // Each property is picked in one place so no two utilities fight over it.
   const background = selected
     ? 'bg-(color:--hl)/35'
@@ -141,7 +152,8 @@ const Cell = memo(function Cell(props: CellProps) {
       : blocker
         ? 'outline-2 -outline-offset-4 outline-info rounded-full'
         : clash && 'outline-2 -outline-offset-3 outline-error/60';
-  const color = error ? 'text-error' : given ? 'text-base-content' : 'text-primary';
+  // The player's own digits are in their ink: the theme's pen colour unless they picked another (--ink).
+  const color = error ? 'text-error' : given ? 'text-base-content' : 'text-[color:var(--ink,var(--color-primary))]';
   const right = lastCol ? 'border-r-0' : boxRight ? 'border-r-2 border-r-base-content' : 'border-r border-r-base-300';
   const bottom = lastRow ? 'border-b-0' : boxBottom ? 'border-b-2 border-b-base-content' : 'border-b border-b-base-300';
   const classes = [
@@ -177,7 +189,13 @@ const Cell = memo(function Cell(props: CellProps) {
       onClick={() => onSelect(index)}
     >
       {value !== EMPTY ? (
-        <span>{value}</span>
+        waveDelay !== null ? (
+          <span className="inline-block motion-safe:animate-write-in" style={{ animationDelay: `${waveDelay}ms` }}>
+            {value}
+          </span>
+        ) : (
+          <span>{value}</span>
+        )
       ) : notes !== 0 ? (
         <span
           className="absolute inset-[3%] grid grid-cols-3 grid-rows-3 casual text-[length:calc(100cqi/var(--size)*0.3)] font-medium leading-none text-base-content/80 sm:text-[length:calc(100cqi/var(--size)*0.27)]"

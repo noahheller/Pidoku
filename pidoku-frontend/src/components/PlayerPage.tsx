@@ -5,6 +5,7 @@ import { ApiError, DAILY_DIFFICULTIES, fetchProfile, type PlayerProfile } from '
 import { dailyLabel } from '../game/daily';
 import { formatDate, formatPenalty, formatTime } from '../game/format';
 import { clearPlayerCaches } from '../game/storage';
+import { reloadCosmetics } from './cosmetics';
 import { GoogleButton } from './Profile';
 import { VISIBILITY } from './visibility';
 
@@ -62,7 +63,10 @@ export function PlayerPage() {
         <SignInNeeded
           onSignedIn={(result) => {
             // Another player now: what was cached for the old one no longer applies.
-            if (result === 'switched') clearPlayerCaches();
+            if (result === 'switched') {
+              clearPlayerCaches();
+              reloadCosmetics();
+            }
             setRetries((n) => n + 1);
           }}
         />

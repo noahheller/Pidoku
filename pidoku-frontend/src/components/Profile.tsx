@@ -7,6 +7,8 @@ import { sendPendingCompletions } from '../api/completions';
 import { friendUrl } from '../game/daily';
 import { clearAllLocalData, clearPlayerCaches } from '../game/storage';
 import { KOFI_URL } from '../support';
+import { reloadCosmetics, setSupporter } from './cosmetics';
+import { LookAndFeel } from './LookAndFeel';
 import { SupportSection } from './Support';
 import { VISIBILITY } from './visibility';
 
@@ -31,7 +33,10 @@ export function Profile() {
   useEffect(() => {
     const controller = new AbortController();
     Promise.all([currentAccount(), fetchPlayer(controller.signal), fetchFriends(controller.signal)])
-      .then(([account, player, friends]) => setState({ status: 'loaded', account, player, friends }))
+      .then(([account, player, friends]) => {
+        setState({ status: 'loaded', account, player, friends });
+        setSupporter(player.supporterSince !== null);
+      })
       .catch((e: unknown) => {
         if (!controller.signal.aborted) setState({ status: 'failed', message: e instanceof Error ? e.message : String(e) });
       });
@@ -76,8 +81,11 @@ export function Profile() {
             <AddFriendForm onAdded={(friend) => setState({ ...state, friends: mergeFriend(state.friends, friend) })} />
             <FriendList friends={state.friends} onRemoved={(id) => setState({ ...state, friends: state.friends.filter((f) => f.id !== id) })} />
           </Card>
+          <Card title="Look & feel">
+            <LookAndFeel canSupport={state.player.supporterSince === null && KOFI_URL !== null} />
+          </Card>
           {(state.player.supporterSince !== null || KOFI_URL !== null) && (
-            <Card title="Support Pidoku">
+            <Card title="Support Pidoku" id="support">
               <SupportSection player={state.player} account={state.account} />
             </Card>
           )}
@@ -89,7 +97,10 @@ export function Profile() {
                   setState({ ...state, account: { ...state.account!, isAnonymous: false } });
                   // A player with no name takes their Google account's on the next request: show it.
                   fetchPlayer()
-                    .then((player) => setState((s) => (s.status === 'loaded' ? { ...s, player } : s)))
+                    .then((player) => {
+                      setState((s) => (s.status === 'loaded' ? { ...s, player } : s));
+                      setSupporter(player.supporterSince !== null);
+                    })
                     .catch(() => {
                       // The old name stays on screen until the page is opened again.
                     });
@@ -97,6 +108,7 @@ export function Profile() {
                 onPlayerChanged={() => {
                   // Another player now: what was cached for the old one no longer applies.
                   clearPlayerCaches();
+                  reloadCosmetics();
                   reload();
                 }}
               />
@@ -120,9 +132,9 @@ function mergeFriend(friends: Friend[], friend: Friend): Friend[] {
   return friends.some((f) => f.id === friend.id) ? friends : [...friends, friend];
 }
 
-function Card({ title, children }: { title: string; children: ReactNode }) {
+function Card({ title, id, children }: { title: string; id?: string; children: ReactNode }) {
   return (
-    <section className="card border border-base-300 bg-base-100 shadow-sm">
+    <section id={id} className="card scroll-mt-4 border border-base-300 bg-base-100 shadow-sm">
       <div className="card-body gap-4 p-4 sm:p-5">
         <h2 className="text-lg font-semibold">{title}</h2>
         {children}
@@ -488,6 +500,7 @@ function DeleteAccount({ account, onDeleted }: { account: Account; onDeleted: ()
           return;
         }
         clearAllLocalData();
+        reloadCosmetics();
         onDeleted();
       })
       .catch((e: unknown) => {

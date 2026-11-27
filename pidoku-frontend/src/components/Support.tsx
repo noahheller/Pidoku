@@ -6,7 +6,7 @@ import { KOFI_URL } from '../support';
 
 /**
  * The "Support Pidoku" card on /me. A tip on Ko-fi with the player's single-use code in its message
- * gives them a supporter badge on leaderboards. The code is how the tip finds the player: Ko-fi's
+ * gives them a supporter badge on leaderboards and unlocks the supporter looks (LookAndFeel). The code is how the tip finds the player: Ko-fi's
  * details about the payer (name, email) are never kept.
  */
 export function SupportSection({ player, account, kofiUrl = KOFI_URL }: { player: Player; account: Account | null; kofiUrl?: string | null }) {
@@ -16,7 +16,7 @@ export function SupportSection({ player, account, kofiUrl = KOFI_URL }: { player
         <Coffee className="size-4 shrink-0 text-secondary" aria-hidden="true" />
         <span>
           Supporter since {new Date(player.supporterSince).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}. Thank you! Your badge shows next to your name on
-          leaderboards.
+          leaderboards, and every theme, ink, digit style and celebration under Look &amp; feel is yours.
         </span>
       </p>
     );
@@ -50,13 +50,13 @@ function SupportSteps({ kofiUrl, anonymous }: { kofiUrl: string; anonymous: bool
   return (
     <div className="grid gap-3">
       <p className="text-sm text-base-content/70">
-        Pidoku is free and has no ads. If you enjoy it, a tip on Ko-fi helps pay for the servers, and you get a <Coffee className="inline size-3.5 text-secondary" aria-hidden="true" /> supporter
-        badge next to your name on leaderboards. It never changes your rank.
+        Pidoku is free and has no ads. If you enjoy it, a tip on Ko-fi helps pay for the servers. You get a <Coffee className="inline size-3.5 text-secondary" aria-hidden="true" /> supporter
+        badge next to your name on leaderboards, and all the board themes, inks, digit styles and solve celebrations under Look &amp; feel. None of it changes your rank.
       </p>
       <ol className="list-decimal grid gap-1 pl-5 text-sm">
         <li>Get your code (it works once, for 30 days).</li>
         <li>Paste it into the message of your tip on Ko-fi.</li>
-        <li>Your badge appears once Ko-fi tells us about the tip, usually within a minute.</li>
+        <li>Your badge and the rest appear once Ko-fi tells us about the tip, usually within a minute. Reload this page to see them.</li>
       </ol>
       {anonymous && (
         <p className="flex items-start gap-2 text-sm text-warning">

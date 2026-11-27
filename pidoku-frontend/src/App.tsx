@@ -2,19 +2,21 @@ import { CircleAlert, RotateCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router';
 import { existingIdToken } from './api/auth';
-import { fetchByShareCode, fetchPuzzleLeaderboard } from './api/client';
+import { fetchByShareCode, fetchPlayer, fetchPuzzleLeaderboard } from './api/client';
 import { sendPendingCompletions } from './api/completions';
 import { flushEvents, recordEvent } from './api/events';
 import { Game } from './components/Game';
 import { LeaderboardPage } from './components/LeaderboardPage';
 import { PlayerPage } from './components/PlayerPage';
 import { PrivacyPage } from './components/PrivacyPage';
+import { currentCosmetics, setSupporter } from './components/cosmetics';
 import { AddFriendPage, Profile } from './components/Profile';
 import { PuzzlePicker, type PlayOptions } from './components/PuzzlePicker';
 import { StatsPage } from './components/StatsPage';
 import { Tutorial } from './components/Tutorial';
 import { timeToBeat, type TimeToBeat } from './game/leaderboardStats';
 import type { PuzzleDef } from './game/puzzleFile';
+import { hasLockedChoice } from './game/cosmetics';
 import { addRecent } from './game/recent';
 import { clearProgress, clearResult, hasAccount, loadProgress, loadRecentPuzzles, saveRecentPuzzles } from './game/storage';
 import { bundledPuzzles } from './puzzles';
@@ -44,6 +46,7 @@ function App() {
   const [recent, setRecent] = useState(loadRecentPuzzles);
   const navigate = useNavigate();
   useShareArrival();
+  useSupporterCheck();
 
   // Solves the API couldn't be told about at the time (see api/completions.ts), and analytics
   // events waiting to be sent: try again now, and whenever the connection comes back.
@@ -101,6 +104,25 @@ function App() {
 function TutorialPage() {
   const exit = useExit();
   return <Tutorial onDone={exit} onBack={exit} doneLabel="Play today's puzzles" />;
+}
+
+/**
+ * Supporter-only looks (game/cosmetics.ts) show from what this browser last heard, so they're
+ * there straight away and offline. When some are chosen, asks the API once a visit whether the
+ * badge is still there (it isn't for another player signed in here, say). Nobody else is asked:
+ * a supporter picks their looks on /me, which says so itself.
+ */
+function useSupporterCheck() {
+  useEffect(() => {
+    if (!hasLockedChoice(currentCosmetics().chosen) || !hasAccount()) return;
+    const controller = new AbortController();
+    fetchPlayer(controller.signal)
+      .then((player) => setSupporter(player.supporterSince !== null))
+      .catch(() => {
+        // Offline or the API's down: keep what was known.
+      });
+    return () => controller.abort();
+  }, []);
 }
 
 let arrivalRecorded = false;
