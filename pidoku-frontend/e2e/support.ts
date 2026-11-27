@@ -30,8 +30,11 @@ export function today(offsetDays = 0): string {
 /**
  * A new player in their own browser context. `uid` makes two contexts the same player on two
  * devices. Unless `tutorial`, they've already seen the tutorial, so a puzzle opens straight away.
+ * A `google` player is signed in with Google as far as the API is concerned (its uid starts
+ * `e2e-google-`, see the API's E2eConfiguration), which other players' profiles need.
  */
-export async function newPlayer(browser: Browser, { uid = `e2e-${randomUUID()}`, tutorial = false } = {}): Promise<Player> {
+export async function newPlayer(browser: Browser, { google = false, tutorial = false, uid }: { google?: boolean; tutorial?: boolean; uid?: string } = {}): Promise<Player> {
+  uid ??= `e2e-${google ? 'google-' : ''}${randomUUID()}`;
   const context = await browser.newContext({ permissions: ['clipboard-read', 'clipboard-write'] });
   await context.addInitScript(
     ({ uid, tutorial }) => {

@@ -8,8 +8,8 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 /**
- * Who can see a player's profile. Stored and shown in JSON by {@link #id()} (see the CHECK
- * constraint in V11).
+ * Who can see a player's profile, or their puzzle history on it. Stored and shown in JSON by
+ * {@link #id()} (see the CHECK constraints in V11 and V14).
  */
 public enum ProfileVisibility {
     /** Any player, e.g. from a leaderboard. */
@@ -32,11 +32,11 @@ public enum ProfileVisibility {
                 return visibility;
             }
         }
-        throw new InvalidProfileVisibilityException("Unknown profile visibility '" + id + "'. Valid values: "
+        throw new InvalidProfileVisibilityException("Unknown visibility '" + id + "'. Valid values: "
                 + Arrays.stream(values()).map(ProfileVisibility::id).collect(Collectors.joining(", ")));
     }
 
-    /** Whether someone with this relationship to the player may see their profile. */
+    /** Whether someone with this relationship to the player may see their profile (or history). */
     public boolean visibleTo(boolean self, boolean friend) {
         return self || this == PUBLIC || (this == FRIENDS && friend);
     }

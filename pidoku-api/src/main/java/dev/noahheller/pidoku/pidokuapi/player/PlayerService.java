@@ -90,23 +90,28 @@ public class PlayerService {
     }
 
     /**
-     * Changes the display name and/or profile visibility of the player a token belongs to, creating
-     * the player if needed. Null leaves that one as it is; with both null, the missing name is
-     * refused. Both are checked before either changes.
+     * Changes the display name, profile visibility and/or history visibility of the player a token
+     * belongs to, creating the player if needed. Null leaves that one as it is; with all null, the
+     * missing name is refused. All are checked before any changes.
      *
      * @throws InvalidDisplayNameException       if the name isn't allowed (see {@link DisplayName})
-     * @throws InvalidProfileVisibilityException if the visibility isn't a {@link ProfileVisibility} id
+     * @throws InvalidProfileVisibilityException if a visibility isn't a {@link ProfileVisibility} id
      */
     @Transactional
-    public Player update(Jwt token, String displayName, String profileVisibility) {
-        DisplayName name = displayName != null || profileVisibility == null ? DisplayName.of(displayName) : null;
-        ProfileVisibility visibility = profileVisibility == null ? null : ProfileVisibility.fromId(profileVisibility);
+    public Player update(Jwt token, String displayName, String profileVisibility, String historyVisibility) {
+        boolean nothingElse = profileVisibility == null && historyVisibility == null;
+        DisplayName name = displayName != null || nothingElse ? DisplayName.of(displayName) : null;
+        ProfileVisibility profile = profileVisibility == null ? null : ProfileVisibility.fromId(profileVisibility);
+        ProfileVisibility history = historyVisibility == null ? null : ProfileVisibility.fromId(historyVisibility);
         Player player = me(token);
         if (name != null) {
             player.rename(name);
         }
-        if (visibility != null) {
-            player.setProfileVisibility(visibility);
+        if (profile != null) {
+            player.setProfileVisibility(profile);
+        }
+        if (history != null) {
+            player.setHistoryVisibility(history);
         }
         return player;
     }

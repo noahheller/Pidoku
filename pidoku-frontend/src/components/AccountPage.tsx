@@ -2,7 +2,8 @@ import { Check, ChevronRight, FileText, LogOut, ShieldCheck, Trash2, UserRound }
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { deleteAccount, signOut, type Account } from '../api/auth';
-import { deletePlayer, updateProfileVisibility, type Player, type ProfileVisibility } from '../api/client';
+import { deletePlayer, updateVisibility, type Player, type ProfileVisibility } from '../api/client';
+import { historyShownTo } from '../game/history';
 import { clearAllLocalData } from '../game/storage';
 import { reloadCosmetics } from './cosmetics';
 import { GoogleButton } from './GoogleButton';
@@ -10,7 +11,7 @@ import { Card, LoadStatus, SubPage } from './SubPage';
 import { usePlayer } from './usePlayer';
 import { VISIBILITY } from './visibility';
 
-/** `/me/account`: Google sign-in, who can see the player's profile, their data, and deleting the account. */
+/** `/me/account`: Google sign-in, who can see the player's profile and history, their data, and deleting the account. */
 export function AccountPage() {
   const { state, reload, setPlayer, afterSignIn, playerChanged } = usePlayer();
   const [deleted, setDeleted] = useState(false);
@@ -31,6 +32,9 @@ export function AccountPage() {
               )}
               <Card title="Who can see your profile">
                 <ProfileSettings player={state.player} onSaved={setPlayer} />
+              </Card>
+              <Card title="Who can see your puzzle history">
+                <HistorySettings player={state.player} onSaved={setPlayer} />
               </Card>
               <Card title="Your data">
                 <p className="text-sm text-base-content/70">What Pidoku keeps about you, who can see it, and how to delete it.</p>
@@ -100,25 +104,80 @@ function AccountSection({ account, onSignedIn, onSignedOut }: { account: Account
 
 /** Who can see the player's profile, saved as soon as it's picked, and a link to see it. */
 function ProfileSettings({ player, onSaved }: { player: Player; onSaved: (player: Player) => void }) {
+  return (
+    <div className="grid gap-3">
+      <p className="text-sm text-base-content/70">Your profile shows your streaks, best times and this week's dailies.</p>
+      <VisibilityChoice
+        name="profile-visibility"
+        legend="Who can see your profile"
+        value={player.profileVisibility}
+        save={(profileVisibility) => updateVisibility({ profileVisibility })}
+        onSaved={onSaved}
+      />
+      <Link to={`/players/${player.id}`} className="btn btn-plain btn-sm w-fit">
+        <UserRound className="size-4" aria-hidden="true" /> View your profile
+      </Link>
+    </div>
+  );
+}
+
+/** Who can see the puzzles the player has solved, on their profile. */
+function HistorySettings({ player, onSaved }: { player: Player; onSaved: (player: Player) => void }) {
+  const history = player.historyVisibility ?? 'friends';
+  const shownTo = historyShownTo(player.profileVisibility, history);
+  return (
+    <div className="grid gap-3">
+      <p className="text-sm text-base-content/70">
+        Every puzzle you've solved, random ones included, with your times, so others can open one and try to beat you. Unfinished puzzles never show.
+      </p>
+      <VisibilityChoice
+        name="history-visibility"
+        legend="Who can see your puzzle history"
+        value={history}
+        save={(historyVisibility) => updateVisibility({ historyVisibility })}
+        onSaved={onSaved}
+      />
+      {shownTo !== history && (
+        <p className="text-sm text-base-content/70" role="note">
+          Your profile is {VISIBILITY[player.profileVisibility].label.toLowerCase()} and your history is shown on it, so {shownTo === 'private' ? 'only you' : 'only your friends'} can see it for now.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** Public, friends only or private, saved as soon as it's picked; the choices lock until it is. */
+function VisibilityChoice({
+  name,
+  legend,
+  value,
+  save,
+  onSaved,
+}: {
+  name: string;
+  legend: string;
+  value: ProfileVisibility;
+  save: (visibility: ProfileVisibility) => Promise<Player>;
+  onSaved: (player: Player) => void;
+}) {
   const [saving, setSaving] = useState<ProfileVisibility | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const shown = saving ?? player.profileVisibility;
+  const shown = saving ?? value;
 
   const pick = (visibility: ProfileVisibility) => {
-    if (visibility === player.profileVisibility || saving) return;
+    if (visibility === value || saving) return;
     setSaving(visibility);
     setError(null);
-    updateProfileVisibility(visibility)
+    save(visibility)
       .then(onSaved)
       .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)))
       .finally(() => setSaving(null));
   };
 
   return (
-    <div className="grid gap-3">
-      <p className="text-sm text-base-content/70">Your profile shows your streaks, best times and this week's dailies.</p>
+    <>
       <fieldset className="grid gap-2" disabled={saving !== null}>
-        <legend className="sr-only">Who can see your profile</legend>
+        <legend className="sr-only">{legend}</legend>
         {(Object.keys(VISIBILITY) as ProfileVisibility[]).map((visibility) => {
           const { label, description, Icon } = VISIBILITY[visibility];
           return (
@@ -126,13 +185,7 @@ function ProfileSettings({ player, onSaved }: { player: Player; onSaved: (player
               key={visibility}
               className={`flex cursor-pointer items-start gap-3 rounded-box border p-3 transition ${shown === visibility ? 'border-primary bg-primary/5' : 'border-base-300 hover:border-primary/50'}`}
             >
-              <input
-                type="radio"
-                name="profile-visibility"
-                className="radio radio-primary radio-sm mt-0.5"
-                checked={shown === visibility}
-                onChange={() => pick(visibility)}
-              />
+              <input type="radio" name={name} className="radio radio-primary radio-sm mt-0.5" checked={shown === visibility} onChange={() => pick(visibility)} />
               <span className="grid gap-0.5">
                 <span className="flex items-center gap-1.5 font-medium">
                   <Icon className="size-4" aria-hidden="true" /> {label}
@@ -149,10 +202,7 @@ function ProfileSettings({ player, onSaved }: { player: Player; onSaved: (player
           {error}
         </p>
       )}
-      <Link to={`/players/${player.id}`} className="btn btn-plain btn-sm w-fit">
-        <UserRound className="size-4" aria-hidden="true" /> View your profile
-      </Link>
-    </div>
+    </>
   );
 }
 

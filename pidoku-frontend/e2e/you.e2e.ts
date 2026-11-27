@@ -24,10 +24,19 @@ test('the home screen leads to Friends and to You, and You to Account & privacy'
   await expect(page.getByRole('button', { name: 'Delete my account' })).toBeVisible();
 
   // Visibility is saved as soon as it's picked (the choices lock until it is).
-  const publicChoice = page.getByRole('radio', { name: /^Public/ });
+  const publicChoice = page.getByRole('group', { name: 'Who can see your profile' }).getByRole('radio', { name: /^Public/ });
   await publicChoice.check();
   await expect(publicChoice).toBeEnabled();
   await page.reload();
+  await expect(publicChoice).toBeChecked();
+
+  // The puzzle history has its own setting, friends only until it's changed.
+  const history = page.getByRole('group', { name: 'Who can see your puzzle history' });
+  await expect(history.getByRole('radio', { name: /^Friends only/ })).toBeChecked();
+  await history.getByRole('radio', { name: /^Private/ }).check();
+  await expect(history.getByRole('radio', { name: /^Private/ })).toBeEnabled();
+  await page.reload();
+  await expect(history.getByRole('radio', { name: /^Private/ })).toBeChecked();
   await expect(publicChoice).toBeChecked();
 
   // And the You menu shows it.
